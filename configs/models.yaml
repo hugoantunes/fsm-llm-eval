@@ -36,12 +36,19 @@ ollama:
 num_ctx: 8192                   # 16384 if RAM allows
 max_prompt_fraction: 0.8        # T-07: fail if prompt_eval_count > 0.8 x num_ctx
 
+client:                         # T-07: how sim.llm behaves when a call is slow or fails
+  timeout_s: 300                # a judge call is ~49 s and a cold load adds ~30 s; this
+                                # catches a hung server without cutting a healthy call
+  retries: 2                    # transport and timeout errors only; never a refused prompt
+  backoff_s: 2                  # seconds before the first retry, doubled after each one
+
 models:
   agent:                        # used by baseline AND fsm, no exceptions
     name: "qwen3.5:9b"          # 9.7B, Q4_K_M; 6.6 GB download, 5.7 GB loaded (ctx 8192 x 2)
     digest: "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7"
-    temperature: null           # decide in T-07/T-09, identical for both agents
-    seed: null
+    temperature: 0.7            # deployment-realistic sampling; identical for both agents
+    seed: 42                    # BASE seed: T-14a derives the per-dialogue seed from
+                                # (42, scenario_id, repetition) and gives both agents the same
   simulator:                    # simulated user + event classifier + stage labeler
     name: "qwen3.5:4b"          # 4.7B, Q4_K_M; 3.4 GB download, 3.4 GB loaded
     digest: "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd"
@@ -49,5 +56,5 @@ models:
   judge:                        # a different family from the agents; the SAME in T-16 and T-17
     name: "gemma4:12b"          # 11.9B, Q4_K_M; 7.6 GB download, 8.6 GB loaded
     digest: "4eb23ef187e2c5462566d6a1d3bbbc2f1346d0b4327cbb66d58fffbcc9b2b05c"
-    temperature: null
-    seed: null
+    temperature: 0              # a measuring instrument does not sample
+    seed: 42

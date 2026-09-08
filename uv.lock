@@ -645,6 +645,7 @@ name = "fsm-llm-eval"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "ollama" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -666,6 +667,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28" },
     { name = "ollama", specifier = ">=0.5" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
