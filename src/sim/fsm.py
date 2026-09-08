@@ -36,6 +36,9 @@ PACKAGE_SECTIONS = (
 #: A fact of the KB cited in the prose of a state package, as in "the e-mail (F05)".
 _MENTIONED_FACT = re.compile(r"\bF\d{2}\b")
 
+#: A section heading of a state package. The title of the file is a single ``#``.
+_PACKAGE_HEADING = re.compile(r"^##\s+.*$", re.MULTILINE)
+
 
 class FsmError(ValueError):
     """The FSM files are inconsistent; the message says what to fix."""
@@ -102,12 +105,19 @@ class FsmSpec(BaseModel):
         This filter is what makes the FSM agent's context differ from the
         baseline's full knowledge base, a deliberate difference of the experiment.
         A state marked ``facts_from_intent`` also gets the whole section of the
-        classified ``intent``; ``intent`` is ``None`` before classification.
+        classified ``intent``, and demands one: ``intent`` is ``None`` only in the
+        states the dialogue passes through before classification.
         """
         self._check_state(state)
         declaration = self.states[state]
         released = set(declaration.facts)
-        if declaration.facts_from_intent and intent is not None:
+        if declaration.facts_from_intent:
+            if intent is None:
+                raise FsmError(
+                    f"state {state!r} releases the facts of the classified intent, "
+                    f"so it cannot be entered without one. Passing none would "
+                    f"quietly leave the agent with the general facts alone"
+                )
             from_intent = {fact.id for fact in kb.facts if fact.intent == intent}
             if not from_intent:
                 raise FsmError(
@@ -304,14 +314,23 @@ def _check_packages(spec: FsmSpec, directory: Path) -> None:
 
 
 def _check_package_sections(name: str, package: str) -> None:
-    """Fail unless the package carries every section a state package must have."""
+    """Fail unless the package carries exactly the sections of a state package."""
+    headings = [heading.strip() for heading in _PACKAGE_HEADING.findall(package)]
     for section in PACKAGE_SECTIONS:
-        if section in package:
+        if section in headings:
             continue
         raise FsmError(
             f"the package of state {name!r} has no '{section}' section. Every "
             f"package answers the same questions, so the two agents differ in the "
             f"structure of the instruction and in nothing else"
+        )
+    extra = [heading for heading in headings if heading not in PACKAGE_SECTIONS]
+    if extra:
+        raise FsmError(
+            f"the package of state {name!r} adds the sections {extra}. Persona, "
+            f"tone and the general rules live in the block both agents share, so a "
+            f"package that grows a section of its own is how the two agents stop "
+            f"being comparable"
         )
 
 

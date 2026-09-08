@@ -16,7 +16,9 @@ and the diagram below all read them from that file. The diagram is generated, no
 The loader would rather fail than guess: it refuses a key the schema does not know, because
 a misspelled `guard` would otherwise drop the guard in silence, and it refuses two edges
 that give the same state and event two destinations, because the engine would then pick one
-and the classifier's enum would show a single event.
+and the classifier's enum would show a single event. It also refuses a package that grows a
+section of its own, since persona, tone and the general rules belong to the block both
+agents share, and that shared block is the reason the comparison is about structure only.
 
 ## Diagram
 
@@ -98,9 +100,11 @@ each datum and the data each request requires are written in one place only:
 ## Facts released per state
 
 `machine.yaml` names, per state, the fact IDs the agent may state there; `solution` and
-`confirmation` also get the whole knowledge-base section of the classified request, which
-is known only at run time. The loader rejects an ID that is not in the knowledge base, and
-rejects a package that cites a fact its state does not release.
+`confirmation` also get the whole knowledge-base section of the classified request, which is
+known only at run time, and they are refused without it: releasing the general facts alone
+there would look like an agent that hedges, not like a bug. The loader rejects an ID that is
+not in the knowledge base, and rejects a package that cites a fact its state does not
+release.
 
 | State | Facts released |
 |---|---|

@@ -227,7 +227,7 @@ def test_released_facts_of_a_state_include_the_classified_intent_section(
 
     assert _ids(fsm.released_facts("greeting", "order_tracking", KB)) == ["F01"]
     assert _ids(fsm.released_facts("closing", "order_tracking", KB)) == ["F01", "F02"]
-    assert _ids(fsm.released_facts("closing", None, KB)) == ["F01"]
+    assert _ids(fsm.released_facts("greeting", None, KB)) == ["F01"]
 
 
 def test_released_facts_for_an_unknown_state_raises(tmp_path: Path) -> None:
@@ -235,6 +235,15 @@ def test_released_facts_for_an_unknown_state_raises(tmp_path: Path) -> None:
 
     with pytest.raises(FsmError, match="greetings"):
         fsm.released_facts("greetings", None, KB)
+
+
+def test_released_facts_without_the_intent_a_state_needs_raises(
+    tmp_path: Path,
+) -> None:
+    fsm = load_fsm(write_fsm(tmp_path / "fsm", machine=INTENT_MACHINE), kb=KB)
+
+    with pytest.raises(FsmError, match="closing"):
+        fsm.released_facts("closing", None, KB)
 
 
 def test_released_facts_for_an_intent_the_kb_does_not_have_raises(
@@ -265,6 +274,14 @@ def test_package_mentioning_a_fact_not_released_for_that_state_raises(
     directory = write_fsm(tmp_path / "fsm", packages={"greeting": package})
 
     with pytest.raises(FsmError, match="F02"):
+        load_fsm(directory, kb=KB)
+
+
+def test_package_with_a_persona_section_of_its_own_raises(tmp_path: Path) -> None:
+    package = PACKAGE + "\n## Persona\n\nYou are the friendly voice of the store.\n"
+    directory = write_fsm(tmp_path / "fsm", packages={"greeting": package})
+
+    with pytest.raises(FsmError, match="Persona"):
         load_fsm(directory, kb=KB)
 
 
