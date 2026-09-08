@@ -14,7 +14,10 @@
 
 version: 1
 initial: greeting
-final_states: [closing, out_of_scope]
+# The states a dialogue may legitimately end in, which are also the values a
+# scenario's `expected_final_state` may take (T-05). They are *not* terminal states:
+# `out_of_scope` has two ways out, and the engine of T-08 must keep them firing.
+accepting_states: [closing, out_of_scope]
 
 states:
   greeting:

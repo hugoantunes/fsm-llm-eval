@@ -74,7 +74,7 @@ class FsmSpec(BaseModel):
 
     version: int
     initial: str
-    final_states: list[str]
+    accepting_states: list[str]
     states: dict[str, State]
     transitions: list[Transition]
 
@@ -143,7 +143,7 @@ class FsmSpec(BaseModel):
                 f"    {transition.source} --> {transition.dest} : "
                 f"{transition.event}{guard}"
             )
-        lines.extend(f"    {state} --> [*]" for state in self.final_states)
+        lines.extend(f"    {state} --> [*]" for state in self.accepting_states)
         for dest, events in self._events_from_any().items():
             lines.append(f"    note right of {dest}")
             lines.append(f"        from every state: {', '.join(events)}")
@@ -189,9 +189,9 @@ def load_fsm(
 
 
 def _check_declared_states(spec: FsmSpec) -> None:
-    """Fail unless the initial and the final states are declared states."""
+    """Fail unless the initial and the accepting states are declared states."""
     roles = [("initial", spec.initial)]
-    roles += [("final_states", state) for state in spec.final_states]
+    roles += [("accepting_states", state) for state in spec.accepting_states]
     for role, state in roles:
         if state in spec.states:
             continue

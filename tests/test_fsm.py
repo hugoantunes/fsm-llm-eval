@@ -26,7 +26,7 @@ KB = KnowledgeBase(
 MACHINE = """\
 version: 1
 initial: greeting
-final_states: [closing, out_of_scope]
+accepting_states: [closing, out_of_scope]
 states:
   greeting:
     package: states/greeting.md
@@ -178,13 +178,13 @@ def test_state_unreachable_from_the_initial_state_raises(tmp_path: Path) -> None
     [
         ("initial: greeting", "initial: hello", "hello"),
         (
-            "final_states: [closing, out_of_scope]",
-            "final_states: [closing, escalated]",
+            "accepting_states: [closing, out_of_scope]",
+            "accepting_states: [closing, escalated]",
             "escalated",
         ),
     ],
 )
-def test_initial_and_final_states_must_be_declared(
+def test_initial_and_accepting_states_must_be_declared(
     tmp_path: Path, declaration: str, replacement: str, unknown: str
 ) -> None:
     machine = MACHINE.replace(declaration, replacement)
@@ -346,7 +346,7 @@ def test_real_machine_has_the_eight_expected_states_and_loads_clean() -> None:
 
     assert sorted(fsm.states) == EXPECTED_STATES
     assert fsm.initial == "greeting"
-    assert sorted(fsm.final_states) == ["closing", "out_of_scope"]
+    assert sorted(fsm.accepting_states) == ["closing", "out_of_scope"]
 
 
 def test_real_machine_walks_the_whole_flow_without_the_universal_exits() -> None:

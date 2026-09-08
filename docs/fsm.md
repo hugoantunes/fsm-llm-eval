@@ -121,9 +121,24 @@ F03 (state only what the knowledge base contains) and F04 (escalate what it does
 cover) are released everywhere: they are the honesty rule, and no state is allowed to
 answer outside the knowledge base to look helpful.
 
-## Final states
+## Accepting states
 
-`closing` and `out_of_scope` are the final states, and they are the values a scenario's
-`expected_final_state` may take (T-05). Flow adherence (T-13) asks two questions of a
-dialogue: did it end in the state the scenario expected, and is the sequence of labelled
-stages a path this machine allows?
+`closing` and `out_of_scope` are the `accepting_states`: the states a dialogue may
+legitimately end in, and the values a scenario's `expected_final_state` may take (T-05).
+The two names differ on purpose. They are **not** terminal states: `out_of_scope` goes on
+to `identification` when the customer comes back with an order request, and to `closing`
+when they accept the hand-over. The engine of T-08 must therefore not hand this list to
+`transitions` as terminal states, or those two edges stop firing.
+
+## Flow adherence
+
+Flow adherence (T-13) asks two questions of a dialogue: did it end in the state the
+scenario expected, and is the sequence of labelled stages a path this machine allows?
+
+The second question is answered over the **flow edges only**, the ones with `from_any`
+false. A sequence that can be explained solely by `farewell` or by `out_of_scope_request`
+does not count as a valid path: those two leave every state, so counting them would make
+almost any sequence valid and the measure would stop telling the two agents apart. They
+are reported instead as their own outcome, an early exit and an out-of-scope exit,
+computed identically for both agents. The first question is unaffected: a scenario that
+expects `out_of_scope` is met by ending there.
