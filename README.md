@@ -16,8 +16,9 @@ everything the models read or write are in English; the thesis glosses names in 
 
 ## Requirements
 
-- macOS on Apple Silicon. `run` phase on the MacBook Pro M5 16 GB; `eval` phase (judge) and
-  writing on the MacBook Air M4 24 GB.
+- macOS on Apple Silicon. `run` phase and writing on the MacBook Air M4 24 GB; `eval` phase (judge)
+  on the MacBook Pro M5 16 GB. The `run` phase needs the agent and the simulator resident at once,
+  which 16 GB does not manage; `docs/setup.md` has the measurements.
 - [uv](https://docs.astral.sh/uv/) for Python and dependencies (`brew install uv`).
 - [just](https://just.systems) for the day-to-day recipes (`brew install just`).
 - Python 3.13 (`.python-version`); uv installs it if missing.
@@ -77,9 +78,10 @@ just eval runs/<exp_id>                         # sim eval --run ...
   and writes `metrics.csv` and `metrics_turn.csv`. It is separate from `run` so a run can be
   re-evaluated without re-executing (LLM calls are cached by prompt hash).
 
-Full execution (T-17), on the Pro: `caffeinate -is uv run python -m sim run ... --parallel 2`, in
-blocks with `--resume`; after each block, `rsync -av runs/ <air>:~/projects/fsm-llm-eval/runs/` and
-`just eval` on the Air.
+Full execution (T-17), on the Air: `caffeinate -is uv run python -m sim run ... --parallel 2`, in
+blocks with `--resume`; after each block, `rsync -av runs/ <pro>:~/projects/fsm-llm-eval/runs/` and
+`just eval` on the Pro. Splitting the phases across the two machines saves about 4 h; running both
+on the Air in sequence works too and costs only wall clock.
 
 ## Development
 

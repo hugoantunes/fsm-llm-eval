@@ -6,8 +6,13 @@ growing history), one classifier call (short, schema-constrained) and one agent 
 (a KB-sized system prompt plus the history). Prints mean and p95 latency per role with
 token counts, then the machine-hours budget for the N and K options of TICKETS.md,
 assuming the planned turns per dialogue (``--budget-turns``, 8 by default) rather than
-the turns measured. Run it on the Pro with the models of ``configs/models.yaml`` pulled
-and ``scripts/ollama_env.sh`` applied; numbers from the Air are only indicative.
+the turns measured. Run it with the models of ``configs/models.yaml`` pulled and
+``scripts/ollama_env.sh`` applied, on the machine that owns the phase: the Air for the
+run-phase rows, the Pro for the judge (roles swapped 2026-09-08, see docs/setup.md).
+
+The budget divides by ``--parallel``, which assumes concurrency the Qwen models only
+partly deliver: they serve one request per model at a time, so the gain comes from
+overlapping the agent with the simulator. Treat the run hours as a floor.
 
 Usage::
 

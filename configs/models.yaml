@@ -27,7 +27,10 @@ ollama:
   env:                          # applied by scripts/ollama_env.sh (details in docs/setup.md)
     OLLAMA_MAX_LOADED_MODELS: 2 # agent and simulator stay loaded together
     OLLAMA_KEEP_ALIVE: -1       # never unload between turns
-    OLLAMA_NUM_PARALLEL: 2      # matches `sim run --parallel 2`
+    OLLAMA_NUM_PARALLEL: 2      # matches `sim run --parallel 2`. Qwen 3.5 serves one request per
+                                # model at a time (Ollama warns on every load), so the gain comes
+                                # from overlapping the 9B with the 4B, not from two agent calls.
+                                # Measured 1.4x even with a single model; see docs/setup.md
     OLLAMA_CONTEXT_LENGTH: 8192 # server default = num_ctx; the client also sets it per call
 
 num_ctx: 8192                   # 16384 if RAM allows
