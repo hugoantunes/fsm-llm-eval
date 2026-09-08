@@ -13,6 +13,10 @@ from pydantic import BaseModel
 
 DEFAULT_KB_DIR = Path("data/kb")
 
+#: The section whose facts every state releases: the general policies, which are
+#: not an intent a customer arrives with and which no scenario addresses (T-05).
+GENERAL_INTENT = "general"
+
 #: ``## Order tracking · `order_tracking` `` — human title plus the intent slug.
 _SECTION = re.compile(r"^##\s+(?P<title>.+?)\s+·\s+`(?P<intent>[a-z_]+)`\s*$")
 #: ``- **F14** — Items bought on promotion...`` — one atomic fact per line.
@@ -75,6 +79,15 @@ class KnowledgeBase(BaseModel):
     def fact_ids(self) -> set[str]:
         """Return the IDs of every fact in the knowledge base."""
         return {fact.id for fact in self.facts}
+
+    def intents(self) -> list[str]:
+        """Return the intents a customer arrives with, in file order.
+
+        ``general`` is not among them: those facts are released in every state
+        and belong to no single request, so no scenario addresses them (T-05).
+        """
+        sections = (f.intent for f in self.facts if f.intent != GENERAL_INTENT)
+        return list(dict.fromkeys(sections))
 
     def by_id(self, fact_id: str) -> Fact:
         """Return the fact with ``fact_id``, or raise ``KnowledgeBaseError``."""

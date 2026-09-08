@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from helpers import FORBIDDEN_NAMES
 from sim.kb import KnowledgeBaseError, load_kb
 
 MARKDOWN = """\
@@ -130,30 +131,6 @@ def test_user_data_field_requiring_an_unknown_intent_raises(tmp_path: Path) -> N
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 KB_DIR = REPO_ROOT / "data" / "kb"
-
-#: Brands, people and companies that must never appear in a fictional domain.
-FORBIDDEN_NAMES = (
-    "amazon",
-    "shopify",
-    "mercado livre",
-    "magalu",
-    "americanas",
-    "nike",
-    "adidas",
-    "zara",
-    "apple",
-    "google",
-    "microsoft",
-    "netflix",
-    "correios",
-    "fedex",
-    "dhl",
-    "ups",
-    "visa",
-    "mastercard",
-    "paypal",
-    "pix",
-)
 
 #: Character ceiling for the KB markdown, roughly 3 000 tokens. The real token
 #: counter arrives with T-07; until then this guards T-09's criterion that the
