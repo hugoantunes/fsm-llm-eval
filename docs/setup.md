@@ -8,7 +8,17 @@ in the Decisões table of `TICKETS.md`.
 | Role | Machine | Chip | RAM | macOS | Ollama | Checked on |
 |---|---|---|---|---|---|---|
 | `eval` (judge) and writing | MacBook Air (Mac16,12) | Apple M4, 10 cores (4P + 6E) | 24 GB | 26.6.2 | 0.33.3 (app) | 2026-09-08 |
-| `run` (agents + simulator) | MacBook Pro M5 | to fill in | 16 GB | to fill in | to fill in | to fill in |
+| `run` (agents + simulator) | MacBook Pro (Mac17,2) | Apple M5, 10 CPU cores (4 Super + 6 Efficiency), 10 GPU cores | 16 GB | 26.4.1 (25E253) | 0.33.3 (app) | 2026-09-08 |
+
+The two machines run different macOS versions (Air 26.6.2, Pro 26.4.1). It does not affect the
+comparison: each phase runs entirely on one machine, `run` on the Pro and `eval` on the Air, so no
+metric is computed from numbers produced by both. What has to match across machines is the Ollama
+version and the model digests, and both do.
+
+`iogpu.wired_limit_mb` is `0` (automatic) on the Pro, so the GPU allowance is whatever macOS gives
+it; the figure that matters is the measured loaded footprint below, not a configured ceiling.
+
+Toolchain on both machines: `uv` 0.11.6, Python 3.13.13, `ollama` Python package 0.6.2.
 
 The repository lives in `~/projects/fsm-llm-eval` on both machines, outside iCloud. `runs/` moves
 from one to the other by `rsync` over SSH on the local network.
@@ -51,10 +61,12 @@ Defaults observed in Ollama 0.33.3 before configuration: `NUM_PARALLEL:1`, `MAX_
 
 If memory gets tight on the Pro (16 GB) during `run`, `OLLAMA_FLASH_ATTENTION=1` with
 `OLLAMA_KV_CACHE_TYPE=q8_0` halves the KV cache. Only with a Decisões row, and on both machines.
+Measured on 2026-09-08 and it is **not** enough to keep both models resident: it recovers about
+0.2 GB and 9% of the run budget. See *Memory on the Pro* below before reaching for it.
 
 | Variables check | Air | Pro |
 |---|---|---|
-| `scripts/ollama_env.sh` ran without error on | 2026-09-08 (Ollama 0.33.3; the server loaded all 4 values) | to fill in |
+| `scripts/ollama_env.sh` ran without error on | 2026-09-08 (Ollama 0.33.3; the server loaded all 4 values) | 2026-09-08 (Ollama 0.33.3; the server loaded all 4 values) |
 
 ## Models
 
@@ -79,6 +91,11 @@ Decision history (Decisões, T-03), mirrored in `configs/models.yaml`:
    roughly 11 GB. Result: `qwen3.5:9b` + `qwen3.5:4b`, 9.1 GB loaded. The 4B was preferred over
    the 2B for the simulator because the event classifier and the stage labeler need reliability
    more than the extra speed, and memory allows it.
+
+   **This rule used the wrong budget.** Measured on the Pro on 2026-09-08, the pair does not stay
+   co-resident: Ollama admits a model against free *system* RAM, not free GPU memory. The footprint
+   numbers above are right, the constraint they were compared against was not. See *Memory on the
+   Pro* below; the choice of models is open again pending a decision.
 
 | Role | Model | Parameters | Download | Loaded footprint | Notes |
 |---|---|---|---|---|---|
@@ -153,6 +170,60 @@ Also checked on the Air with `qwen2.5:3b`: schema-constrained output with an `en
 (`order_identified`) in 0.5 s, 14 output tokens; with `OLLAMA_KEEP_ALIVE=-1` the model stays loaded
 (`ollama ps` shows `Forever`, context 8192, 100% GPU); model load time 1.6 s.
 
+## Memory on the Pro: the two models do not stay co-resident (2026-09-08)
+
+The plan assumed the `run` phase would hold the agent and the simulator in memory together on the
+Pro, so that a dialogue never pays a model load. On the Pro it does not happen. In a single
+measurement of 2 parallel dialogues of 8 turns, the server logged **16 evictions**: the 9B agent and
+the 4B simulator take turns being unloaded, so almost every call pays a model load plus a full
+prompt re-processing (`forcing full prompt re-processing due to lack of cache data`).
+
+The cause is not the GPU. Ollama's scheduler admits a model against **free system RAM**, and the
+footprint of an already-resident model counts against that budget:
+
+```
+msg="llama-server model predicted to exceed available memory, evicting"
+  predicted="6.4 GiB" available="1.9 GiB" gpu_free="8.7 GiB" system_free="1.9 GiB" system_limited=true
+```
+
+`gpu_free` is 8.7 GiB and Metal reports 11.8 GiB total, yet the model is refused because
+`system_limited=true` and `available` tracks `system_free`. With the 9B resident (6.4 GiB) and about
+8.0 GiB of system RAM free, only 1.6 GiB is left, and the 4B needs 3.3 GiB. Holding both wants
+roughly 9.7 GiB free at once; with the machine in normal working use (browser, editor) free system
+RAM measured between 6.3 and 8.1 GiB. `iogpu.wired_limit_mb` is irrelevant here, and raising it
+would not help.
+
+**The chip is not the problem.** The judge runs alone and is never evicted, and it took 47.2 s on
+the Pro against 48.6 s on the Air: the same speed. Every deficit below is the eviction, not the M5.
+
+**The pre-declared fallback does not fix it.** `OLLAMA_FLASH_ATTENTION=1` with
+`OLLAMA_KV_CACHE_TYPE=q8_0` cut the resident footprint only from 5.6 + 3.3 GB to 5.5 + 3.2 GB, left
+15 evictions in the same measurement, and moved the agent call from 27.6 s to 25.2 s (run budget
+12.1 h to 11.0 h for N = 45, K = 3). That confirms the reasoning already recorded above: on Qwen 3.5
+the binding constraint is the weights, not the KV cache, because linear attention already makes the
+cache small. Measured as a diagnostic and reverted; the committed configuration is unchanged.
+
+| Configuration | Agent resident | Simulator resident | Evictions | Agent mean | Run, N = 45 K = 3 |
+|---|---|---|---|---|---|
+| Committed (f16 KV) | 5.6 GB | 3.3 GB | 16 | 27.6 s | 12.1 h |
+| Flash attention + q8_0 KV | 5.5 GB | 3.2 GB | 15 | 25.2 s | 11.0 h |
+| Air, both co-resident | 5.7 GB | 3.4 GB | 0 | 10.6 s | 5.0 h |
+
+**Open decision** (needs a Decisões row before T-17; none of these is applied yet):
+
+1. **Swap the machine roles**: `run` on the Air, which holds both models with no eviction, and
+   `eval` on the Pro, where the judge runs alone and is already measured at the same speed. Costs no
+   code and reverses only the 2026-09-07 assignment. Against it: the Air is passively cooled, so a
+   5 h block may throttle, and it is also the writing machine.
+2. **Free RAM on the Pro** and keep the roles: quit the browser and the editor before each block.
+   Borderline, since the pair wants about 9.7 GiB free of 16 GB total, and fragile, because anything
+   that reopens mid-block silently reintroduces the thrash into the agent-latency metric.
+3. **Shrink the simulator** to `qwen3.5:2b` (2.5 GB resident, 8.1 GB for the pair). Still above the
+   free RAM measured here, and it weakens the event classifier and the stage labeler, which are
+   validity gates in T-13 and T-16.
+4. **Accept 12.1 h of run on the Pro.** It fits the weekend in blocks, but agent latency is one of
+   the efficiency metrics of T-04, and under eviction it measures the machine rather than the agent.
+
 ## Latency and budget
 
 Measured on the Pro with `scripts/measure_latency.py`: P parallel dialogues of T turns, each turn
@@ -166,15 +237,34 @@ scripts/ollama_env.sh
 uv run python scripts/measure_latency.py --parallel 2 --turns 8 --judge
 ```
 
-Smoke-tested on the Air on 2026-09-08 (2 turns, 2 dialogues, Qwen2.5 + Gemma 3) while four model
-downloads were running: it works end to end; those numbers are not recorded because of the
-contention. The table below is filled from the Pro.
+Measured on the Pro on 2026-09-08 with the final models and the committed configuration
+(`--parallel 2 --turns 8 --judge`, 16 calls per role, machine in normal working use). **These
+numbers include the eviction described above**: the agent and simulator rows are the cost of a call
+plus a model load, not the cost of a call. They are the honest figure for this machine as configured
+today, and the reason the open decision exists:
 
-| Call | Mean (s) | p95 (s) | Prompt tokens |
-|---|---|---|---|
-| agent | to fill in | | |
-| simulator | to fill in | | |
-| classifier | to fill in | | |
+| Call | n | Mean (s) | p95 (s) | Prompt tokens | Output tokens | Output tok/s |
+|---|---|---|---|---|---|---|
+| agent (`qwen3.5:9b`) | 16 | 27.6 | 42.4 | 3436 | 60 | 2.2 |
+| simulator (`qwen3.5:4b`) | 16 | 10.4 | 17.6 | 740 | 34 | 3.3 |
+| classifier (`qwen3.5:4b`, schema) | 16 | 2.5 | 3.5 | 64 | 17 | 6.9 |
+| judge (`gemma4:12b`, two calls) | 2 | 47.2 | 64.1 | 4338 | 248 | 5.3 |
+
+Budget from those means, 8 turns per dialogue, 2 dialogues in parallel:
+
+| N | K | Dialogues | Run on the Pro | Judge |
+|---|---|---|---|---|
+| 45 | 3 | 270 | 12.1 h | 7.1 h |
+| 45 | 5 | 450 | 20.2 h | 11.8 h |
+| 60 | 3 | 360 | 16.2 h | 9.4 h |
+| 60 | 5 | 600 | 26.9 h | 15.7 h |
+
+The judge row is the only one that transfers: it matches the Air's 48.6 s, and the judge runs on the
+Air anyway. The run column is 2.4x the Air's indicative figure purely because of the eviction.
+
+Earlier smoke test on the Air on 2026-09-08 (2 turns, 2 dialogues, Qwen2.5 + Gemma 3) while four
+model downloads were running: it works end to end; those numbers were not recorded because of the
+contention.
 
 First run with the final models on the Air, 2026-09-08 (`--parallel 2 --turns 4 --judge`, no
 downloads running). The judge row is the eval machine's own number; the other rows are
@@ -189,8 +279,26 @@ indicative, the Pro is the run machine:
 
 Budget from those means, 8 turns per dialogue, 2 dialogues in parallel: N = 45, K = 3 (270
 dialogues) gives about 5.0 h of run on the Air and 7.3 h of judge, one night; N = 60, K = 3 gives
-6.6 h and 9.7 h. The run figure will be replaced by the Pro's.
+6.6 h and 9.7 h. Those run figures assume both models stay co-resident, which is true on the Air
+and false on the Pro.
 
-Budget: `N × 2 agents × K × ~8 turns × (1 agent + 1 simulator + 1 classifier) / parallelism` on the
-Pro, plus `N × 2 × K × 2 calls` of the judge on the Air. Result: to fill in. This number decides N
-and K (floor N = 45, K = 3).
+## What the budget says about N and K
+
+Formula: `N × 2 agents × K × ~8 turns × (1 agent + 1 simulator + 1 classifier) / parallelism` for the
+run, plus `N × 2 × K × 2 calls` of the judge. Measured result, N = 45 and K = 3:
+
+| Where the run happens | Run | Judge (Air) | Total machine time |
+|---|---|---|---|
+| Pro as configured today, with eviction | 12.1 h | 7.1 h | 19.2 h |
+| A machine holding both models (Air, measured) | 5.0 h | 7.1 h | 12.1 h |
+
+**N = 45, K = 3 survives either way**, so the floor declared in TICKETS.md is safe and the corte 1a
+and 1b decisions do not have to move. The run phase fits the Saturday-to-Monday window in blocks
+even at 12.1 h, and both phases pipeline across the two machines.
+
+**N = 60, K = 3 is where it gets tight**: 16.2 h of run under eviction against 6.6 h without. That
+option depends on the open decision above, so it should be settled before Friday, when N is frozen
+with the dataset hash.
+
+K = 5 is out of reach in either configuration (20.2 h under eviction, 8.3 h without) and stays what
+the plan already says it is: incremental repetitions, only if there is machine time left over.

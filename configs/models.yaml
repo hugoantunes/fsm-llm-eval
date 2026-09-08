@@ -23,7 +23,7 @@
 # Every change here is an experiment decision: record it in TICKETS.md -> Decisões.
 
 ollama:
-  version: "0.33.3"             # `ollama --version`; Air checked 2026-09-08, Pro: to check
+  version: "0.33.3"             # `ollama --version`; Air and Pro both checked 2026-09-08
   env:                          # applied by scripts/ollama_env.sh (details in docs/setup.md)
     OLLAMA_MAX_LOADED_MODELS: 2 # agent and simulator stay loaded together
     OLLAMA_KEEP_ALIVE: -1       # never unload between turns
