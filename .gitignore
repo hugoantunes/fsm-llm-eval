@@ -216,3 +216,22 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- fsm-llm-eval (T-03) -----------------------------------------------------
+
+# Everything the machine produces during `sim run` / `sim eval`: dialogue JSONL,
+# LLM call logs, prompt cache. Moves between the two machines by rsync, never git.
+runs/
+
+# Result CSVs are regenerated from runs/ (T-14b, T-18, T-19).
+results/**/*.csv
+
+# Execution JSONL anywhere else. The frozen dataset under data/ IS versioned.
+*.jsonl
+!data/**/*.jsonl
+
+# macOS
+.DS_Store
+
+# Claude Code: per-machine local settings
+.claude/settings.local.json

@@ -1,0 +1,92 @@
+[project]
+name = "fsm-llm-eval"
+version = "0.1.0"
+description = "Simulation and evaluation of LLM agents: a finite-state machine as instruction base vs. a plain prompt"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Hugo Seixas Antunes" }]
+requires-python = ">=3.13"
+dependencies = [
+    "ollama>=0.5",       # official client; `format=` takes a JSON Schema (T-07)
+    "pydantic>=2.7",     # scenario schema, turn record, judge outputs (T-05, T-09, T-12)
+    "pyyaml>=6.0",       # data/fsm/maquina.yaml, configs/models.yaml (T-02, T-03)
+    "transitions>=0.9",  # FSM engine (T-08)
+]
+
+[project.scripts]
+sim = "sim.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+]
+# Only needed from T-19 on (statistics, tables, figures). `just install-analysis`.
+analysis = [
+    "jupyter>=1.1",
+    "matplotlib>=3.9",
+    "pandas>=2.2",
+    "scipy>=1.14",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.build-backend]
+module-name = "sim"
+
+# --- ruff: PEP 8 formatting and linting -------------------------------------
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["src", "tests"]
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle (PEP 8)
+    "F",       # pyflakes
+    "I",       # isort
+    "N",       # pep8-naming
+    "D",       # pydocstyle (PEP 257)
+    "UP",      # pyupgrade
+    "B",       # flake8-bugbear
+    "C4",      # flake8-comprehensions
+    "SIM",     # flake8-simplify
+    "PT",      # flake8-pytest-style
+    "PTH",     # flake8-use-pathlib
+    "RUF",     # ruff-specific
+]
+ignore = [
+    "D1",  # missing docstrings: required by convention (DEVELOPMENT.md), not by the linter
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["sim"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# --- pytest -----------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+xfail_strict = true
+markers = [
+    "integration: talks to a running Ollama with the models in configs/models.yaml (skipped by `just test`)",
+]
+
+[tool.coverage.run]
+source = ["sim"]
+branch = true
