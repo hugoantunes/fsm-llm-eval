@@ -77,7 +77,7 @@ Identifiers are ASCII `snake_case`: `scenario`, `greeting`, `data_collection`, `
 ## 6. Workflow
 
 - One ticket at a time, in the order of *Ordem de execução*. Read its acceptance criteria first.
-- Before committing: `just check` (lint plus unit tests). The hooks in `.claude/settings.json` run ruff on every edited file, run `just check` before a `git commit`, and run it again when a turn ends with uncommitted changes. A red gate is fixed, never bypassed.
+- Before committing: `just check` (lint plus unit tests). The hooks in `.claude/settings.json` and `.cursor/hooks.json` run ruff on every edited file, run `just check` before a `git commit`, and run it again when a turn ends with uncommitted changes. A red gate is fixed, never bypassed.
 - Small commits, imperative English subject, ticket prefix: `T-08: load FSM from machine.yaml with transitions`.
 - Any choice that changes the experiment (a model, a parameter, a metric, a cut) gets a dated row in **Decisões** in TICKETS.md before anything is run with it.
 - `runs/` is never committed; result CSVs are regenerated from `runs/`. The dataset in `data/scenarios/v1/` is frozen once its hash is recorded.

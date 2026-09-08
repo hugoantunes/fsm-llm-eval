@@ -11,9 +11,10 @@ The experiment, this repository and everything the models read or write are **En
 ## Sections
 
 - @DEVELOPMENT.md: how code gets written here (Zen of Python, TDD, DRY, PEP 8/257/484, language, workflow, definition of done). Imported, so it is always loaded.
-- `.claude/skills/ticket/SKILL.md`: `/ticket T-07` works one ticket test-first, with a review stop after the plan and before any code.
+- `.claude/skills/ticket/SKILL.md`: `/ticket T-07` works one ticket test-first, with a review stop after the plan and before any code. Cursor discovers this skill on its own.
 - `.claude/rules/prompts.md`: judge-blindness and prompt-parity rules, loaded when a file under `data/prompts/` or `src/sim/` is read.
-- `ai-assistance/scripts/`: the hook scripts wired in `.claude/settings.json` (see *Enforcement*).
+- `.cursor/`: what Claude Code gets from `CLAUDE.md` and `.claude/`, for Cursor, which reads neither the `@` imports nor `.claude/rules/`. `rules/project.mdc` sends the assistant to these two files at the start of a session, `rules/prompts.mdc` points at the rule above, and `hooks.json` wires the same scripts (see *Enforcement*). It adds no instruction of its own: a second copy of a rule is how the two agents end up judged differently.
+- `ai-assistance/scripts/`: the hook scripts, wired in both `.claude/settings.json` and `.cursor/hooks.json` (see *Enforcement*).
 
 ## Commands
 
@@ -82,10 +83,12 @@ From the section *O que não deve mudar* of TICKETS.md:
 
 ## Enforcement
 
-Hooks in `.claude/settings.json` run without asking. They are the mechanical half of DEVELOPMENT.md:
+Hooks run without asking, from `.claude/settings.json` in Claude Code and `.cursor/hooks.json` in Cursor. Both call the same two scripts, which read either payload shape, so the rule is written once:
 
 - **After every Write or Edit of a `.py` file**: `ruff format` and `ruff check --fix` on that file (`ai-assistance/scripts/format_on_edit.py`). The file may change on disk; the harness tells you, so re-read it before the next edit. Anything ruff cannot fix comes back to you: fix it before moving on. Unused imports are reported, never removed, because edits land one at a time.
 - **Before any `git commit`**: `just check` (`ai-assistance/scripts/quality_gate.py`). Red blocks the commit and shows the output. Fix the code; never bypass with `--no-verify`, by skipping or deleting tests, or by editing the hook.
 - **When you end a turn with uncommitted changes**: `just check` again. Red hands you the output and you continue. If the failure is not yours to fix, say so plainly and stop; the second stop is not gated.
+
+Two of these land differently in Cursor, which is worth knowing before trusting them. Its edit hook has no channel back to the model, so what ruff could not fix is only logged and the turn-end gate is what catches it. And it cannot block a turn: the gate comes back as a follow-up message that restarts the turn, capped by the `loop_limit` of `.cursor/hooks.json`, and a turn you interrupted is never followed up.
 
 `just check` is the gate everywhere, so keep it fast: no Ollama call outside an `integration`-marked test.

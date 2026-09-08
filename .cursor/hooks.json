@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "uv run --no-sync -q python ai-assistance/scripts/format_on_edit.py",
+        "timeout": 60
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "uv run --no-sync -q python ai-assistance/scripts/quality_gate.py",
+        "timeout": 300
+      }
+    ],
+    "stop": [
+      {
+        "command": "uv run --no-sync -q python ai-assistance/scripts/quality_gate.py",
+        "timeout": 300,
+        "loop_limit": 2
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+---
+description: Judge blindness and prompt parity, whenever a prompt or the code that builds one is touched
+globs: data/prompts/**,src/sim/**
+alwaysApply: false
+---
+
+# Prompts: blindness and parity
+
+Read `.claude/rules/prompts.md` and follow it before changing anything here.
+
+That file is the single copy of these invariants, the ones a thesis committee probes
+first: what the judge may and may not see, what the simulated user may and may not see,
+the parity between `baseline` and `fsm`, prompts living in files rather than Python
+strings, and the freeze at tag `v1`. Claude Code attaches it on its own through the
+`paths` of its frontmatter; Cursor needs this pointer. Keeping one copy is the point, so
+do not restate its rules here.
