@@ -1,8 +1,16 @@
 """Shared test helpers."""
 
+import hashlib
 import importlib.util
+from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType
+from typing import Any
+
+from pydantic import BaseModel
+
+from sim.config import Role
+from sim.llm import LlmResponse, Message
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -65,6 +73,61 @@ def write_models_config(directory: Path, text: str = MINIMAL_MODELS_YAML) -> Pat
     path = directory / "models.yaml"
     path.write_text(text, encoding="utf-8")
     return path
+
+
+class FakeLlm:
+    """A fake of ``sim.llm.LlmClient``: records the calls, returns canned answers.
+
+    This is the seam of T-07 (``sim.llm.Chat``), faked rather than mocked, and the
+    answers are real ``LlmResponse`` objects so the fake cannot drift from the
+    fields its callers read.
+    """
+
+    def __init__(
+        self, replies: Sequence[str] | None = None, *, latency_s: float = 0.5
+    ) -> None:
+        self.replies = list(replies) if replies is not None else ["Hello, I can help."]
+        self.latency_s = latency_s
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: Sequence[Message],
+        *,
+        role: Role,
+        caller: str,
+        schema: type[BaseModel] | None = None,
+        seed: int | None = None,
+        num_predict: int | None = None,
+    ) -> LlmResponse:
+        """Record the call and hand back the next canned answer."""
+        sent = [dict(message) for message in messages]
+        prompt_hash = hashlib.sha256(str(sent).encode("utf-8")).hexdigest()
+        self.calls.append(
+            {
+                "messages": sent,
+                "prompt_hash": prompt_hash,
+                "role": role,
+                "caller": caller,
+                "schema": schema,
+                "seed": seed,
+                "num_predict": num_predict,
+            }
+        )
+        if not self.replies:
+            raise AssertionError("FakeLlm ran out of replies")
+        text = self.replies.pop(0)
+        return LlmResponse(
+            text=text,
+            parsed=None,
+            model=f"{role}-model",
+            caller=caller,
+            prompt_hash=prompt_hash,
+            prompt_tokens=len(str(sent)) // 4,
+            output_tokens=len(text) // 4,
+            latency_s=self.latency_s,
+            cached=False,
+        )
 
 
 def load_script(relative_path: str) -> ModuleType:

@@ -103,10 +103,35 @@ class LlmResponse:
     parsed: BaseModel | None
     model: str
     caller: str
+    #: The key of this call in the cache and in ``llm_calls.jsonl``. The turn
+    #: record of T-09 stores it instead of a second copy of the prompt.
+    prompt_hash: str
     prompt_tokens: int
     output_tokens: int
     latency_s: float
     cached: bool
+
+
+class Chat(Protocol):
+    """The seam every caller of a model depends on, rather than on ``LlmClient``.
+
+    Agents (T-09, T-10), the simulated user (T-11) and the judge (T-12) are typed
+    against this, so their tests hand them a fake of *our* client instead of
+    mocking the ``ollama`` package.
+    """
+
+    def chat(
+        self,
+        messages: Sequence[Message],
+        *,
+        role: Role,
+        caller: str,
+        schema: type[BaseModel] | None = None,
+        seed: int | None = None,
+        num_predict: int | None = None,
+    ) -> "LlmResponse":
+        """Send ``messages`` to the model configured for ``role``."""
+        ...
 
 
 class ChatTransport(Protocol):
@@ -286,6 +311,7 @@ class LlmClient:
             parsed=parsed,
             model=record.model,
             caller=record.caller,
+            prompt_hash=record.prompt_hash,
             prompt_tokens=record.prompt_tokens,
             output_tokens=record.output_tokens,
             latency_s=record.latency_s,

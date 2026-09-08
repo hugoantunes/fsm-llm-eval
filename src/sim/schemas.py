@@ -34,6 +34,54 @@ class ScenarioError(ValueError):
     """A scenario is malformed; the message says what to fix and where."""
 
 
+class Turn(BaseModel):
+    """One line of a dialogue, by whoever said it.
+
+    The speakers are named rather than given Ollama's chat roles: the agent and
+    the simulated user of T-11 read the same history from opposite sides, and each
+    maps it to ``user`` and ``assistant`` from its own point of view.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    speaker: Literal["user", "agent"]
+    text: str
+
+
+class TurnRecord(BaseModel):
+    """What one agent turn produced: the reply and what the metrics need (T-09).
+
+    Both agents fill the same record, which is what makes them comparable;
+    ``state_before``, ``state_after`` and ``event`` are the FSM bookkeeping of
+    T-10 and stay ``None`` for the baseline, whose path is reconstructed by the
+    stage labeler of T-13 instead.
+
+    The prompt itself is not stored here: ``prompt_hash`` addresses it in the
+    ``llm_calls.jsonl`` of T-07, which is the same key its cache uses, so the text
+    lives in exactly one place and ``runs/`` stays small enough to rsync (T-17).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn: int
+    user_message: str
+    agent_reply: str
+    model: str
+    prompt_hash: str
+    prompt_tokens: int
+    output_tokens: int
+    #: Seconds inside the agent's own LLM call. T-13 reports it as the agent's
+    #: latency, and it only means anything when ``cached`` is false.
+    llm_latency_s: float
+    #: Seconds for the whole turn: the LLM call plus everything around it, which
+    #: for the FSM agent includes the extra classifier call of T-08.
+    turn_latency_s: float
+    cached: bool = False
+    state_before: str | None = None
+    state_after: str | None = None
+    event: str | None = None
+
+
 class Scenario(BaseModel):
     """One scenario: the user's brief, the answer key and the success test.
 
