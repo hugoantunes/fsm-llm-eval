@@ -38,6 +38,10 @@ format:
 # The quality gate the hooks run: lint, then unit tests
 check: lint test
 
+# Print the Mermaid diagram of data/fsm/machine.yaml; paste it into docs/fsm.md
+fsm-diagram:
+    uv run python -c 'from sim.fsm import load_fsm; print(load_fsm().to_mermaid())'
+
 # Pull the models of configs/models.yaml (agent, simulator, judge)
 pull-models:
     uv run python scripts/models.py pull

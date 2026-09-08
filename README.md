@@ -12,7 +12,8 @@ plan, the ticket board (T-01 to T-24) and the decisions table live in
 `~/Documents/mba/projeto/TICKETS.md`, outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
-> Status: initial structure (T-03). `sim run` and `sim eval` are implemented in T-14a and T-14b.
+> Status: the knowledge base (T-01) and the finite-state machine (T-02) are in place; `sim run` and
+> `sim eval` are implemented in T-14a and T-14b.
 
 ## Requirements
 
@@ -92,6 +93,7 @@ just test-all           # includes the tests marked `integration` (they need Oll
 just lint               # ruff check + ruff format --check
 just format             # ruff format + ruff check --fix
 just check              # lint + test: the gate the hooks run
+just fsm-diagram        # Mermaid diagram of data/fsm/machine.yaml, for docs/fsm.md
 just install-analysis   # pandas, scipy, matplotlib, jupyter (T-19, T-20)
 ```
 
