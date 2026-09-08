@@ -205,9 +205,22 @@ cache small. Measured as a diagnostic and reverted; the committed configuration 
 
 | Configuration | Agent resident | Simulator resident | Evictions | Agent mean | Run, N = 45 K = 3 |
 |---|---|---|---|---|---|
-| Committed (f16 KV) | 5.6 GB | 3.3 GB | 16 | 27.6 s | 12.1 h |
-| Flash attention + q8_0 KV | 5.5 GB | 3.2 GB | 15 | 25.2 s | 11.0 h |
-| Air, both co-resident | 5.7 GB | 3.4 GB | 0 | 10.6 s | 5.0 h |
+| Pro, committed (f16 KV) | 5.6 GB | 3.3 GB | 16 | 27.6 s | 12.1 h |
+| Pro, flash attention + q8_0 KV | 5.5 GB | 3.2 GB | 15 | 25.2 s | 11.0 h |
+| Air, both co-resident | 5.7 GB | 3.4 GB | not counted | 10.6 s | 5.0 h |
+
+Two caveats on that last row, so it is not read as a hardware comparison. The Air's eviction count
+was never measured; what is recorded is that `ollama ps` showed both models resident at 9.1 GB, and
+an agent mean of 10.6 s is consistent with no reload, so "none" is an inference and not a count. And
+the two machines were measured at different turn counts, the Air at `--turns 4` and the Pro at
+`--turns 8`, so the Pro's agent prompts were longer on average (3436 tokens against 3232). That
+accounts for a few percent, not for 2.6x.
+
+**What this does and does not say about the two chips.** It says the Air is the better `run` machine
+as things stand, by a factor of 2.4 on the budget, because 24 GB holds both models and 16 GB does
+not. It does not say the M4 is faster than the M5. The only eviction-free comparison available is
+the judge, a single model on each machine, and there the Pro is marginally ahead: 47.2 s against
+48.6 s. Per call the M5 is at least as fast; it loses the run phase on memory capacity alone.
 
 **Open decision** (needs a Decisões row before T-17; none of these is applied yet):
 
