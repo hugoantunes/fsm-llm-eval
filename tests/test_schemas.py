@@ -269,14 +269,13 @@ def load_examples() -> list[Scenario]:
     return load_scenarios(EXAMPLES_DIR, kb=kb, fsm=load_fsm(FSM_DIR, kb=kb))
 
 
-def test_the_real_examples_load_as_one_happy_path_and_one_adversarial_with_canary() -> (
-    None
-):
-    adversarial, happy_path = load_examples()
+def test_the_real_examples_cover_the_three_categories_with_one_canary() -> None:
+    examples = load_examples()
 
-    assert (adversarial.category, happy_path.category) == ("adversarial", "happy_path")
-    assert adversarial.canary is not None
-    assert happy_path.canary is None
+    assert {scenario.category for scenario in examples} == set(CATEGORIES)
+    assert [scenario.id for scenario in examples if scenario.canary is not None] == [
+        "adversarial_01"
+    ]
 
 
 def test_example_scenarios_name_no_real_brand_or_person() -> None:

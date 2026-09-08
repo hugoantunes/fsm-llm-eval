@@ -52,7 +52,11 @@ models:
   simulator:                    # simulated user + event classifier + stage labeler
     name: "qwen3.5:4b"          # 4.7B, Q4_K_M; 3.4 GB download, 3.4 GB loaded
     digest: "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd"
-    temperature: null           # the simulator's seed derives from (scenario, repetition), T-11
+    temperature: 0.7            # T-11: the same sampling as the agents, so the customer varies
+                                # across the K repetitions the way a real one would
+    seed: 42                    # BASE seed, as for the agents: T-14a derives the per-dialogue
+                                # seed from (42, scenario_id, repetition) and passes the same
+                                # value with either agent, so both meet the same customer
   judge:                        # a different family from the agents; the SAME in T-16 and T-17
     name: "gemma4:12b"          # 11.9B, Q4_K_M; 7.6 GB download, 8.6 GB loaded
     digest: "4eb23ef187e2c5462566d6a1d3bbbc2f1346d0b4327cbb66d58fffbcc9b2b05c"

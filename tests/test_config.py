@@ -20,6 +20,10 @@ def test_loads_the_real_models_yaml() -> None:
     assert config.models.judge.name
     assert config.models.agent.temperature is not None
     assert config.models.agent.seed is not None
+    # The simulated user of T-11 samples like the agents: nothing is left to
+    # Ollama's default, or a rerun would not reproduce the same customer.
+    assert config.models.simulator.temperature == config.models.agent.temperature
+    assert config.models.simulator.seed is not None
 
 
 def test_rejects_an_unknown_key(tmp_path: Path) -> None:

@@ -10,9 +10,21 @@ from typing import Any
 from pydantic import BaseModel
 
 from sim.config import Role
+from sim.fsm import load_fsm
+from sim.kb import load_kb
 from sim.llm import LlmResponse, Message
+from sim.schemas import Scenario, load_scenarios
+from sim.user import UserReply, UserStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+#: The real data and config the tests load instead of copying: whatever the
+#: experiment runs on is what they check.
+KB_DIR = REPO_ROOT / "data" / "kb"
+FSM_DIR = REPO_ROOT / "data" / "fsm"
+PROMPTS_DIR = REPO_ROOT / "data" / "prompts"
+EXAMPLES_DIR = REPO_ROOT / "data" / "scenarios" / "examples"
+CONFIG = REPO_ROOT / "configs" / "models.yaml"
 
 #: Brands, people and companies that must never appear in a fictional domain.
 #: The knowledge base and the scenarios are both checked against this list, so
@@ -100,7 +112,12 @@ class FakeLlm:
         seed: int | None = None,
         num_predict: int | None = None,
     ) -> LlmResponse:
-        """Record the call and hand back the next canned answer."""
+        """Record the call and hand back the next canned answer.
+
+        A call constrained by a schema comes back parsed, as the real client
+        returns it, so a canned answer that does not match the schema fails here
+        rather than reaching the caller as an object nobody validated.
+        """
         sent = [dict(message) for message in messages]
         prompt_hash = hashlib.sha256(str(sent).encode("utf-8")).hexdigest()
         self.calls.append(
@@ -119,7 +136,7 @@ class FakeLlm:
         text = self.replies.pop(0)
         return LlmResponse(
             text=text,
-            parsed=None,
+            parsed=None if schema is None else schema.model_validate_json(text),
             model=f"{role}-model",
             caller=caller,
             prompt_hash=prompt_hash,
@@ -128,6 +145,18 @@ class FakeLlm:
             latency_s=self.latency_s,
             cached=False,
         )
+
+
+def user_reply(message: str, status: UserStatus = "continue") -> str:
+    """Render one schema-valid answer from the simulated user of T-11."""
+    return UserReply(message=message, status=status).model_dump_json()
+
+
+def load_example_scenarios() -> dict[str, Scenario]:
+    """Return the example scenarios of ``data/scenarios/examples/``, by ID."""
+    kb = load_kb(KB_DIR)
+    scenarios = load_scenarios(EXAMPLES_DIR, kb=kb, fsm=load_fsm(FSM_DIR, kb=kb))
+    return {scenario.id: scenario for scenario in scenarios}
 
 
 def load_script(relative_path: str) -> ModuleType:

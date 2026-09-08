@@ -5,21 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from helpers import FakeLlm
+from helpers import CONFIG, KB_DIR, PROMPTS_DIR, FakeLlm, load_example_scenarios
 from sim.agents import AgentError, BaselineAgent
 from sim.config import load_models_config
-from sim.fsm import load_fsm
 from sim.kb import Fact, KnowledgeBase, UserDataField, load_kb
 from sim.llm import LlmClient
 from sim.prompts import load_prompt
-from sim.schemas import MAX_TURNS, Scenario, Turn, TurnRecord, load_scenarios
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-KB_DIR = REPO_ROOT / "data" / "kb"
-FSM_DIR = REPO_ROOT / "data" / "fsm"
-PROMPTS_DIR = REPO_ROOT / "data" / "prompts"
-EXAMPLES_DIR = REPO_ROOT / "data" / "scenarios" / "examples"
-CONFIG = REPO_ROOT / "configs" / "models.yaml"
+from sim.schemas import MAX_TURNS, Turn, TurnRecord
 
 #: Four characters per token, the rule of thumb for English on these tokenizers.
 #: It makes the context budget testable without Ollama; the real count comes from
@@ -70,13 +62,6 @@ KB = KnowledgeBase(
 def baseline(llm: FakeLlm | None = None, **kwargs: object) -> BaselineAgent:
     """Build a baseline agent on the synthetic KB and the real prompt files."""
     return BaselineAgent(llm or FakeLlm(), kb=KB, prompts_dir=PROMPTS_DIR, **kwargs)
-
-
-def load_example_scenarios() -> dict[str, Scenario]:
-    """Return the two example scenarios of T-05, by ID."""
-    kb = load_kb(KB_DIR)
-    scenarios = load_scenarios(EXAMPLES_DIR, kb=kb, fsm=load_fsm(FSM_DIR, kb=kb))
-    return {scenario.id: scenario for scenario in scenarios}
 
 
 def verbose_history(exchanges: int) -> list[Turn]:
