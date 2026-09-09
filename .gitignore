@@ -226,9 +226,11 @@ runs/
 # Result CSVs are regenerated from runs/ (T-14b, T-18, T-19).
 results/**/*.csv
 
-# Execution JSONL anywhere else. The frozen dataset under data/ IS versioned.
+# Execution JSONL anywhere else. The frozen dataset under data/ and the labelled
+# utterances of T-08 under tests/fixtures/ ARE versioned.
 *.jsonl
 !data/**/*.jsonl
+!tests/fixtures/**/*.jsonl
 
 # macOS
 .DS_Store

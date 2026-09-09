@@ -6,13 +6,14 @@ a test receives as an argument is a fixture of ``conftest.py`` instead.
 
 import hashlib
 import importlib.util
+import json
 import re
 from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from sim.config import Role
 from sim.kb import Fact, KnowledgeBase, Needle, UserDataField
@@ -30,6 +31,7 @@ SCENARIOS_DIR = REPO_ROOT / "data" / "scenarios"
 EXAMPLES_DIR = SCENARIOS_DIR / "examples"
 CONFIG = REPO_ROOT / "configs" / "models.yaml"
 DOCS_DIR = REPO_ROOT / "docs"
+LABELED_EVENTS = REPO_ROOT / "tests" / "fixtures" / "user_events.jsonl"
 
 #: Brands, people and companies that must never appear in a fictional domain.
 #: The knowledge base, the scenarios, the prompts and the FSM packages are all
@@ -194,6 +196,27 @@ class FakeLlm:
 def user_reply(message: str, status: UserStatus = "continue") -> str:
     """Render one schema-valid answer from the simulated user of T-11."""
     return UserReply(message=message, status=status).model_dump_json()
+
+
+class LabeledEvent(BaseModel):
+    """One gold utterance for the hybrid detector of T-08."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    state: str
+    text: str
+    event: str
+    via: Literal["rule", "llm"]
+    intent: str | None = None
+
+
+def load_labeled_events(path: Path = LABELED_EVENTS) -> list[LabeledEvent]:
+    """Load the gold utterances of ``tests/fixtures/user_events.jsonl``."""
+    rows: list[LabeledEvent] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(LabeledEvent.model_validate(json.loads(line)))
+    return rows
 
 
 def load_script(relative_path: str) -> ModuleType:
