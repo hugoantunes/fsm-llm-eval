@@ -113,7 +113,9 @@ class BaselineAgent(Agent):
         super().__init__(llm, seed=seed)
         self.system_prompt = load_prompt("baseline", directory=prompts_dir).render(
             shared=load_prompt(SHARED_PROMPT, directory=prompts_dir).template,
-            user_data_fields=render_user_data_fields(kb.user_data_fields),
+            user_data_fields=render_user_data_fields(
+                kb.user_data_fields, prompts_dir=prompts_dir
+            ),
             knowledge_base=render_facts(kb.facts),
         )
 
@@ -143,11 +145,19 @@ def render_facts(facts: Iterable[Fact]) -> str:
     return "\n".join(lines).strip()
 
 
-def render_user_data_fields(fields: Sequence[UserDataField]) -> str:
-    """Render the data the agent has to collect, with the requests that need it."""
+def render_user_data_fields(
+    fields: Sequence[UserDataField],
+    *,
+    prompts_dir: Path = DEFAULT_PROMPTS_DIR,
+) -> str:
+    """Render the data the agent has to collect, from the versioned row template."""
+    row = load_prompt("user_data_field", directory=prompts_dir)
     return "\n".join(
-        f"- **{field.label}** — required for "
-        f"{', '.join(field.required_for)} (for example: {field.example})"
+        row.render(
+            label=field.label,
+            required_for=", ".join(field.required_for),
+            example=field.example,
+        )
         for field in fields
     )
 

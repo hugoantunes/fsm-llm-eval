@@ -11,7 +11,7 @@ from ollama import ChatResponse, ResponseError, ShowResponse
 from ollama._types import Message
 from pydantic import BaseModel
 
-from helpers import write_models_config
+from helpers import MINIMAL_MODELS_YAML, write_models_config
 from sim.config import load_models_config
 from sim.llm import LlmCallError, LlmClient, LlmError, PromptTooLongError
 
@@ -85,19 +85,32 @@ def read_log(tmp_path: Path) -> list[dict[str, Any]]:
 
 
 def make_client(
-    tmp_path: Path, transport: FakeOllama, *, slept: list[float] | None = None
+    tmp_path: Path,
+    transport: FakeOllama,
+    *,
+    slept: list[float] | None = None,
+    config_text: str = MINIMAL_MODELS_YAML,
 ) -> LlmClient:
     """Build a client on the synthetic config, writing under ``tmp_path``.
 
     ``slept`` collects the backoff delays instead of waiting them out.
     """
-    config = load_models_config(write_models_config(tmp_path))
+    config = load_models_config(write_models_config(tmp_path, config_text))
     return LlmClient(
         config,
         cache_dir=tmp_path / "cache",
         log_path=tmp_path / "llm_calls.jsonl",
         transport=transport,
         sleep=(slept if slept is None else slept.append),
+    )
+
+
+def _with_agent_digest(digest: str) -> str:
+    """Return the synthetic config with a recorded digest on the agent model."""
+    return MINIMAL_MODELS_YAML.replace(
+        '    name: "agent-model"\n',
+        f'    name: "agent-model"\n    digest: "{digest}"\n',
+        1,
     )
 
 
@@ -311,6 +324,41 @@ def test_an_identical_call_hits_the_cache_instead_of_the_transport(
     assert second.text == first.text == "the same answer"
     assert first.cached is False
     assert second.cached is True
+
+
+def test_a_replayed_call_records_zero_attempts(tmp_path: Path) -> None:
+    transport = FakeOllama([httpx.ConnectError("connection refused"), reply("late")])
+    client = make_client(tmp_path, transport, slept=[])
+    messages = [{"role": "user", "content": "hi"}]
+
+    client.chat(messages, role="agent", caller="agent")
+    client.chat(messages, role="agent", caller="agent")
+
+    miss, hit = read_log(tmp_path)
+    assert miss["cached"] is False
+    assert miss["attempts"] == 2
+    assert hit["cached"] is True
+    assert hit["attempts"] == 0
+
+
+def test_the_cache_key_separates_the_same_tag_under_two_digests(
+    tmp_path: Path,
+) -> None:
+    transport = FakeOllama([reply("old weights"), reply("new weights")])
+    messages = [{"role": "user", "content": "where is my order?"}]
+    first = make_client(tmp_path, transport, config_text=_with_agent_digest("aaa"))
+    first.chat(messages, role="agent", caller="agent")
+    second = make_client(tmp_path, transport, config_text=_with_agent_digest("bbb"))
+
+    response = second.chat(messages, role="agent", caller="agent")
+
+    assert len(transport.calls) == 2
+    assert response.text == "new weights"
+    assert response.cached is False
+    records = read_log(tmp_path)
+    assert records[0]["prompt_hash"] != records[1]["prompt_hash"]
+    assert records[0]["digest"] == "aaa"
+    assert records[1]["digest"] == "bbb"
 
 
 def test_the_cache_key_separates_calls_that_differ_by_seed_messages_or_schema(

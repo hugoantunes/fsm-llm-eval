@@ -61,10 +61,13 @@ class CacheEntry(BaseModel):
     The cache is what keeps ``run`` and ``eval`` separate phases: a rubric can
     change and the judge can be run again without re-executing a single
     dialogue. ``latency_s`` is the original call's, kept so a replayed record
-    still says how long the real call took.
+    still says how long the real call took. ``digest`` is the recorded
+    identity of the weights; the tag in ``model`` is not enough, because an
+    upstream retag keeps the name and changes the bits.
     """
 
     model: str
+    digest: str | None = None
     text: str
     prompt_tokens: int
     output_tokens: int
@@ -78,12 +81,16 @@ class LlmCallRecord(BaseModel):
     ``prompt_tokens`` is Ollama's ``prompt_eval_count``, which T-16 uses for the
     parity table; ``latency_s`` is the per-call stopwatch T-13 measures agent
     efficiency with, and it only means anything when ``cached`` is false.
+    ``attempts`` is how many times this log line talked to the server: one when
+    the first try answered, more when it retried, zero when the answer was
+    replayed from the cache.
     """
 
     timestamp: str
     caller: str
     role: str
     model: str
+    digest: str | None = None
     prompt_hash: str
     messages: list[dict[str, str]]
     text: str
@@ -195,12 +202,20 @@ class LlmClient:
             num_predict=num_predict,
         )
         fmt = None if schema is None else schema.model_json_schema()
-        prompt_hash = _prompt_hash(spec.name, messages, options, fmt)
+        prompt_hash = _prompt_hash(spec.name, spec.digest, messages, options, fmt)
 
         entry = self._read_cache(prompt_hash)
         if entry is not None:
             return self._finish(
-                _record(entry, caller, role, prompt_hash, messages, cached=True),
+                _record(
+                    entry,
+                    caller,
+                    role,
+                    prompt_hash,
+                    messages,
+                    cached=True,
+                    attempts=0,
+                ),
                 schema,
             )
 
@@ -215,7 +230,7 @@ class LlmClient:
         except LlmCallError as failure:
             self._append_log(
                 _record(
-                    _no_answer(spec.name),
+                    _no_answer(spec.name, spec.digest),
                     caller,
                     role,
                     prompt_hash,
@@ -237,7 +252,7 @@ class LlmClient:
             )
             self._append_log(
                 _record(
-                    _no_answer(spec.name),
+                    _no_answer(spec.name, spec.digest),
                     caller,
                     role,
                     prompt_hash,
@@ -251,6 +266,7 @@ class LlmClient:
 
         entry = CacheEntry(
             model=spec.name,
+            digest=spec.digest,
             text=response.message.content or "",
             prompt_tokens=response.prompt_eval_count,
             output_tokens=response.eval_count or 0,
@@ -406,7 +422,7 @@ def _record(
     messages: Sequence[Message],
     *,
     cached: bool,
-    attempts: int = 1,
+    attempts: int,
     error: str | None = None,
 ) -> LlmCallRecord:
     """Build the log record of one call, fresh or replayed from the cache."""
@@ -415,6 +431,7 @@ def _record(
         caller=caller,
         role=role,
         model=entry.model,
+        digest=entry.digest,
         prompt_hash=prompt_hash,
         messages=[dict(message) for message in messages],
         text=entry.text,
@@ -427,10 +444,11 @@ def _record(
     )
 
 
-def _no_answer(model: str) -> CacheEntry:
+def _no_answer(model: str, digest: str | None = None) -> CacheEntry:
     """The empty stand-in a call that never answered is logged with."""
     return CacheEntry(
         model=model,
+        digest=digest,
         text="",
         prompt_tokens=0,
         output_tokens=0,
@@ -453,6 +471,7 @@ def _is_transient(failure: Exception) -> bool:
 
 def _prompt_hash(
     model: str,
+    digest: str | None,
     messages: Sequence[Message],
     options: Mapping[str, Any],
     fmt: Mapping[str, Any] | None,
@@ -461,11 +480,13 @@ def _prompt_hash(
 
     ``think`` is not part of the key: every call passes ``think=False`` (T-03),
     and leaving it out is what lets a cached re-evaluation run without asking
-    the server which capabilities the model has.
+    the server which capabilities the model has. The digest is: it is the
+    identity of the weights, and the tag in ``model`` is reused across retags.
     """
     payload = json.dumps(
         {
             "model": model,
+            "digest": digest,
             "messages": [dict(message) for message in messages],
             "options": dict(options),
             "format": fmt,

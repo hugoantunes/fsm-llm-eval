@@ -5,7 +5,7 @@ import re
 import pytest
 
 from helpers import GENERAL_FACT, PROMPTS_DIR, TRACKING_FACT, FakeLlm, make_kb
-from sim.agents import AgentError, BaselineAgent
+from sim.agents import AgentError, BaselineAgent, render_user_data_fields
 from sim.kb import Fact, KnowledgeBase, UserDataField
 from sim.llm import LlmClient
 from sim.prompts import load_prompt
@@ -87,6 +87,25 @@ def test_the_baseline_prompt_carries_the_shared_block_and_every_fact() -> None:
     assert load_prompt("agent_shared", directory=PROMPTS_DIR).template in prompt
     assert all(fact.text in prompt for fact in KB.facts)
     assert all(field.label in prompt for field in KB.user_data_fields)
+
+
+def test_user_data_fields_are_rendered_from_the_versioned_row_template() -> None:
+    row = load_prompt("user_data_field", directory=PROMPTS_DIR)
+    expected = "\n".join(
+        row.render(
+            label=field.label,
+            required_for=", ".join(field.required_for),
+            example=field.example,
+        )
+        for field in KB.user_data_fields
+    )
+
+    assert (
+        render_user_data_fields(KB.user_data_fields, prompts_dir=PROMPTS_DIR)
+        == expected
+    )
+    assert "required for" in row.template
+    assert "for example" in row.template
 
 
 def test_the_baseline_prompt_carries_no_part_of_the_answer_key(
