@@ -8,10 +8,11 @@ import hashlib
 import importlib.util
 import json
 import re
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
@@ -145,10 +146,15 @@ class FakeLlm:
     """
 
     def __init__(
-        self, replies: Sequence[str] | None = None, *, latency_s: float = 0.5
+        self,
+        replies: Sequence[str] | None = None,
+        *,
+        latency_s: float = 0.5,
+        delay_s: float = 0.0,
     ) -> None:
         self.replies = list(replies) if replies is not None else ["Hello, I can help."]
         self.latency_s = latency_s
+        self.delay_s = delay_s
         self.calls: list[dict[str, Any]] = []
 
     def chat(
@@ -182,6 +188,8 @@ class FakeLlm:
         )
         if not self.replies:
             raise AssertionError("FakeLlm ran out of replies")
+        if self.delay_s:
+            time.sleep(self.delay_s)
         text = self.replies.pop(0)
         return LlmResponse(
             text=text,
@@ -203,6 +211,35 @@ def user_reply(message: str, status: UserStatus = "continue") -> str:
 def classifier_reply(event: str, intent: str | None = None) -> str:
     """Render one schema-valid answer from the user-event classifier of T-08."""
     return json.dumps({"event": event, "intent": intent})
+
+
+#: One canned user turn that ends the dialogue after the agent's first reply.
+CANNED_USER_TURN = "Hi, where is my order?"
+CANNED_AGENT_REPLY = "Hello from support."
+
+
+def canned_replies_for(agent: str, *, delay_s: float = 0.0) -> FakeLlm:
+    """A one-turn fake: the customer reaches its goal on the opening message.
+
+    The FSM agent also classifies that turn; the baseline does not. Each job
+    of T-14a gets its own instance, so a thread pool cannot mix their queues.
+    """
+    replies: list[str] = [user_reply(CANNED_USER_TURN, status="goal_reached")]
+    if agent == "fsm":
+        replies.append(classifier_reply("none"))
+    replies.append(CANNED_AGENT_REPLY)
+    return FakeLlm(replies, delay_s=delay_s)
+
+
+class HasAgent(Protocol):
+    """The slice of a dialogue job the canned factory reads."""
+
+    agent: str
+
+
+def canned_llm_factory(job: HasAgent, *, delay_s: float = 0.0) -> FakeLlm:
+    """Build a one-turn fake for ``job``; the factory the runner tests inject."""
+    return canned_replies_for(job.agent, delay_s=delay_s)
 
 
 def play_user_turns(agent: Agent, messages: Sequence[str]) -> list[TurnRecord]:

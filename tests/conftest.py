@@ -10,11 +10,13 @@ the synthetic counterparts a loader is tested against stay in the test modules,
 under their own names, so the two can never be confused.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from helpers import CONFIG, EXAMPLES_DIR, FSM_DIR, KB_DIR
+from helpers import CONFIG, EXAMPLES_DIR, FSM_DIR, KB_DIR, FakeLlm
+from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
 from sim.fsm import FsmSpec, load_fsm
 from sim.kb import KnowledgeBase, load_kb
@@ -39,6 +41,44 @@ def example_scenarios(real_kb: KnowledgeBase, real_fsm: FsmSpec) -> dict[str, Sc
     """The scenarios of ``data/scenarios/examples/``, by ID (T-05)."""
     scenarios = load_scenarios(EXAMPLES_DIR, kb=real_kb, fsm=real_fsm)
     return {scenario.id: scenario for scenario in scenarios}
+
+
+@pytest.fixture(scope="session")
+def two_example_scenarios(
+    example_scenarios: dict[str, Scenario],
+) -> tuple[Scenario, Scenario]:
+    """Happy-path and adversarial examples: the 2x2x1 pair of T-14a."""
+    return (example_scenarios["happy_path_01"], example_scenarios["adversarial_01"])
+
+
+@pytest.fixture
+def run_dir(tmp_path: Path) -> Path:
+    """An experiment directory under pytest's tmp path, never the repo ``runs/``."""
+    path = tmp_path / "runs" / "exp"
+    path.mkdir(parents=True)
+    return path
+
+
+@pytest.fixture
+def two_scenario_dir(
+    tmp_path: Path, two_example_scenarios: tuple[Scenario, Scenario]
+) -> Path:
+    """A directory with only the 2x2x1 pair, so the CLI can load exactly those."""
+    directory = tmp_path / "scenarios"
+    directory.mkdir()
+    (directory / "pair.jsonl").write_text(
+        "".join(
+            scenario.model_dump_json() + "\n" for scenario in two_example_scenarios
+        ),
+        encoding="utf-8",
+    )
+    return directory
+
+
+@pytest.fixture
+def canned_llm_factory() -> Callable[..., FakeLlm]:
+    """One-turn FakeLlm per job, so a thread pool cannot mix their queues."""
+    return make_canned_llm
 
 
 @pytest.fixture(scope="session")

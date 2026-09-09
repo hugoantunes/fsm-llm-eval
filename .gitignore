@@ -219,9 +219,10 @@ __marimo__/
 
 # --- fsm-llm-eval (T-03) -----------------------------------------------------
 
-# Everything the machine produces during `sim run` / `sim eval`: dialogue JSONL,
-# LLM call logs, prompt cache. Moves between the two machines by rsync, never git.
-runs/
+# Dialogue JSONL, LLM call logs and the prompt cache. Never commit a run; the
+# empty directory is tracked so the path exists on a fresh clone.
+runs/*
+!runs/.gitkeep
 
 # Result CSVs are regenerated from runs/ (T-14b, T-18, T-19).
 results/**/*.csv

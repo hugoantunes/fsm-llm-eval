@@ -27,7 +27,7 @@ That folder is on iCloud: if a file is unreadable it is probably evicted, so ask
 - `just` lists the recipes. `just install`: `uv sync` (Python 3.13, dev group). `just install-analysis` adds pandas, scipy, matplotlib, jupyter.
 - `just test`: pytest without `integration` tests. `just test-all` includes them (needs Ollama with the models in `configs/models.yaml`). Extra arguments go to pytest: `just test tests/test_cli.py -k help`.
 - `just lint` / `just format`: ruff check and ruff format. `just check` = lint + test; it is the gate the hooks run.
-- `just run [agent] [scenarios] [reps] [parallel] [args...]` and `just eval runs/<exp_id>`: thin wrappers over `python -m sim run|eval` (T-14a, T-14b).
+- `just run [exp_id] [scenarios] [reps] [parallel] [args...]` and `just eval runs/<exp_id>`: thin wrappers over `python -m sim run|eval` (T-14a, T-14b).
 - `just pull-models` / `just digests` / `just verify-models`: pull the models of `configs/models.yaml`, print their digests, fail on any digest mismatch (`scripts/models.py`).
 - Always go through `uv run ...`; add dependencies with `uv add` (or `uv add --group dev`), never pip.
 

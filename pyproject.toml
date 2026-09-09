@@ -12,6 +12,7 @@ dependencies = [
     "ollama>=0.5",       # official client; `format=` takes a JSON Schema (T-07)
     "pydantic>=2.7",     # scenario schema, turn record, judge outputs (T-05, T-09, T-12)
     "pyyaml>=6.0",       # data/fsm/machine.yaml, configs/models.yaml (T-02, T-03)
+    "tqdm>=4.70.0",      # progress bar with ETA for sim run (T-14a)
     "transitions>=0.9",  # FSM engine (T-08)
 ]
 

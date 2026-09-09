@@ -54,9 +54,9 @@ digests:
 verify-models:
     uv run python scripts/models.py verify
 
-# python -m sim run (T-14a). Example: just run fsm data/scenarios/v1 3 2 --resume
-run agent="baseline" scenarios="data/scenarios/examples" reps="1" parallel="2" *args:
-    uv run python -m sim run --agent {{agent}} --scenarios {{scenarios}} --reps {{reps}} --parallel {{parallel}} {{args}}
+# python -m sim run (T-14a). Example: just run exp data/scenarios/v1 3 2 --resume
+run exp_id="exp" scenarios="data/scenarios/examples" reps="1" parallel="2" *args:
+    uv run python -m sim run --exp-id {{exp_id}} --scenarios {{scenarios}} --reps {{reps}} --parallel {{parallel}} {{args}}
 
 # python -m sim eval (T-14b). Example: just eval runs/exp_pilot
 eval run_dir:

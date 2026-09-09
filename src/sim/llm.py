@@ -16,18 +16,21 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
-from uuid import uuid4
 
 import httpx
 from ollama import ChatResponse, Client, ResponseError
 from pydantic import BaseModel, ValidationError
 
 from sim.config import ModelsConfig, Role
+from sim.io import atomic_write
 
 logger = logging.getLogger(__name__)
 
 #: One chat message, as Ollama takes it: ``{"role": ..., "content": ...}``.
 Message = Mapping[str, str]
+
+#: Audit log of every call, including cache hits, under ``runs/<exp_id>/``.
+LLM_CALLS_LOG = "llm_calls.jsonl"
 
 
 class LlmError(RuntimeError):
@@ -367,11 +370,7 @@ class LlmClient:
         A reader must never see half a file: ``sim eval`` re-reads this cache
         while ``sim run`` writes it, and rsync copies the directory mid-run.
         """
-        path = self._cache_path(prompt_hash)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(f"{path.name}.{uuid4().hex}.tmp")
-        temporary.write_text(entry.model_dump_json(), encoding="utf-8")
-        temporary.replace(path)
+        atomic_write(self._cache_path(prompt_hash), entry.model_dump_json())
 
     def _cache_path(self, prompt_hash: str) -> Path:
         """Return the file of ``prompt_hash``, sharded by its first two digits."""

@@ -72,3 +72,11 @@ def load_prompt(name: str, *, directory: Path = DEFAULT_PROMPTS_DIR) -> Prompt:
         version=int(version["version"]),
         template=_VERSION.sub("", text, count=1).strip(),
     )
+
+
+def load_prompt_versions(directory: Path = DEFAULT_PROMPTS_DIR) -> dict[str, int]:
+    """Return ``{name: version}`` for every prompt file in ``directory``."""
+    return {
+        path.stem: load_prompt(path.stem, directory=directory).version
+        for path in sorted(directory.glob("*.md"))
+    }

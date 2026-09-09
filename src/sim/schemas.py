@@ -35,6 +35,13 @@ MAX_TURNS = 12
 #: sides, and :func:`as_messages` maps it for whichever of the two is speaking.
 Speaker = Literal["user", "agent"]
 
+#: Why a dialogue ended. T-13 reads it as part of efficiency; the runner of
+#: T-14a persists it on every dialogue log.
+StopReason = Literal["goal_reached", "user_gave_up", "agent_closed", "max_turns"]
+
+#: Whether that dialogue produced a complete log or stopped on an error.
+DialogueStatus = Literal["ok", "failed"]
+
 
 class ScenarioError(ValueError):
     """A scenario is malformed; the message says what to fix and where."""
@@ -103,6 +110,68 @@ class TurnRecord(BaseModel):
     state_before: str | None = None
     state_after: str | None = None
     event: str | None = None
+
+
+class DialogueLog(BaseModel):
+    """One dialogue as stored under ``runs/<exp_id>/dialogues/`` (T-14a).
+
+    The answer key stays in the scenario files: this log is what happened, and
+    T-14b joins it to the scenario by ``scenario_id``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenario_id: str
+    agent: str
+    repetition: int
+    seed: int
+    status: DialogueStatus
+    error: str | None = None
+    stop_reason: StopReason | None = None
+    records: list[TurnRecord] = Field(default_factory=list)
+
+
+class JobRef(BaseModel):
+    """One scheduled (repetition, scenario, agent), in loop order."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenario_id: str
+    agent: str
+    repetition: int
+
+
+class Manifest(BaseModel):
+    """What a ``sim run`` wrote, recorded so T-16 and T-17 can reproduce it.
+
+    ``n_llm_calls`` and ``n_llm_cached`` are counted from ``llm_calls.jsonl``
+    after the dialogues finish, so cache hits on the simulator (and later the
+    judge) show up even when the dialogue's ``cached`` flag is only the agent.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    exp_id: str
+    package_version: str
+    ollama_version: str
+    num_ctx: int
+    dataset_hash: str
+    scenarios_dir: str
+    prompt_versions: dict[str, int]
+    model_names: dict[str, str]
+    model_digests: dict[str, str | None]
+    agents: list[str]
+    reps: int
+    parallel: int
+    seed_base: int
+    jobs: list[JobRef]
+    elapsed_s: float
+    dialogues_per_hour: float
+    n_ok: int
+    n_failed: int
+    n_skipped: int
+    n_llm_calls: int
+    n_llm_cached: int
 
 
 class Scenario(BaseModel):

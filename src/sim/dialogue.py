@@ -10,18 +10,11 @@ The runner of T-14a wraps this with the CLI, the JSONL per dialogue, the
 manifest, ``--resume`` and the thread pool. None of that belongs here.
 """
 
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict
 
 from sim.agents import Agent
-from sim.schemas import Turn, TurnRecord
+from sim.schemas import StopReason, Turn, TurnRecord
 from sim.user import SimulatedUser
-
-#: Why a dialogue ended. T-13 reads it as part of efficiency, and the pilot of
-#: T-15 compares its distribution between the agents: a stopping rule that fired
-#: earlier for one of them would truncate that agent's dialogues and flatter it.
-StopReason = Literal["goal_reached", "user_gave_up", "agent_closed", "max_turns"]
 
 
 class DialogueError(RuntimeError):

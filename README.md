@@ -12,8 +12,7 @@ plan, the ticket board (T-01 to T-24), the decisions table and the session log l
 `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`), outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
-> Status: the knowledge base (T-01) and the finite-state machine (T-02) are in place; `sim run` and
-> `sim eval` are implemented in T-14a and T-14b.
+> Status: `sim run` (T-14a) is in place. `sim eval` is T-14b and is not implemented yet.
 
 ## Requirements
 
@@ -64,20 +63,56 @@ just verify-models   # fails unless the local digests match the recorded ones
 that exceeds it, which would cut the baseline's knowledge base. Values and rationale in
 [docs/setup.md](docs/setup.md).
 
-## Usage
+## How to run
+
+After `just install`, `scripts/ollama_env.sh` (again after every reboot) and `just verify-models`.
+
+The recipe is `just run [exp_id] [scenarios] [reps] [parallel] [args...]`. Defaults: `exp`,
+`data/scenarios/examples`, 1 repetition, `--parallel 2`. Extra args go to `python -m sim run`.
+Omit `--agent` to run both agents (baseline then FSM), which is what the experiment needs.
 
 ```bash
 uv run python -m sim --help
-just run baseline data/scenarios/examples 1 2   # sim run --agent ... --scenarios ... --reps ... --parallel ...
-just eval runs/<exp_id>                         # sim eval --run ...
+uv run python -m sim run --help
+
+# Smoke: 3 example scenarios x 2 agents x 1 rep → runs/exp/
+just run exp
+
+# One agent only (debug or resume a failed side)
+just run exp --agent fsm
+
+# More repetitions, then resume after a stop (skips JSONL already written)
+just run exp data/scenarios/examples 3 2
+just run exp data/scenarios/examples 3 2 --resume
 ```
 
-- `sim run` writes one JSONL per dialogue to `runs/<exp_id>/` plus a `manifest.json` (config,
-  dataset hash, model digests, `num_ctx`, prompt and Ollama versions). The loop order is
-  repetition → scenario → agent; `--resume` skips what already ran.
-- `sim eval` reads a `runs/<exp_id>/`, runs the deterministic evaluators and the judge's two calls,
-  and writes `metrics.csv` and `metrics_turn.csv`. It is separate from `run` so a run can be
-  re-evaluated without re-executing (LLM calls are cached by prompt hash).
+Equivalent without `just`:
+
+```bash
+uv run python -m sim run \
+  --exp-id exp \
+  --scenarios data/scenarios/examples \
+  --reps 1 \
+  --parallel 2
+```
+
+`--exp-id` is required. Output lands in `runs/<exp_id>/` (the `runs/` directory is in the
+repo, empty until the first run; change the parent with `--runs-dir`):
+
+| Path | What it is |
+|---|---|
+| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop reason, FSM states (`None` on the baseline) |
+| `manifest.json` | config, dataset hash, model digests, `num_ctx`, prompt versions, job list, throughput, LLM call / cache-hit counts |
+| `llm_calls.jsonl`, `cache/` | every LLM call (`baseline`, `fsm`, `simulated_user`, `classifier`), keyed by prompt hash. Compact JSON: `"cached":true` has no space after the colon |
+
+The schedule is repetition → scenario → agent, so after repetition K the paired dataset is
+complete and extra reps are incremental. `--resume` skips a job iff its final JSONL exists; a
+leftover `.tmp` is not complete and that job runs again. A failed dialogue is recorded
+(`status=failed`) and does not abort the rest; delete its file to retry. The process exits 1 if
+any dialogue failed. `--parallel` is a thread pool of dialogues, matched to `OLLAMA_NUM_PARALLEL`.
+
+`sim eval` (T-14b) will read a `runs/<exp_id>/` and write `metrics.csv` without re-executing; it is
+not implemented yet.
 
 Full execution (T-17), on the Air: `caffeinate -is uv run python -m sim run ... --parallel 2`, in
 blocks with `--resume`; after each block, `rsync -av runs/ <pro>:~/projects/fsm-llm-eval/runs/` and
@@ -116,7 +151,7 @@ Parts that do not exist yet are marked with the ticket that creates them.
 | `data/prompts/` | versioned prompts: baseline, FSM template, judge (facts and global) (T-04, T-09, T-10) |
 | `data/scenarios/` | golden dataset: `examples/` (T-05) and `v1/`, frozen by hash (T-06) |
 | `configs/` | `models.yaml`: models, digests, `num_ctx`, fixed parameters |
-| `runs/` | output of `sim run` and the LLM call cache. **Git-ignored**; moved between machines by `rsync` |
+| `runs/` | output of `sim run` and the LLM call cache. Contents git-ignored; moved between machines by `rsync` |
 | `results/` | `metrics.csv`, `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-14b, T-19, T-20; CSVs git-ignored, regenerated from `runs/`) |
 | `notebooks/` | `analysis.ipynb`: regenerates tables and figures from `metrics.csv` (T-20) |
 | `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`; `generate_scenarios.py` (T-06) |
