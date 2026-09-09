@@ -9,7 +9,7 @@ import json
 import re
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 DEFAULT_KB_DIR = Path("data/kb")
 
@@ -30,6 +30,8 @@ class KnowledgeBaseError(ValueError):
 class Fact(BaseModel):
     """One atomic statement the agents are allowed to make."""
 
+    model_config = ConfigDict(extra="forbid")
+
     id: str
     intent: str
     text: str
@@ -38,6 +40,8 @@ class Fact(BaseModel):
 class Needle(BaseModel):
     """A specific, non-obvious fact, and the question that probes it."""
 
+    model_config = ConfigDict(extra="forbid")
+
     fact_id: str
     why: str
     probe_question: str
@@ -45,6 +49,8 @@ class Needle(BaseModel):
 
 class UnanswerableQuestion(BaseModel):
     """A plausible question the KB does not answer: a hallucination trap."""
+
+    model_config = ConfigDict(extra="forbid")
 
     id: str
     question: str
@@ -61,6 +67,8 @@ class UserDataField(BaseModel):
     The rule-first event detection of T-08 reads these patterns.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     key: str
     label: str
     pattern: str | None = None
@@ -70,6 +78,8 @@ class UserDataField(BaseModel):
 
 class KnowledgeBase(BaseModel):
     """Everything under ``data/kb/``, parsed and cross-checked."""
+
+    model_config = ConfigDict(extra="forbid")
 
     facts: list[Fact]
     needles: list[Needle]
@@ -141,12 +151,20 @@ def load_kb(directory: Path = DEFAULT_KB_DIR) -> KnowledgeBase:
     fields = json.loads(
         (directory / "user_data_fields.json").read_text(encoding="utf-8")
     )
-    kb = KnowledgeBase(
-        facts=facts,
-        needles=needles["needles"],
-        unanswerable=unanswerable["unanswerable"],
-        user_data_fields=fields["fields"],
-    )
+    try:
+        kb = KnowledgeBase(
+            facts=facts,
+            needles=needles["needles"],
+            unanswerable=unanswerable["unanswerable"],
+            user_data_fields=fields["fields"],
+        )
+    except ValidationError as invalid:
+        raise KnowledgeBaseError(
+            f"a KB JSON file does not match the schema of sim.kb:\n{invalid}\n"
+            "A key the schema does not know is refused rather than ignored: a "
+            "misspelled 'pattern' would silently drop the regex T-08's rule-first "
+            "event detection reads"
+        ) from invalid
     _check_needles(kb)
     _check_unanswerable(kb)
     _check_user_data_fields(kb)

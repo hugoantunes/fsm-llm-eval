@@ -1,6 +1,11 @@
 """Tests for scripts/models.py: the digest comparison behind ``just verify-models``."""
 
-from helpers import load_script
+from pathlib import Path
+
+import pytest
+
+from helpers import MINIMAL_MODELS_YAML, load_script, write_models_config
+from sim.config import ConfigError
 
 models = load_script("scripts/models.py")
 
@@ -8,6 +13,15 @@ CONFIG = {
     "agent": {"name": "qwen:1b", "digest": "a" * 64},
     "judge": {"name": "gemma:1b", "digest": "b" * 64},
 }
+
+
+def test_configured_models_refuses_a_key_the_schema_does_not_know(
+    tmp_path: Path,
+) -> None:
+    misspelled = MINIMAL_MODELS_YAML.replace("    temperature: 0.7", "    temp: 0.7")
+
+    with pytest.raises(ConfigError, match="temp"):
+        models.configured_models(write_models_config(tmp_path, misspelled))
 
 
 def test_matching_digests_report_no_problems() -> None:

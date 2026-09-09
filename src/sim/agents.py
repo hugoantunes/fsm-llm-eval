@@ -59,10 +59,12 @@ class Agent(ABC):
         """Answer the conversation in ``history``, whose last turn is the user's.
 
         Raises:
-            AgentError: when the history does not end with a user turn. The
-                customer always speaks first and the agent answers one message at
-                a time, so anything else is the runner losing a turn, and a record
-                with an empty ``user_message`` would hide it from the metrics.
+            AgentError: when the history does not end with a user turn, or when
+                the model returns a blank reply. The customer always speaks first
+                and the agent answers one message at a time, so anything else is
+                the runner losing a turn; a blank agent turn would reach the
+                judge as a turn the agent took and ask the customer to answer
+                silence.
         """
         _check_the_user_spoke_last(history)
         started = time.perf_counter()
@@ -73,6 +75,7 @@ class Agent(ABC):
             caller=self.name,
             seed=self._seed,
         )
+        _check_the_reply_is_not_blank(answer.text)
         return TurnRecord(
             turn=sum(1 for turn in history if turn.speaker == "user"),
             user_message=history[-1].text,
@@ -146,6 +149,18 @@ def render_user_data_fields(fields: Sequence[UserDataField]) -> str:
         f"- **{field.label}** — required for "
         f"{', '.join(field.required_for)} (for example: {field.example})"
         for field in fields
+    )
+
+
+def _check_the_reply_is_not_blank(text: str) -> None:
+    """Fail unless the agent said something the customer can answer."""
+    if text.strip():
+        return
+    raise AgentError(
+        f"the agent returned a blank reply {text!r}. A blank agent turn reaches "
+        f"the judge as a turn the agent took, and the simulated user would be "
+        f"asked to answer silence. A thinking-mode model cut off by num_predict "
+        f"or forced to think=False can emit this; it is not a turn"
     )
 
 

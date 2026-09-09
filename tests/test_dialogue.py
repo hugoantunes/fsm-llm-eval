@@ -6,7 +6,7 @@ import pytest
 
 from helpers import PROMPTS_DIR, FakeLlm, user_reply
 from sim.agents import BaselineAgent
-from sim.dialogue import DialogueResult, run_dialogue
+from sim.dialogue import DialogueError, DialogueResult, run_dialogue
 from sim.kb import KnowledgeBase
 from sim.llm import LlmClient
 from sim.schemas import Scenario
@@ -92,6 +92,11 @@ def test_a_dialogue_stops_when_the_user_gave_up(play: Play) -> None:
 
     assert result.stop_reason == "user_gave_up"
     assert len(result.records) == 1
+
+
+def test_agent_ended_on_an_empty_transcript_raises(play: Play) -> None:
+    with pytest.raises(DialogueError, match="never spoke"):
+        play([user_reply("", status="agent_ended")], [])
 
 
 def test_a_dialogue_stops_without_a_further_message_when_the_agent_closed(

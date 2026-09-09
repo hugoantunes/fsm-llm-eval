@@ -104,6 +104,16 @@ def test_load_scenarios_reads_every_jsonl_of_a_directory_in_name_order(
     assert scenarios[1].script[0] == "Ask where the order is."
 
 
+@pytest.mark.parametrize("field", ["script", "required_facts"])
+def test_an_empty_script_or_required_facts_raises(tmp_path: Path, field: str) -> None:
+    directory = write_scenarios(
+        tmp_path / "scenarios", happy_path=[scenario(**{field: []})]
+    )
+
+    with pytest.raises(ScenarioError, match=field):
+        load_scenarios(directory, kb=KB, fsm=FSM)
+
+
 def test_unknown_field_in_a_scenario_raises(tmp_path: Path) -> None:
     misspelled = scenario()
     misspelled["required_fact"] = misspelled.pop("required_facts")

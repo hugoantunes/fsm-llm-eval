@@ -1,11 +1,21 @@
 """Tests for the pure parts of scripts/measure_latency.py: statistics and budget."""
 
+from pathlib import Path
+
 import pytest
 
-from helpers import load_script
+from helpers import MINIMAL_MODELS_YAML, load_script, write_models_config
+from sim.config import ConfigError
 
 latency = load_script("scripts/measure_latency.py")
 Call = latency.Call
+
+
+def test_load_config_refuses_a_key_the_schema_does_not_know(tmp_path: Path) -> None:
+    misspelled = MINIMAL_MODELS_YAML.replace("    temperature: 0.7", "    temp: 0.7")
+
+    with pytest.raises(ConfigError, match="temp"):
+        latency.load_config(write_models_config(tmp_path, misspelled))
 
 
 def test_percentile_uses_nearest_rank() -> None:

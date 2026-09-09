@@ -23,7 +23,10 @@ class Event(BaseModel):
 
 
 def reply(
-    text: str = "hello", *, prompt_tokens: int = 100, output_tokens: int = 5
+    text: str = "hello",
+    *,
+    prompt_tokens: int | None = 100,
+    output_tokens: int = 5,
 ) -> ChatResponse:
     """Build the response the real Ollama would return for one chat call."""
     return ChatResponse(
@@ -47,11 +50,13 @@ class FakeOllama:
         replies: list[ChatResponse | Exception] | None = None,
         *,
         capabilities: list[str] | None = None,
+        show_errors: list[Exception] | None = None,
     ) -> None:
         self.replies = replies if replies is not None else [reply()]
         self.capabilities = (
             ["completion", "thinking"] if capabilities is None else capabilities
         )
+        self.show_errors = list(show_errors or [])
         self.calls: list[dict[str, Any]] = []
         self.shown: list[str] = []
 
@@ -68,6 +73,8 @@ class FakeOllama:
     def show(self, model: str) -> ShowResponse:
         """Record the capability probe and report the configured capabilities."""
         self.shown.append(model)
+        if self.show_errors:
+            raise self.show_errors.pop(0)
         return ShowResponse(model_info={}, capabilities=self.capabilities)
 
 
@@ -161,6 +168,18 @@ def test_prompt_over_eighty_percent_of_num_ctx_raises(tmp_path: Path) -> None:
         client.chat([{"role": "user", "content": "hi"}], role="agent", caller="agent")
 
 
+def test_a_missing_prompt_eval_count_raises(tmp_path: Path) -> None:
+    transport = FakeOllama([reply("hello", prompt_tokens=None)])
+    client = make_client(tmp_path, transport)
+
+    with pytest.raises(LlmError, match="prompt_eval_count"):
+        client.chat([{"role": "user", "content": "hi"}], role="agent", caller="agent")
+
+    (record,) = read_log(tmp_path)
+    assert "prompt_eval_count" in record["error"]
+    assert list((tmp_path / "cache").rglob("*.json")) == []
+
+
 def test_a_transport_error_is_retried_and_then_succeeds(tmp_path: Path) -> None:
     transport = FakeOllama([httpx.ConnectError("connection refused"), reply("late")])
     client = make_client(tmp_path, transport, slept=[])
@@ -173,6 +192,33 @@ def test_a_transport_error_is_retried_and_then_succeeds(tmp_path: Path) -> None:
     assert len(transport.calls) == 2
     (record,) = read_log(tmp_path)
     assert record["attempts"] == 2
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        httpx.ConnectError("connection refused"),
+        ResponseError("server busy", 503),
+    ],
+    ids=["connection-refused", "server-busy"],
+)
+def test_a_failing_capability_probe_is_retried_wrapped_and_logged(
+    tmp_path: Path, failure: Exception
+) -> None:
+    transport = FakeOllama(show_errors=[failure, failure, failure])
+    slept: list[float] = []
+    client = make_client(tmp_path, transport, slept=slept)
+
+    with pytest.raises(LlmCallError, match="failed after 3 attempt") as caught:
+        client.chat([{"role": "user", "content": "hi"}], role="agent", caller="agent")
+
+    assert str(failure) in str(caught.value)
+    assert transport.calls == []
+    assert transport.shown == ["agent-model"] * 3
+    assert slept == [2, 4]
+    (record,) = read_log(tmp_path)
+    assert str(failure) in record["error"]
+    assert record["attempts"] == 3
 
 
 def test_exhausted_retries_raise_with_the_last_error(tmp_path: Path) -> None:

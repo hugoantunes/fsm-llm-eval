@@ -24,6 +24,10 @@ from sim.user import SimulatedUser
 StopReason = Literal["goal_reached", "user_gave_up", "agent_closed", "max_turns"]
 
 
+class DialogueError(RuntimeError):
+    """The dialogue cannot continue; the message says why."""
+
+
 class DialogueResult(BaseModel):
     """One dialogue as it happened, and why it ended.
 
@@ -52,6 +56,11 @@ def run_dialogue(
         agent: the agent under test, baseline or FSM.
         user: the simulated user, holding the scenario's brief.
         max_turns: the scenario's turn budget, counted in agent turns.
+
+    Raises:
+        DialogueError: when the user declares the agent closed the conversation
+            before the agent has spoken. ``agent_closed`` on an empty transcript
+            would flatter that agent in the stop-reason distribution of T-15.
     """
     transcript: list[Turn] = []
     records: list[TurnRecord] = []
@@ -59,6 +68,13 @@ def run_dialogue(
     while stop is None:
         reply = user.speak(transcript)
         if reply.status == "agent_ended":
+            if not transcript:
+                raise DialogueError(
+                    "the simulated user declared agent_ended on an empty "
+                    "transcript. The agent never spoke, so it cannot have closed "
+                    "the dialogue; agent_closed on an empty transcript would "
+                    "flatter that agent in the stop-reason distribution of T-15"
+                )
             stop = "agent_closed"
             break
         transcript.append(Turn(speaker="user", text=reply.message))

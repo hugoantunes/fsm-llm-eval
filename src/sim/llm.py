@@ -204,14 +204,12 @@ class LlmClient:
                 schema,
             )
 
-        think = False if self._supports_thinking(spec.name) else None
         try:
             response, latency_s, attempts = self._call(
                 model=spec.name,
                 messages=messages,
                 options=options,
                 fmt=fmt,
-                think=think,
                 caller=caller,
             )
         except LlmCallError as failure:
@@ -229,10 +227,32 @@ class LlmClient:
             )
             raise
 
+        if response.prompt_eval_count is None:
+            error = (
+                f"{caller}: Ollama returned no prompt_eval_count. An unmeasurable "
+                f"prompt cannot be checked against the "
+                f"{self._config.max_prompt_fraction:.0%} budget of "
+                f"{self._config.max_prompt_tokens} tokens; past the window Ollama "
+                f"truncates in silence"
+            )
+            self._append_log(
+                _record(
+                    _no_answer(spec.name),
+                    caller,
+                    role,
+                    prompt_hash,
+                    messages,
+                    cached=False,
+                    attempts=attempts,
+                    error=error,
+                )
+            )
+            raise LlmError(error)
+
         entry = CacheEntry(
             model=spec.name,
             text=response.message.content or "",
-            prompt_tokens=response.prompt_eval_count or 0,
+            prompt_tokens=response.prompt_eval_count,
             output_tokens=response.eval_count or 0,
             latency_s=latency_s,
             created_at=datetime.now(UTC).isoformat(),
@@ -251,20 +271,22 @@ class LlmClient:
         messages: Sequence[Message],
         options: Mapping[str, Any],
         fmt: Mapping[str, Any] | None,
-        think: bool | None,
         caller: str,
     ) -> tuple[ChatResponse, float, int]:
         """Send the request, retrying only what is worth retrying.
 
         Returns the response, the seconds it took and the number of attempts it
         needed. The stopwatch times the attempt that answered and not the
-        waiting in between: T-13 reports it as the agent's latency.
+        waiting in between: T-13 reports it as the agent's latency. The
+        capability probe lives here so a failing ``/api/show`` is retried and
+        logged like any other transport error.
         """
         attempts = self._config.client.retries + 1
         delay = self._config.client.backoff_s
         for attempt in range(1, attempts + 1):
             started = time.perf_counter()
             try:
+                think = False if self._supports_thinking(model) else None
                 response = self._transport.chat(
                     model=model,
                     messages=list(messages),

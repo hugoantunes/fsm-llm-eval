@@ -157,6 +157,14 @@ def test_the_baseline_record_leaves_state_and_event_empty() -> None:
     assert record.event is None
 
 
+@pytest.mark.parametrize("text", ["", "  "])
+def test_a_blank_agent_reply_raises(text: str) -> None:
+    agent = baseline(FakeLlm([text]))
+
+    with pytest.raises(AgentError, match="blank"):
+        agent.respond([Turn(speaker="user", text="Hello?")])
+
+
 def test_responding_to_a_history_that_does_not_end_with_the_user_raises() -> None:
     agent = baseline()
 

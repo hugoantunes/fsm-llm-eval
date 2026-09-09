@@ -29,9 +29,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-import yaml
 from ollama import AsyncClient
 from pydantic import BaseModel
+
+from sim.config import DEFAULT_CONFIG_PATH, ROLES, load_models_config
 
 AGENT_PROMPT_TOKENS = 2500
 SIMULATOR_PROMPT_TOKENS = 300
@@ -303,11 +304,8 @@ async def judge_probe(
 
 def load_config(path: Path) -> tuple[dict[str, str | None], int]:
     """Read model names and ``num_ctx`` from ``configs/models.yaml``."""
-    config = yaml.safe_load(path.read_text(encoding="utf-8"))
-    names = {
-        role: config["models"][role]["name"] for role in ("agent", "simulator", "judge")
-    }
-    return names, int(config["num_ctx"])
+    config = load_models_config(path)
+    return {role: config.spec(role).name for role in ROLES}, config.num_ctx
 
 
 def report(stats: Sequence[RoleStats], budget_turns: int, parallel: int) -> str:
@@ -385,7 +383,7 @@ async def measure(args: argparse.Namespace) -> str:
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--config", type=Path, default=Path("configs/models.yaml"))
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--parallel", type=int, default=2, help="dialogues at once")
     parser.add_argument(
         "--turns", type=int, default=8, help="turns per measured dialogue"

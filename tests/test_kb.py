@@ -3,9 +3,17 @@
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel, ValidationError
 
 from helpers import KB_DIR, forbidden_names_in
-from sim.kb import KnowledgeBase, KnowledgeBaseError, load_kb
+from sim.kb import (
+    Fact,
+    KnowledgeBase,
+    KnowledgeBaseError,
+    Needle,
+    UnanswerableQuestion,
+    load_kb,
+)
 
 MARKDOWN = """\
 # Knowledge base - Test Store
@@ -97,6 +105,62 @@ def test_unanswerable_questions_with_a_repeated_id_raise(tmp_path: Path) -> None
     directory = write_kb(tmp_path / "kb", unanswerable=unanswerable)
 
     with pytest.raises(KnowledgeBaseError, match="U01"):
+        load_kb(directory)
+
+
+@pytest.mark.parametrize(
+    ("model", "payload"),
+    [
+        (Fact, {"id": "F01", "intent": "general", "text": "a fact", "junk": 1}),
+        (
+            Needle,
+            {
+                "fact_id": "F01",
+                "why": "specific",
+                "probe_question": "?",
+                "junk": 1,
+            },
+        ),
+        (
+            UnanswerableQuestion,
+            {
+                "id": "U01",
+                "question": "?",
+                "intent": "general",
+                "why_unanswerable": "not covered",
+                "expected_behavior": "escalate",
+                "junk": 1,
+            },
+        ),
+        (
+            KnowledgeBase,
+            {
+                "facts": [],
+                "needles": [],
+                "unanswerable": [],
+                "user_data_fields": [],
+                "junk": 1,
+            },
+        ),
+    ],
+    ids=["Fact", "Needle", "UnanswerableQuestion", "KnowledgeBase"],
+)
+def test_kb_models_refuse_a_key_the_schema_does_not_know(
+    model: type[BaseModel], payload: dict[str, object]
+) -> None:
+    with pytest.raises(ValidationError, match="junk"):
+        model.model_validate(payload)
+
+
+def test_unknown_key_in_a_user_data_field_file_raises(tmp_path: Path) -> None:
+    fields = (
+        '{"version": 1, "fields": [{"key": "order_number", "label": "Order number", '
+        '"patern": "\\\\bNL-\\\\d{8}\\\\b", "example": "NL-20260145", '
+        '"required_for": ["order_tracking"]}]}'
+    )
+    directory = write_kb(tmp_path / "kb", user_data_fields=fields)
+
+    with pytest.raises(KnowledgeBaseError, match="patern"):
         load_kb(directory)
 
 

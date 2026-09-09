@@ -120,9 +120,9 @@ class Scenario(BaseModel):
     intent: str
     user_persona: str
     user_goal: str
-    script: list[str]
+    script: list[str] = Field(min_length=1)
     reference_answer: str
-    required_facts: list[str]
+    required_facts: list[str] = Field(min_length=1)
     forbidden_facts: list[str] = []
     expected_final_state: str
     success_criterion: str

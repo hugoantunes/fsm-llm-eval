@@ -17,16 +17,19 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import ollama
-import yaml
 
-ROLES = ("agent", "simulator", "judge")
+from sim.config import DEFAULT_CONFIG_PATH, ROLES, load_models_config
+
 ModelSpec = Mapping[str, str | None]
 
 
 def configured_models(config: Path) -> dict[str, dict[str, str | None]]:
     """Return ``{role: {"name": ..., "digest": ...}}`` from the config file."""
-    data = yaml.safe_load(config.read_text(encoding="utf-8"))
-    return {role: dict(data["models"][role]) for role in ROLES}
+    loaded = load_models_config(config)
+    return {
+        role: {"name": loaded.spec(role).name, "digest": loaded.spec(role).digest}
+        for role in ROLES
+    }
 
 
 def local_digests() -> dict[str, str]:
@@ -89,7 +92,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("command", choices=("pull", "digests", "verify"))
-    parser.add_argument("--config", type=Path, default=Path("configs/models.yaml"))
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     args = parser.parse_args(argv)
     configured = configured_models(args.config)
     if args.command == "pull":
