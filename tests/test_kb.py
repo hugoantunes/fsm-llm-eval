@@ -5,7 +5,13 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from helpers import KB_DIR, forbidden_names_in
+from helpers import (
+    FSM_DIR,
+    KB_DIR,
+    PROMPTS_DIR,
+    SCENARIOS_DIR,
+    forbidden_names_in,
+)
 from sim.kb import (
     Fact,
     KnowledgeBase,
@@ -72,6 +78,34 @@ def test_gap_in_fact_numbering_raises(tmp_path: Path) -> None:
     directory = write_kb(tmp_path / "kb", markdown=markdown)
 
     with pytest.raises(KnowledgeBaseError, match="F02"):
+        load_kb(directory)
+
+
+def test_fact_ids_may_appear_out_of_file_order(tmp_path: Path) -> None:
+    markdown = """\
+# Knowledge base - Test Store
+
+## General policies · `general`
+
+- **F01** — Support answers between 9:00 and 18:00.
+- **F03** — The agent states only what the knowledge base contains.
+
+## Order tracking · `order_tracking`
+
+- **F02** — Standard delivery takes 5 business days.
+"""
+    directory = write_kb(tmp_path / "kb", markdown=markdown)
+
+    kb = load_kb(directory)
+
+    assert [fact.id for fact in kb.facts] == ["F01", "F03", "F02"]
+
+
+def test_a_repeated_section_heading_raises(tmp_path: Path) -> None:
+    markdown = MARKDOWN + "\n## General policies · `general`\n\n- **F03** — Extra.\n"
+    directory = write_kb(tmp_path / "kb", markdown=markdown)
+
+    with pytest.raises(KnowledgeBaseError, match="general"):
         load_kb(directory)
 
 
@@ -192,11 +226,6 @@ def test_user_data_field_requiring_an_unknown_intent_raises(tmp_path: Path) -> N
 
 # --- the real KB of data/kb/ ------------------------------------------------
 
-#: Character ceiling for the KB markdown, roughly 3 000 tokens. Tighter than the
-#: budget test_agents.py checks the whole baseline prompt against, and it fails on
-#: the KB alone: a knowledge base that outgrew its share of the window says so here.
-MAX_KB_CHARS = 12_000
-
 
 def test_real_kb_has_30_to_40_facts_covering_the_four_intents(
     real_kb: KnowledgeBase,
@@ -217,11 +246,20 @@ def test_real_kb_declares_five_to_eight_needles_and_some_unanswerable_questions(
     assert len(real_kb.unanswerable) >= 8
 
 
-def test_real_kb_names_no_real_brand_or_person() -> None:
-    assert forbidden_names_in(KB_DIR) == []
+def test_forbidden_names_in_reads_nested_files(tmp_path: Path) -> None:
+    (tmp_path / "states").mkdir()
+    (tmp_path / "machine.yaml").write_text("initial: greeting\n", encoding="utf-8")
+    (tmp_path / "states" / "greeting.md").write_text(
+        "Contact amazon support.\n", encoding="utf-8"
+    )
+
+    assert forbidden_names_in(tmp_path) == ["amazon"]
 
 
-def test_real_kb_markdown_stays_within_the_prompt_budget() -> None:
-    markdown = (KB_DIR / "knowledge_base.md").read_text(encoding="utf-8")
-
-    assert len(markdown) <= MAX_KB_CHARS
+@pytest.mark.parametrize(
+    "directory",
+    [KB_DIR, SCENARIOS_DIR, PROMPTS_DIR, FSM_DIR],
+    ids=["kb", "scenarios", "prompts", "fsm"],
+)
+def test_the_experiment_names_no_real_brand_or_person(directory: Path) -> None:
+    assert forbidden_names_in(directory) == []

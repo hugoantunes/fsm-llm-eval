@@ -20,10 +20,17 @@ both files before the first edit of a session**:
 - `ai-assistance/DEVELOPMENT.md`: Zen of Python applied, TDD, DRY, PEP 8/257/484,
   language, workflow, definition of done.
 
-The plan, the tickets T-01 to T-24 and the dated **Decisões** table live outside the
-repository, in `~/Documents/mba/projeto/TICKETS.md`, in Portuguese. That file is the
-user's control document: propose edits, apply them only when asked. Work one ticket at a
-time; the `ticket` skill runs one test-first, with a review stop before any code.
+The plan, the tickets T-01 to T-24, the dated **Decisões** table and the session log live
+outside the repository, in `~/Documents/mba/projeto/`, in Portuguese, split so a session
+loads only what it needs:
+
+- `TICKETS.md`: quadro, ordem, critérios de aceite
+- `DECISOES.md`: tabela datada
+- `PROGRESSO.md`: registro de sessão
+
+Those files are the user's control documents: propose edits, apply them only when asked.
+Work one ticket at a time; the `ticket` skill runs one test-first, with a review stop
+before any code.
 
 What holds in every session:
 

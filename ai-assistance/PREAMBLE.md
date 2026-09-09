@@ -6,7 +6,13 @@ Instructions for any AI assistant working in this repository. Claude Code import
 
 MBA thesis (TCC) experiment. Question: does a finite-state machine used as the *instruction base* of an LLM customer-service agent beat one well-written system prompt? Two agents, `baseline` (one prompt, full knowledge base) and `fsm` (per-state instruction package, KB filtered by state), same local model via Ollama, same simulated user, same scenarios. Evaluation: blind LLM judge (two calls per dialogue) plus deterministic evaluators. Statistics paired by scenario.
 
-The experiment, this repository and everything the models read or write are **English** (decision of 2026-09-08: small models follow instructions and schemas more reliably in English, and English costs fewer tokens). The thesis is written in Portuguese, outside the repo, and glosses names on first use. Plan, tickets (T-01 to T-24), acceptance criteria and the **Decisões** table live in `~/Documents/mba/projeto/TICKETS.md`, in Portuguese and with the original Portuguese artifact names: map them with the table under *Layout*. That folder is on iCloud: if the file is unreadable it is probably evicted, so ask instead of guessing. Deadlines: tag `v1` by 2026-09-11, code frozen 2026-09-14, thesis due 2026-09-22.
+The experiment, this repository and everything the models read or write are **English** (decision of 2026-09-08: small models follow instructions and schemas more reliably in English, and English costs fewer tokens). The thesis is written in Portuguese, outside the repo, and glosses names on first use. The control documents live in `~/Documents/mba/projeto/`, in Portuguese and with the original Portuguese artifact names (map them with the table under *Layout*):
+
+- `TICKETS.md`: plan, tickets T-01 to T-24, acceptance criteria
+- `DECISOES.md`: dated **Decisões** table
+- `PROGRESSO.md`: session log
+
+That folder is on iCloud: if a file is unreadable it is probably evicted, so ask instead of guessing. Deadlines: tag `v1` by 2026-09-11, code frozen 2026-09-14, thesis due 2026-09-22.
 
 ## Sections
 
@@ -75,7 +81,7 @@ From the section *O que não deve mudar* of TICKETS.md:
 
 ## Working rules
 
-- Work one ticket at a time in the order of *Ordem de execução*, preferably through `/ticket T-xx`. Its acceptance criteria are the test list; a ticket is done when they are checked, `just check` is green, and any experiment-affecting choice is logged in Decisões (`AAAA-MM-DD · Ticket · Decisão · Por quê`).
+- Work one ticket at a time in the order of *Ordem de execução*, preferably through `/ticket T-xx`. Its acceptance criteria are the test list; a ticket is done when they are checked, `just check` is green, and any experiment-affecting choice is logged in `DECISOES.md` (`AAAA-MM-DD · Ticket · Decisão · Por quê`).
 - Vertical slice first: make the thin end-to-end path work, then fatten it (full KB, 8 states, full dataset). Do not implement future tickets while passing by.
 - Cuts (N, K, metrics) are decided before looking at results, per *Plano de corte*. Never drop data or scenarios after seeing numbers.
 - Never commit `runs/`; never edit `data/scenarios/v1/` after its hash is recorded.

@@ -5,7 +5,7 @@ import re
 import pytest
 
 from helpers import GENERAL_FACT, PROMPTS_DIR, TRACKING_FACT, FakeLlm, make_kb
-from sim.agents import AgentError, BaselineAgent, render_user_data_fields
+from sim.agents import AgentError, BaselineAgent, render_facts, render_user_data_fields
 from sim.kb import Fact, KnowledgeBase, UserDataField
 from sim.llm import LlmClient
 from sim.prompts import load_prompt
@@ -77,6 +77,21 @@ def verbose_history(exchanges: int) -> list[Turn]:
         turns.append(Turn(speaker="agent", text=agent))
     turns.append(Turn(speaker="user", text=customer))
     return turns
+
+
+def test_render_facts_emits_one_heading_per_intent() -> None:
+    facts = [
+        Fact(id="F01", intent="order_tracking", text="Ships in 2 days."),
+        Fact(id="F02", intent="exchange_return", text="Returns in 30 days."),
+        Fact(id="F03", intent="order_tracking", text="Tracking by e-mail."),
+    ]
+
+    rendered = render_facts(facts)
+
+    assert rendered.count("## order_tracking") == 1
+    assert rendered.count("## exchange_return") == 1
+    assert rendered.index("## order_tracking") < rendered.index("## exchange_return")
+    assert rendered.index("Ships in 2 days.") < rendered.index("Tracking by e-mail.")
 
 
 def test_the_baseline_prompt_carries_the_shared_block_and_every_fact() -> None:

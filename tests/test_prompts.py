@@ -54,3 +54,17 @@ def test_a_prompt_without_a_version_line_raises(tmp_path: Path) -> None:
 
     with pytest.raises(PromptError, match="Version:"):
         load_prompt("baseline", directory=tmp_path)
+
+
+def test_a_literal_dollar_in_the_template_raises_prompt_error(tmp_path: Path) -> None:
+    write_prompt(
+        tmp_path,
+        "agent_shared",
+        "Version: 1\n\nOffer a $20 store credit to $persona.\n",
+    )
+    prompt = load_prompt("agent_shared", directory=tmp_path)
+
+    with pytest.raises(PromptError, match=r"agent_shared\.md") as caught:
+        prompt.render(persona="Ana")
+
+    assert "$$" in str(caught.value)

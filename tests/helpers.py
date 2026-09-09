@@ -26,13 +26,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 KB_DIR = REPO_ROOT / "data" / "kb"
 FSM_DIR = REPO_ROOT / "data" / "fsm"
 PROMPTS_DIR = REPO_ROOT / "data" / "prompts"
-EXAMPLES_DIR = REPO_ROOT / "data" / "scenarios" / "examples"
+SCENARIOS_DIR = REPO_ROOT / "data" / "scenarios"
+EXAMPLES_DIR = SCENARIOS_DIR / "examples"
 CONFIG = REPO_ROOT / "configs" / "models.yaml"
 DOCS_DIR = REPO_ROOT / "docs"
 
 #: Brands, people and companies that must never appear in a fictional domain.
-#: The knowledge base and the scenarios are both checked against this list, so
-#: it is written once (T-01, T-05).
+#: The knowledge base, the scenarios, the prompts and the FSM packages are all
+#: checked against this list, so it is written once.
 FORBIDDEN_NAMES = (
     "amazon",
     "shopify",
@@ -60,7 +61,9 @@ FORBIDDEN_NAMES = (
 def forbidden_names_in(directory: Path) -> list[str]:
     """Return the names of :data:`FORBIDDEN_NAMES` that appear under ``directory``."""
     text = "\n".join(
-        path.read_text(encoding="utf-8") for path in sorted(directory.iterdir())
+        path.read_text(encoding="utf-8")
+        for path in sorted(directory.rglob("*"))
+        if path.is_file()
     ).lower()
     return [name for name in FORBIDDEN_NAMES if re.search(rf"\b{name}\b", text)]
 
@@ -180,7 +183,6 @@ class FakeLlm:
             text=text,
             parsed=None if schema is None else schema.model_validate_json(text),
             model=f"{role}-model",
-            caller=caller,
             prompt_hash=prompt_hash,
             prompt_tokens=len(str(sent)) // 4,
             output_tokens=len(text) // 4,

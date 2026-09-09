@@ -1,8 +1,8 @@
 """Load the finite-state machine of ``data/fsm/`` (T-02).
 
 ``machine.yaml`` is the single source of the state and event names: the FSM engine
-(T-08), the stage labeler's ``enum`` (T-13) and the Mermaid diagram of ``docs/fsm.md``
-all read them from here instead of repeating them.
+(T-08), the stage labeler's ``enum`` (T-13) and the Mermaid diagram and facts table of
+``docs/fsm.md`` all read them from here instead of repeating them.
 """
 
 import re
@@ -149,6 +149,17 @@ class FsmSpec(BaseModel):
             lines.append(f"        from every state: {', '.join(events)}")
             lines.append("    end note")
         return "\n".join(lines)
+
+    def to_facts_table(self) -> str:
+        """Render the per-state fact slices as the Markdown table of ``docs/fsm.md``."""
+        intent_note = " + the section of the classified request"
+        rows = ["| State | Facts released |", "|---|---|"]
+        for name, state in self.states.items():
+            facts = ", ".join(state.facts)
+            if state.facts_from_intent:
+                facts = f"{facts}{intent_note}"
+            rows.append(f"| `{name}` | {facts} |")
+        return "\n".join(rows)
 
     def _events_from_any(self) -> dict[str, list[str]]:
         """Return the events declared out of every state, by destination."""

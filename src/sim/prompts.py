@@ -48,7 +48,13 @@ class Prompt(BaseModel):
                 f"as literal text, and an unused field is a section that silently "
                 f"stopped being sent"
             )
-        return template.substitute(fields)
+        try:
+            return template.substitute(fields)
+        except ValueError as error:
+            raise PromptError(
+                f"{self.name}.md has an invalid placeholder ({error}). "
+                f"A literal dollar sign is written $$"
+            ) from error
 
 
 def load_prompt(name: str, *, directory: Path = DEFAULT_PROMPTS_DIR) -> Prompt:

@@ -299,6 +299,18 @@ def test_to_mermaid_draws_one_arrow_per_declared_transition(tmp_path: Path) -> N
     assert diagram.count("-->") == 4
 
 
+def test_to_facts_table_lists_each_states_facts(tmp_path: Path) -> None:
+    table = load_fsm(write_fsm(tmp_path / "fsm"), kb=KB).to_facts_table()
+    with_intent = load_fsm(
+        write_fsm(tmp_path / "intent", machine=INTENT_MACHINE), kb=KB
+    ).to_facts_table()
+
+    assert table.splitlines()[:2] == ["| State | Facts released |", "|---|---|"]
+    assert "| `greeting` | F01 |" in table
+    assert "| `closing` | F01 |" in table
+    assert "| `closing` | F01 + the section of the classified request |" in with_intent
+
+
 # --- the real machine of data/fsm/ ------------------------------------------
 
 EXPECTED_STATES = [
@@ -312,6 +324,21 @@ EXPECTED_STATES = [
     "solution",
 ]
 
+
+#: The per-state slices of the real machine: the FSM agent's context advantage, and
+#: the experiment's central manipulation. Widening every list to the whole KB would
+#: still load, and would make the two agents identical.
+EXPECTED_RELEASED_FACTS = {
+    "greeting": ["F01", "F02", "F03", "F04"],
+    "identification": ["F03", "F04", "F05", "F06", "F07"],
+    "intent_classification": ["F01", "F03", "F04"],
+    "data_collection": ["F03", "F04", "F05", "F06", "F07"],
+    "solution": ["F03", "F04", "F07", "F08"],
+    "confirmation": ["F03", "F04"],
+    "closing": ["F02", "F03", "F04"],
+    "out_of_scope": ["F01", "F03", "F04"],
+}
+EXPECTED_FACTS_FROM_INTENT = frozenset({"solution", "confirmation"})
 
 #: The events of a happy-path dialogue, in order: the flow the FSM agent is meant to
 #: walk when nothing goes wrong. The universal exits are not part of it.
@@ -360,9 +387,26 @@ def test_real_machine_lets_every_state_reach_out_of_scope(real_fsm: FsmSpec) -> 
     assert sources == set(real_fsm.states) - {"out_of_scope"}
 
 
+def test_real_machine_releases_the_declared_fact_slices(real_fsm: FsmSpec) -> None:
+    assert {
+        name: state.facts for name, state in real_fsm.states.items()
+    } == EXPECTED_RELEASED_FACTS
+    assert {
+        name for name, state in real_fsm.states.items() if state.facts_from_intent
+    } == EXPECTED_FACTS_FROM_INTENT
+
+
 def test_docs_fsm_diagram_matches_machine_yaml(real_fsm: FsmSpec) -> None:
     doc = (DOCS_DIR / "fsm.md").read_text(encoding="utf-8")
 
     block = f"```mermaid\n{real_fsm.to_mermaid()}\n```"
 
     assert block in doc, "the diagram is stale: run `just fsm-diagram` and paste it"
+
+
+def test_docs_fsm_facts_table_matches_machine_yaml(real_fsm: FsmSpec) -> None:
+    doc = (DOCS_DIR / "fsm.md").read_text(encoding="utf-8")
+
+    assert real_fsm.to_facts_table() in doc, (
+        "the facts table is stale: run `just fsm-diagram` and paste it"
+    )

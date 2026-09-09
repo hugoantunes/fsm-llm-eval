@@ -135,13 +135,13 @@ def render_facts(facts: Iterable[Fact]) -> str:
     prompts is *which* facts are in them: all of them for the baseline, the ones
     the current state releases for the FSM agent (T-10).
     """
-    lines: list[str] = []
-    intent: str | None = None
+    groups: dict[str, list[Fact]] = {}
     for fact in facts:
-        if fact.intent != intent:
-            intent = fact.intent
-            lines.extend(["", f"## {intent}", ""])
-        lines.append(f"- **{fact.id}** — {fact.text}")
+        groups.setdefault(fact.intent, []).append(fact)
+    lines: list[str] = []
+    for intent, group in groups.items():
+        lines.extend(["", f"## {intent}", ""])
+        lines.extend(f"- **{fact.id}** — {fact.text}" for fact in group)
     return "\n".join(lines).strip()
 
 

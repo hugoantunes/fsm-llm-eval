@@ -99,22 +99,23 @@ class KnowledgeBase(BaseModel):
         sections = (f.intent for f in self.facts if f.intent != GENERAL_INTENT)
         return list(dict.fromkeys(sections))
 
-    def by_id(self, fact_id: str) -> Fact:
-        """Return the fact with ``fact_id``, or raise ``KnowledgeBaseError``."""
-        for fact in self.facts:
-            if fact.id == fact_id:
-                return fact
-        raise KnowledgeBaseError(f"no fact {fact_id} in knowledge_base.md")
-
 
 def parse_facts(markdown: str) -> list[Fact]:
     """Parse the facts of ``knowledge_base.md``, in file order."""
     facts: list[Fact] = []
     intent: str | None = None
+    seen_intents: set[str] = set()
     for line in markdown.splitlines():
         section = _SECTION.match(line)
         if section:
             intent = section["intent"]
+            if intent in seen_intents:
+                raise KnowledgeBaseError(
+                    f"section {intent!r} appears twice in knowledge_base.md. "
+                    f"Keep each intent under one heading and give a new fact "
+                    f"the next free ID; facts are never renumbered"
+                )
+            seen_intents.add(intent)
             continue
         fact = _FACT.match(line)
         if not fact:
@@ -129,15 +130,16 @@ def parse_facts(markdown: str) -> list[Fact]:
 
 
 def _check_numbering(facts: list[Fact]) -> None:
-    """Fail unless the fact IDs are ``F01``, ``F02``... with no gap or repeat."""
-    for position, fact in enumerate(facts, start=1):
-        expected = f"F{position:02d}"
-        if fact.id == expected:
-            continue
-        raise KnowledgeBaseError(
-            f"fact IDs must run F01, F02... in order: expected {expected}, "
-            f"found {fact.id}. Renumber the facts in knowledge_base.md"
-        )
+    """Fail unless the fact IDs are ``F01``..``Fn`` with no gap or repeat."""
+    ids = [fact.id for fact in facts]
+    expected = [f"F{n:02d}" for n in range(1, len(facts) + 1)]
+    if sorted(ids) == expected:
+        return
+    raise KnowledgeBaseError(
+        f"fact IDs must be {', '.join(expected)} with no gap or repeat: "
+        f"found {', '.join(ids)}. Keep existing IDs stable and give a new fact "
+        f"the next free number; facts are never renumbered"
+    )
 
 
 def load_kb(directory: Path = DEFAULT_KB_DIR) -> KnowledgeBase:

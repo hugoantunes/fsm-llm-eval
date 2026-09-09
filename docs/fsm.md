@@ -11,7 +11,8 @@ The machine is declared in [`data/fsm/machine.yaml`](../data/fsm/machine.yaml) a
 by [`src/sim/fsm.py`](../src/sim/fsm.py). Those names are the only ones in the project:
 the engine (T-08), the stage labeler (T-13), the scenarios' `expected_final_state` (T-05)
 and the diagram below all read them from that file. The diagram is generated, not drawn:
-`just fsm-diagram` prints it and a test fails if what is pasted here drifts from the YAML.
+`just fsm-diagram` prints the diagram and the facts table, and a test fails if either
+drifts from the YAML.
 
 The loader would rather fail than guess: it refuses a key the schema does not know, because
 a misspelled `guard` would otherwise drop the guard in silence, and it refuses two edges
@@ -104,7 +105,8 @@ each datum and the data each request requires are written in one place only:
 known only at run time, and they are refused without it: releasing the general facts alone
 there would look like an agent that hedges, not like a bug. The loader rejects an ID that is
 not in the knowledge base, and rejects a package that cites a fact its state does not
-release.
+release. The table is generated from that file (`just fsm-diagram`); a test fails if it
+drifts.
 
 | State | Facts released |
 |---|---|

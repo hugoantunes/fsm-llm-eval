@@ -8,8 +8,8 @@ by a blind LLM judge and by deterministic evaluators; paired statistics per scen
 
 Experiment for an MBA thesis (TCC, written in Portuguese): *Sistema de Simulações e Avaliação para
 Otimizar o Desempenho de LLMs usando Máquinas de Estados Finitas como Base de Instrução*. The work
-plan, the ticket board (T-01 to T-24) and the decisions table live in
-`~/Documents/mba/projeto/TICKETS.md`, outside this repository. The experiment, this repository and
+plan, the ticket board (T-01 to T-24), the decisions table and the session log live in
+`~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`), outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
 > Status: the knowledge base (T-01) and the finite-state machine (T-02) are in place; `sim run` and

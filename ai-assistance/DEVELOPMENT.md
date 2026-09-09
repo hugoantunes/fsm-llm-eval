@@ -1,6 +1,6 @@
 # Development guide
 
-How code gets written in this repo. Project context, layout, experiment invariants and the hooks that enforce this guide are in [PREAMBLE.md](PREAMBLE.md); the plan and the tickets are in `~/Documents/mba/projeto/TICKETS.md`.
+How code gets written in this repo. Project context, layout, experiment invariants and the hooks that enforce this guide are in [PREAMBLE.md](PREAMBLE.md); the plan lives outside the repo in `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`).
 
 The deadline is short and the result has to be *defensible*, not pretty. Every rule below exists because it makes the experiment easier to trust or faster to change. When two rules conflict, pick the one that keeps the experiment honest.
 
@@ -70,7 +70,7 @@ In code: shared agent behaviour goes in the base class (T-09), shared test scaff
 
 The experiment and the repository are **English only** (decision of 2026-09-08): the knowledge base, prompts, rubrics, scenarios, dialogues, identifiers (states, events, schema fields, metric names, CLI flags, file names), code, comments, docs and README. Reasons: small models follow instructions and output schemas more reliably in English, and English text costs fewer tokens. Both matter with a 3B classifier and a 16 GB machine.
 
-The thesis is written in Portuguese, outside this repo. It glosses identifiers when it first uses them ("greeting (saudação)") and its appendices reproduce prompts and dialogues in English. TICKETS.md, the plan, stays in Portuguese and still uses its original Portuguese artifact names; PREAMBLE.md maps them to the repository names.
+The thesis is written in Portuguese, outside this repo. It glosses identifiers when it first uses them ("greeting (saudação)") and its appendices reproduce prompts and dialogues in English. The control documents in `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`) stay in Portuguese and still use their original Portuguese artifact names; PREAMBLE.md maps them to the repository names.
 
 Identifiers are ASCII `snake_case`: `scenario`, `greeting`, `data_collection`, `required_facts`, `expected_final_state`, `flow_adherence`, `--scenarios`. The state and event names in `data/fsm/machine.yaml` are the same strings the stage labeler's `enum` and the metrics use: define once, load everywhere.
 
@@ -79,7 +79,7 @@ Identifiers are ASCII `snake_case`: `scenario`, `greeting`, `data_collection`, `
 - One ticket at a time, in the order of *Ordem de execução*. Read its acceptance criteria first.
 - Before committing: `just check` (lint plus unit tests). The hooks in `.claude/settings.json` and `.cursor/hooks.json` run ruff on every edited file, run `just check` before a `git commit`, and run it again when a turn ends with uncommitted changes. A red gate is fixed, never bypassed.
 - Small commits, imperative English subject, ticket prefix: `T-08: load FSM from machine.yaml with transitions`.
-- Any choice that changes the experiment (a model, a parameter, a metric, a cut) gets a dated row in **Decisões** in TICKETS.md before anything is run with it.
+- Any choice that changes the experiment (a model, a parameter, a metric, a cut) gets a dated row in `DECISOES.md` before anything is run with it.
 - `runs/` is never committed; result CSVs are regenerated from `runs/`. The dataset in `data/scenarios/v1/` is frozen once its hash is recorded.
 - Dependencies: `uv add <pkg>` or `uv add --group dev <pkg>`; commit `pyproject.toml` and `uv.lock` together. The lock is what makes both machines identical, so never edit it by hand.
 
@@ -88,4 +88,4 @@ Identifiers are ASCII `snake_case`: `scenario`, `greeting`, `data_collection`, `
 - [ ] Every acceptance criterion in TICKETS.md is checked, with a test wherever one makes sense.
 - [ ] `just check` is green; integration tests pass on the machine that has Ollama.
 - [ ] Decisions logged; the docs the ticket lists are written.
-- [ ] Ticket status updated in TICKETS.md.
+- [ ] Ticket status updated in TICKETS.md; session note in PROGRESSO.md.

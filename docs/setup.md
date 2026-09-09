@@ -1,7 +1,7 @@
 # Setup: machines and Ollama (T-03)
 
 Record of the execution environment. Each item becomes a sentence in *Material e Métodos* or a row
-in the Decisões table of `TICKETS.md`.
+in the Decisões table of `DECISOES.md`.
 
 ## Machines
 

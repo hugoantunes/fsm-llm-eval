@@ -6,14 +6,20 @@ argument-hint: "T-07"
 
 # Ticket
 
-Work ticket `$ARGUMENTS` end to end, test-first. The plan is `~/Documents/mba/projeto/TICKETS.md`; the conventions are `ai-assistance/DEVELOPMENT.md`, already loaded.
+Work ticket `$ARGUMENTS` end to end, test-first. The control documents live in `~/Documents/mba/projeto/`, split so a session loads only what it needs:
+
+- `TICKETS.md`: quadro, ordem de execução, detalhes e critérios de aceite
+- `DECISOES.md`: tabela datada
+- `PROGRESSO.md`: registro de sessão
+
+The conventions are `ai-assistance/DEVELOPMENT.md`, already loaded.
 
 ## Phase 1: Load
 
 1. Read the ticket's detail block in TICKETS.md: the heading `#### $ARGUMENTS ·`, its description and its *Critérios de aceite*. If TICKETS.md cannot be read, the iCloud copy is probably evicted: stop and ask the user to open the file. TICKETS.md is in Portuguese and names artifacts in Portuguese; the repository is English only, so translate every path, field, state and metric name with the table *TICKETS.md names → repository names* in `ai-assistance/PREAMBLE.md`.
-2. Read the ticket's row in the *Quadro* (Est., Depende de, Status) and every *Decisões* row that names `$ARGUMENTS`. Those decisions are already made; do not reopen them.
+2. Read the ticket's row in the *Quadro* of TICKETS.md (Est., Depende de, Status) and every row in DECISOES.md that names `$ARGUMENTS`. Those decisions are already made; do not reopen them.
 3. Check the dependencies (*Depende de*): confirm their deliverables exist in the repo. Report a missing one and stop, unless the user says to proceed anyway.
-4. Read the code and data the ticket touches. Do not read unrelated modules.
+4. Read the code and data the ticket touches. Do not read unrelated modules. Do not load PROGRESSO.md unless you need to resume a session.
 
 ## Phase 2: Plan, then STOP
 
@@ -31,7 +37,7 @@ Turn each acceptance criterion into test cases, one behaviour per test, and pres
 - data/...: <what>
 
 ### Decisions this ticket requires
-- <choice>: proposed <value>, because <why>   (-> Decisões row)
+- <choice>: proposed <value>, because <why>   (-> DECISOES.md row)
 
 ### Not covered by a test
 - <criterion>: <how it will be verified instead>
@@ -47,7 +53,7 @@ For each test in the approved order:
 
 1. **Red.** Write that single test. Run it: `uv run pytest <file>::<test>`. Confirm it fails for the right reason, a missing name or a wrong value, not a broken fixture.
 2. **Green.** Write the least production code that passes it. Run it again.
-3. **Refactor.** Remove duplication, fix names, keep it green. Run `just test`.
+3. **Refactor.** Remove duplication, fix names, keep the tests green. Run `just test`.
 
 Never write production code without a failing test. Never write several tests ahead. If a test turns out to be wrong, fix the test first, then continue.
 
@@ -55,5 +61,5 @@ Never write production code without a failing test. Never write several tests ah
 
 1. `just check` is green. If the ticket has integration tests, run `just test-all` when Ollama is reachable; otherwise say they were not run.
 2. Walk the acceptance criteria and report each one: met (naming the test or artifact that proves it), not met, or manual step for the user.
-3. Draft the *Decisões* rows in the table's format, `| AAAA-MM-DD | $ARGUMENTS | decisão | por quê |`, with today's date, one row per decision made, plus the *Registro de progresso* line and the new ticket status. Propose them; apply them to TICKETS.md only when the user approves, since that file is the user's control document and lives outside the repo.
+3. Draft the *Decisões* rows in the table's format, `| AAAA-MM-DD | $ARGUMENTS | decisão | por quê |`, with today's date, one row per decision made, plus the *Registro de progresso* line and the new ticket status. Propose them; apply them only when the user approves: decisions to `DECISOES.md`, the session line to `PROGRESSO.md`, ticket status to `TICKETS.md`. Those files are the user's control documents and live outside the repo.
 4. Propose the commit message, `$ARGUMENTS: <imperative summary>`. Commit if the user asked for it.

@@ -131,6 +131,10 @@ def test_a_dialogue_stops_at_the_scenarios_max_turns(
     assert len(result.transcript) == 2 * budget
 
 
+def test_a_dialogue_result_does_not_store_the_transcript_twice() -> None:
+    assert "transcript" not in DialogueResult.model_fields
+
+
 def test_a_dialogue_keeps_one_turn_record_per_agent_turn(play: Play) -> None:
     result = play(
         [

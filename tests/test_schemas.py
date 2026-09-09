@@ -8,10 +8,8 @@ import pytest
 
 from helpers import (
     DOCS_DIR,
-    EXAMPLES_DIR,
     GENERAL_FACT,
     TRACKING_FACT,
-    forbidden_names_in,
     make_kb,
 )
 from sim.fsm import FsmSpec, State
@@ -275,10 +273,6 @@ def test_the_real_examples_cover_the_three_categories_with_one_canary(
     assert [scenario.id for scenario in examples if scenario.canary is not None] == [
         "adversarial_01"
     ]
-
-
-def test_example_scenarios_name_no_real_brand_or_person() -> None:
-    assert forbidden_names_in(EXAMPLES_DIR) == []
 
 
 def quota_table(quota: int, intents: list[str]) -> str:

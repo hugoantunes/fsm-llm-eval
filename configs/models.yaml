@@ -1,6 +1,6 @@
 # Models and fixed parameters of the experiment (T-03 acceptance criterion).
 #
-# Decision history (TICKETS.md -> Decisões, T-03; rationale and measurements in docs/setup.md):
+# Decision history (DECISOES.md, T-03; rationale and measurements in docs/setup.md):
 #   2026-09-08  option A: qwen2.5:7b (agents), qwen2.5:3b (simulator), gemma3:12b (judge).
 #   2026-09-08  revised the same day after checking the Ollama library: Qwen 3.5 for the
 #               agents and the simulator, Gemma 4 12B for the judge. Sizes fixed by the
@@ -20,7 +20,7 @@
 #   - Explicit num_ctx: Ollama's default silently truncates the beginning of the prompt.
 #   - All three models have a thinking mode: every call passes think=False.
 #
-# Every change here is an experiment decision: record it in TICKETS.md -> Decisões.
+# Every change here is an experiment decision: record it in DECISOES.md.
 
 ollama:
   version: "0.33.3"             # `ollama --version`; Air and Pro both checked 2026-09-08

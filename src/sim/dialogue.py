@@ -31,16 +31,27 @@ class DialogueError(RuntimeError):
 class DialogueResult(BaseModel):
     """One dialogue as it happened, and why it ended.
 
-    ``transcript`` is what the judge of T-12 reads, ``records`` what the metrics
-    of T-13 measure. The simulated user's own replies are turns of the transcript
-    and nothing more: it is not evaluated.
+    ``records`` is what the metrics of T-13 measure; ``transcript`` flattens
+    them into the turns the judge of T-12 reads. The simulated user's own
+    replies are turns of that transcript and nothing more: it is not evaluated.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    transcript: list[Turn]
     records: list[TurnRecord]
     stop_reason: StopReason
+
+    @property
+    def transcript(self) -> list[Turn]:
+        """The user and agent turns, flattened from ``records``."""
+        return [
+            turn
+            for record in self.records
+            for turn in (
+                Turn(speaker="user", text=record.user_message),
+                Turn(speaker="agent", text=record.agent_reply),
+            )
+        ]
 
 
 def run_dialogue(
@@ -85,4 +96,4 @@ def run_dialogue(
             stop = "goal_reached" if reply.status == "goal_reached" else "user_gave_up"
         elif len(records) >= max_turns:
             stop = "max_turns"
-    return DialogueResult(transcript=transcript, records=records, stop_reason=stop)
+    return DialogueResult(records=records, stop_reason=stop)

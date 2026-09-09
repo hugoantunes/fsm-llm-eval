@@ -109,7 +109,6 @@ class LlmResponse:
     text: str
     parsed: BaseModel | None
     model: str
-    caller: str
     #: The key of this call in the cache and in ``llm_calls.jsonl``. The turn
     #: record of T-09 stores it instead of a second copy of the prompt.
     prompt_hash: str
@@ -348,7 +347,6 @@ class LlmClient:
             text=record.text,
             parsed=parsed,
             model=record.model,
-            caller=record.caller,
             prompt_hash=record.prompt_hash,
             prompt_tokens=record.prompt_tokens,
             output_tokens=record.output_tokens,
