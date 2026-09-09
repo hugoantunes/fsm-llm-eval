@@ -15,9 +15,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from sim.agents import Agent
 from sim.config import Role
 from sim.kb import Fact, KnowledgeBase, Needle, UserDataField
 from sim.llm import LlmResponse, Message
+from sim.schemas import Scenario, Turn, TurnRecord
 from sim.user import UserReply, UserStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -196,6 +198,34 @@ class FakeLlm:
 def user_reply(message: str, status: UserStatus = "continue") -> str:
     """Render one schema-valid answer from the simulated user of T-11."""
     return UserReply(message=message, status=status).model_dump_json()
+
+
+def classifier_reply(event: str, intent: str | None = None) -> str:
+    """Render one schema-valid answer from the user-event classifier of T-08."""
+    return json.dumps({"event": event, "intent": intent})
+
+
+def play_user_turns(agent: Agent, messages: Sequence[str]) -> list[TurnRecord]:
+    """Play ``messages`` at ``agent``, one at a time, and return its turn records."""
+    history: list[Turn] = []
+    records: list[TurnRecord] = []
+    for message in messages:
+        history.append(Turn(speaker="user", text=message))
+        record = agent.respond(history)
+        history.append(Turn(speaker="agent", text=record.agent_reply))
+        records.append(record)
+    return records
+
+
+def assert_prompt_carries_no_answer_key(prompt: str, scenario: Scenario) -> None:
+    """Fail unless ``prompt`` contains no field of the scenario's answer key."""
+    if scenario.canary is not None:
+        assert scenario.canary not in prompt
+    assert scenario.reference_answer not in prompt
+    assert scenario.success_criterion not in prompt
+    assert scenario.user_persona not in prompt
+    assert scenario.user_goal not in prompt
+    assert all(beat not in prompt for beat in scenario.script)
 
 
 class LabeledEvent(BaseModel):

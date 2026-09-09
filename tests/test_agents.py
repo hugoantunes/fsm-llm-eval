@@ -4,12 +4,20 @@ import re
 
 import pytest
 
-from helpers import GENERAL_FACT, PROMPTS_DIR, TRACKING_FACT, FakeLlm, make_kb
+from helpers import (
+    GENERAL_FACT,
+    PROMPTS_DIR,
+    TRACKING_FACT,
+    FakeLlm,
+    assert_prompt_carries_no_answer_key,
+    make_kb,
+    play_user_turns,
+)
 from sim.agents import AgentError, BaselineAgent, render_facts, render_user_data_fields
 from sim.kb import Fact, KnowledgeBase, UserDataField
 from sim.llm import LlmClient
 from sim.prompts import load_prompt
-from sim.schemas import MAX_TURNS, Scenario, Turn, TurnRecord
+from sim.schemas import MAX_TURNS, Scenario, Turn
 
 #: Four characters per token, the rule of thumb for English on these tokenizers.
 #: It makes the context budget testable without Ollama; the real count comes from
@@ -130,12 +138,7 @@ def test_the_baseline_prompt_carries_no_part_of_the_answer_key(
 
     prompt = BaselineAgent(FakeLlm(), kb=real_kb, prompts_dir=PROMPTS_DIR).system_prompt
 
-    assert scenario.canary not in prompt
-    assert scenario.reference_answer not in prompt
-    assert scenario.success_criterion not in prompt
-    assert scenario.user_persona not in prompt
-    assert scenario.user_goal not in prompt
-    assert all(beat not in prompt for beat in scenario.script)
+    assert_prompt_carries_no_answer_key(prompt, scenario)
 
 
 def test_the_history_becomes_system_plus_alternating_chat_turns() -> None:
@@ -273,18 +276,6 @@ def manual_dialogues(kb: KnowledgeBase) -> dict[str, list[str]]:
     }
 
 
-def run_dialogue(agent: BaselineAgent, messages: list[str]) -> list[TurnRecord]:
-    """Play ``messages`` at ``agent``, one at a time, and return its turn records."""
-    history: list[Turn] = []
-    records: list[TurnRecord] = []
-    for message in messages:
-        history.append(Turn(speaker="user", text=message))
-        record = agent.respond(history)
-        history.append(Turn(speaker="agent", text=record.agent_reply))
-        records.append(record)
-    return records
-
-
 @pytest.fixture
 def real_baseline(real_client: LlmClient, real_kb: KnowledgeBase) -> BaselineAgent:
     """A baseline agent on the real config, KB, prompts and Ollama server."""
@@ -309,7 +300,7 @@ def test_three_real_dialogues_run_through_the_baseline(
     real_baseline: BaselineAgent, real_kb: KnowledgeBase, prompt_budget: int
 ) -> None:
     dialogues = {
-        name: run_dialogue(real_baseline, messages)
+        name: play_user_turns(real_baseline, messages)
         for name, messages in manual_dialogues(real_kb).items()
     }
 

@@ -1,11 +1,11 @@
-"""The agents under comparison: the common interface and the baseline (T-09).
+"""The agents under comparison: the common interface, the baseline and the FSM.
 
 Both agents answer through :meth:`Agent.respond`, produce the same
 :class:`~sim.schemas.TurnRecord` and share one block of persona, tone and general
 rules. What differs is the structure of the instruction: the baseline carries the
-whole knowledge base from the first message, while the FSM agent of T-10 carries
-the package of the current state and only the facts released for it. That
-difference is the experiment, not a bug.
+whole knowledge base from the first message, while the FSM agent carries the
+package of the current state and only the facts released for it. That difference
+is the experiment, not a bug.
 """
 
 import time
@@ -14,6 +14,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sim.engine import FsmEngine
+from sim.fsm import DEFAULT_FSM_DIR, FsmSpec
 from sim.kb import Fact, KnowledgeBase, UserDataField
 from sim.llm import Chat
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
@@ -21,6 +23,13 @@ from sim.schemas import Turn, TurnRecord, as_messages
 
 #: The block both agents include, word for word: persona, tone, general rules.
 SHARED_PROMPT = "agent_shared"
+
+#: The FSM agent's prompt file in ``data/prompts/``.
+FSM_TEMPLATE = "fsm_template"
+
+#: The guard whose source is the state that still has data to collect. The name
+#: is declared once in ``machine.yaml``; this is the same string the engine binds.
+_COLLECT_GUARD = "required_data_collected"
 
 
 class AgentError(RuntimeError):
@@ -128,6 +137,73 @@ class BaselineAgent(Agent):
         return Instruction(system_prompt=self.system_prompt)
 
 
+class FsmAgent(Agent):
+    """Per-state instruction package and the KB slice that state releases."""
+
+    name = "fsm"
+
+    def __init__(
+        self,
+        llm: Chat,
+        *,
+        kb: KnowledgeBase,
+        spec: FsmSpec,
+        fsm_dir: Path = DEFAULT_FSM_DIR,
+        prompts_dir: Path = DEFAULT_PROMPTS_DIR,
+        seed: int | None = None,
+    ) -> None:
+        super().__init__(llm, seed=seed)
+        self._kb = kb
+        self._spec = spec
+        self._prompts_dir = prompts_dir
+        self._shared = load_prompt(SHARED_PROMPT, directory=prompts_dir).template
+        self._template = load_prompt(FSM_TEMPLATE, directory=prompts_dir)
+        self._packages = {
+            name: (fsm_dir / state.package).read_text(encoding="utf-8")
+            for name, state in spec.states.items()
+        }
+        self._collect_state = _data_collection_state(spec)
+        self._engine = FsmEngine(
+            spec, kb=kb, llm=llm, prompts_dir=prompts_dir, seed=seed
+        )
+
+    def instruct(self, history: Sequence[Turn]) -> Instruction:
+        """Detect the user event, transition, and answer from the new state.
+
+        The customer's turn moves the machine; the agent then speaks from
+        ``state_after``, with that state's package and the facts it releases.
+        """
+        source = self._engine.state
+        record = self._engine.step(
+            history[-1].text,
+            turn=sum(1 for turn in history if turn.speaker == "user"),
+            transcript=_transcript(history),
+        )
+        dest = self._engine.state
+        return Instruction(
+            system_prompt=self._render(dest),
+            state_before=source,
+            state_after=dest,
+            event=record.event,
+        )
+
+    def _render(self, state: str) -> str:
+        """Fill the FSM template for ``state`` with its package and released facts."""
+        return self._template.render(
+            shared=self._shared,
+            state_package=self._packages[state],
+            user_data_fields=render_user_data_fields(
+                _fields_to_collect(
+                    state, self._engine.intent, self._kb, self._collect_state
+                ),
+                prompts_dir=self._prompts_dir,
+            ),
+            knowledge_base=render_facts(
+                self._spec.released_facts(state, self._engine.intent, self._kb)
+            ),
+        )
+
+
 def render_facts(facts: Iterable[Fact]) -> str:
     """Render KB facts for a prompt, grouped by intent, in the file's own shape.
 
@@ -172,6 +248,40 @@ def _check_the_reply_is_not_blank(text: str) -> None:
         f"asked to answer silence. A thinking-mode model cut off by num_predict "
         f"or forced to think=False can emit this; it is not a turn"
     )
+
+
+def _data_collection_state(spec: FsmSpec) -> str:
+    """Return the state whose exit is guarded by ``required_data_collected``."""
+    matches = [
+        edge.source
+        for edge in spec.transitions
+        if edge.guard == _COLLECT_GUARD and not edge.from_any
+    ]
+    if len(matches) != 1:
+        raise AgentError(
+            f"machine.yaml must have exactly one transition with guard "
+            f"{_COLLECT_GUARD!r} (found {len(matches)}). The FSM agent keys the "
+            f"user-data field list off that state so a rename cannot silently "
+            f"leave data_collection without the list the package says comes with it"
+        )
+    return matches[0]
+
+
+def _fields_to_collect(
+    state: str,
+    intent: str | None,
+    kb: KnowledgeBase,
+    collect_state: str,
+) -> list[UserDataField]:
+    """Return the fields the classified intent still needs, only in collect_state."""
+    if state != collect_state or intent is None:
+        return []
+    return [field for field in kb.user_data_fields if intent in field.required_for]
+
+
+def _transcript(history: Sequence[Turn]) -> str:
+    """Render ``history`` as the classifier's ``$transcript``."""
+    return "\n".join(f"{turn.speaker}: {turn.text}" for turn in history)
 
 
 def _check_the_user_spoke_last(history: Sequence[Turn]) -> None:
