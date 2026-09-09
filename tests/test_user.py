@@ -2,8 +2,8 @@
 
 import pytest
 
-from helpers import KB_DIR, PROMPTS_DIR, FakeLlm, load_example_scenarios, user_reply
-from sim.kb import load_kb
+from helpers import PROMPTS_DIR, FakeLlm, user_reply
+from sim.kb import KnowledgeBase
 from sim.schemas import Scenario, Turn
 from sim.user import SimulatedUser, UserError, UserReply
 
@@ -48,13 +48,14 @@ def test_the_simulator_prompt_carries_the_persona_the_goal_and_the_script() -> N
     assert all(beat in prompt for beat in BRIEF.script)
 
 
-def test_the_simulator_prompt_carries_no_knowledge_base_and_no_answer_key() -> None:
-    kb = load_kb(KB_DIR)
-    scenario = load_example_scenarios()["adversarial_01"]
+def test_the_simulator_prompt_carries_no_knowledge_base_and_no_answer_key(
+    real_kb: KnowledgeBase, example_scenarios: dict[str, Scenario]
+) -> None:
+    scenario = example_scenarios["adversarial_01"]
 
     prompt = simulated_user(scenario=scenario).system_prompt
 
-    assert all(fact.text not in prompt for fact in kb.facts)
+    assert all(fact.text not in prompt for fact in real_kb.facts)
     assert scenario.reference_answer not in prompt
     assert scenario.success_criterion not in prompt
     assert scenario.expected_final_state not in prompt

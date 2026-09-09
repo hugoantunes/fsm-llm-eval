@@ -4,10 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from helpers import MINIMAL_MODELS_YAML, REPO_ROOT, write_models_config
+from helpers import CONFIG, MINIMAL_MODELS_YAML, write_models_config
 from sim.config import ConfigError, load_models_config
-
-CONFIG = REPO_ROOT / "configs" / "models.yaml"
 
 
 def test_loads_the_real_models_yaml() -> None:

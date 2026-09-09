@@ -16,9 +16,9 @@ from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict
 
-from sim.llm import Chat, Message
+from sim.llm import Chat
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
-from sim.schemas import Scenario, Turn
+from sim.schemas import Scenario, Turn, as_messages
 
 #: The prompt file of ``data/prompts/``, holding the brief and nothing else.
 PROMPT = "simulated_user"
@@ -75,9 +75,9 @@ class SimulatedUser:
     def speak(self, history: Sequence[Turn]) -> UserReply:
         """Write the customer's next message, given the dialogue so far.
 
-        ``history`` is the transcript as the agent recorded it, so it is mirrored
-        here: the agent's turns arrive as the counterpart's and the customer's own
-        as its own. The client of T-07 validates the answer against
+        ``history`` is the transcript as the agent recorded it, which
+        :func:`~sim.schemas.as_messages` mirrors for this side of the
+        conversation. The client of T-07 validates the answer against
         :class:`UserReply` before handing it back, so what comes out is the object.
 
         Raises:
@@ -89,10 +89,7 @@ class SimulatedUser:
         """
         _check_the_agent_spoke_last(history)
         answer = self._llm.chat(
-            [
-                {"role": "system", "content": self.system_prompt},
-                *(_as_message(turn) for turn in history),
-            ],
+            as_messages(self.system_prompt, history, speaking_as="user"),
             role="simulator",
             caller=self.name,
             schema=UserReply,
@@ -139,15 +136,3 @@ def _check_the_agent_spoke_last(history: Sequence[Turn]) -> None:
 def _render_script(script: Sequence[str]) -> str:
     """Number the beats, so the prompt can ask for them in order."""
     return "\n".join(f"{number}. {beat}" for number, beat in enumerate(script, start=1))
-
-
-def _as_message(turn: Turn) -> Message:
-    """Render one turn as a chat message, from the customer's point of view.
-
-    The mirror image of the agent's mapping in :mod:`sim.agents`: the same
-    transcript, read from the other side of the conversation.
-    """
-    return {
-        "role": "assistant" if turn.speaker == "user" else "user",
-        "content": turn.text,
-    }

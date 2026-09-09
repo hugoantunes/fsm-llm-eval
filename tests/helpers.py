@@ -1,7 +1,12 @@
-"""Shared test helpers."""
+"""Shared test helpers.
+
+The fakes, the synthetic files and the plain functions a test calls itself. What
+a test receives as an argument is a fixture of ``conftest.py`` instead.
+"""
 
 import hashlib
 import importlib.util
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType
@@ -10,10 +15,8 @@ from typing import Any
 from pydantic import BaseModel
 
 from sim.config import Role
-from sim.fsm import load_fsm
-from sim.kb import load_kb
+from sim.kb import Fact, KnowledgeBase, Needle, UserDataField
 from sim.llm import LlmResponse, Message
-from sim.schemas import Scenario, load_scenarios
 from sim.user import UserReply, UserStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +28,7 @@ FSM_DIR = REPO_ROOT / "data" / "fsm"
 PROMPTS_DIR = REPO_ROOT / "data" / "prompts"
 EXAMPLES_DIR = REPO_ROOT / "data" / "scenarios" / "examples"
 CONFIG = REPO_ROOT / "configs" / "models.yaml"
+DOCS_DIR = REPO_ROOT / "docs"
 
 #: Brands, people and companies that must never appear in a fictional domain.
 #: The knowledge base and the scenarios are both checked against this list, so
@@ -51,6 +55,44 @@ FORBIDDEN_NAMES = (
     "paypal",
     "pix",
 )
+
+
+def forbidden_names_in(directory: Path) -> list[str]:
+    """Return the names of :data:`FORBIDDEN_NAMES` that appear under ``directory``."""
+    text = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted(directory.iterdir())
+    ).lower()
+    return [name for name in FORBIDDEN_NAMES if re.search(rf"\b{name}\b", text)]
+
+
+#: The two facts every synthetic knowledge base in the tests starts from: one
+#: general policy, released in every state, and one order-tracking fact. Written
+#: here so the FSM, scenario and agent tests cannot disagree on what F01 says.
+GENERAL_FACT = Fact(
+    id="F01", intent="general", text="Support answers between 9:00 and 18:00."
+)
+TRACKING_FACT = Fact(
+    id="F02", intent="order_tracking", text="Standard delivery takes 5 business days."
+)
+
+
+def make_kb(
+    *facts: Fact,
+    needles: Sequence[Needle] = (),
+    user_data_fields: Sequence[UserDataField] = (),
+) -> KnowledgeBase:
+    """Build a knowledge base out of ``facts`` and whatever else a test needs.
+
+    A hand-written KB of two or three facts is what the loaders, the FSM and the
+    agents are tested against: small enough to assert on fact by fact, and
+    independent of how ``data/kb/`` grows.
+    """
+    return KnowledgeBase(
+        facts=list(facts),
+        needles=list(needles),
+        unanswerable=[],
+        user_data_fields=list(user_data_fields),
+    )
 
 
 #: A synthetic ``configs/models.yaml``: the shape of the real one with names no
@@ -150,13 +192,6 @@ class FakeLlm:
 def user_reply(message: str, status: UserStatus = "continue") -> str:
     """Render one schema-valid answer from the simulated user of T-11."""
     return UserReply(message=message, status=status).model_dump_json()
-
-
-def load_example_scenarios() -> dict[str, Scenario]:
-    """Return the example scenarios of ``data/scenarios/examples/``, by ID."""
-    kb = load_kb(KB_DIR)
-    scenarios = load_scenarios(EXAMPLES_DIR, kb=kb, fsm=load_fsm(FSM_DIR, kb=kb))
-    return {scenario.id: scenario for scenario in scenarios}
 
 
 def load_script(relative_path: str) -> ModuleType:

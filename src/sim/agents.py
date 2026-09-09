@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sim.kb import Fact, KnowledgeBase, UserDataField
-from sim.llm import Chat, Message
+from sim.llm import Chat
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
-from sim.schemas import Turn, TurnRecord
+from sim.schemas import Turn, TurnRecord, as_messages
 
 #: The block both agents include, word for word: persona, tone, general rules.
 SHARED_PROMPT = "agent_shared"
@@ -68,10 +68,7 @@ class Agent(ABC):
         started = time.perf_counter()
         instruction = self.instruct(history)
         answer = self._llm.chat(
-            [
-                {"role": "system", "content": instruction.system_prompt},
-                *(_as_message(turn) for turn in history),
-            ],
+            as_messages(instruction.system_prompt, history, speaking_as="agent"),
             role="agent",
             caller=self.name,
             seed=self._seed,
@@ -165,11 +162,3 @@ def _check_the_user_spoke_last(history: Sequence[Turn]) -> None:
             f"agent would be answering itself. Append the user's turn first; two "
             f"agent turns in a row mean the runner lost one"
         )
-
-
-def _as_message(turn: Turn) -> Message:
-    """Render one turn as a chat message, from the agent's point of view."""
-    return {
-        "role": "user" if turn.speaker == "user" else "assistant",
-        "content": turn.text,
-    }

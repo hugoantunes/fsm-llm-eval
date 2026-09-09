@@ -1,12 +1,11 @@
 """Tests for the knowledge base loader and the real KB files (T-01)."""
 
-import re
 from pathlib import Path
 
 import pytest
 
-from helpers import FORBIDDEN_NAMES
-from sim.kb import KnowledgeBaseError, load_kb
+from helpers import KB_DIR, forbidden_names_in
+from sim.kb import KnowledgeBase, KnowledgeBaseError, load_kb
 
 MARKDOWN = """\
 # Knowledge base - Test Store
@@ -129,44 +128,33 @@ def test_user_data_field_requiring_an_unknown_intent_raises(tmp_path: Path) -> N
 
 # --- the real KB of data/kb/ ------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-KB_DIR = REPO_ROOT / "data" / "kb"
-
-#: Character ceiling for the KB markdown, roughly 3 000 tokens. The real token
-#: counter arrives with T-07; until then this guards T-09's criterion that the
-#: baseline's full-KB prompt still fits num_ctx 8192 with 8 turns of history.
+#: Character ceiling for the KB markdown, roughly 3 000 tokens. Tighter than the
+#: budget test_agents.py checks the whole baseline prompt against, and it fails on
+#: the KB alone: a knowledge base that outgrew its share of the window says so here.
 MAX_KB_CHARS = 12_000
 
 
-def test_real_kb_has_30_to_40_facts_covering_the_four_intents() -> None:
-    kb = load_kb(KB_DIR)
-
-    assert 30 <= len(kb.facts) <= 40
+def test_real_kb_has_30_to_40_facts_covering_the_four_intents(
+    real_kb: KnowledgeBase,
+) -> None:
+    assert 30 <= len(real_kb.facts) <= 40
     assert {
         "order_tracking",
         "exchange_return",
         "cancellation",
         "payment_reissue",
-    } <= {fact.intent for fact in kb.facts}
+    } <= {fact.intent for fact in real_kb.facts}
 
 
-def test_real_kb_declares_five_to_eight_needles_and_some_unanswerable_questions() -> (
-    None
-):
-    kb = load_kb(KB_DIR)
-
-    assert 5 <= len(kb.needles) <= 8
-    assert len(kb.unanswerable) >= 8
+def test_real_kb_declares_five_to_eight_needles_and_some_unanswerable_questions(
+    real_kb: KnowledgeBase,
+) -> None:
+    assert 5 <= len(real_kb.needles) <= 8
+    assert len(real_kb.unanswerable) >= 8
 
 
 def test_real_kb_names_no_real_brand_or_person() -> None:
-    text = "\n".join(
-        path.read_text(encoding="utf-8") for path in sorted(KB_DIR.iterdir())
-    ).lower()
-
-    found = [name for name in FORBIDDEN_NAMES if re.search(rf"\b{name}\b", text)]
-
-    assert found == []
+    assert forbidden_names_in(KB_DIR) == []
 
 
 def test_real_kb_markdown_stays_within_the_prompt_budget() -> None:

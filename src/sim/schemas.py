@@ -8,6 +8,7 @@ is what pairs the two agents in T-19.
 
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal, get_args
 
@@ -29,23 +30,45 @@ CATEGORIES: tuple[Category, ...] = get_args(Category)
 MIN_TURNS = 4
 MAX_TURNS = 12
 
+#: Who said one line of a dialogue. Named rather than given Ollama's chat roles:
+#: the agent and the simulated user of T-11 read the same history from opposite
+#: sides, and :func:`as_messages` maps it for whichever of the two is speaking.
+Speaker = Literal["user", "agent"]
+
 
 class ScenarioError(ValueError):
     """A scenario is malformed; the message says what to fix and where."""
 
 
 class Turn(BaseModel):
-    """One line of a dialogue, by whoever said it.
-
-    The speakers are named rather than given Ollama's chat roles: the agent and
-    the simulated user of T-11 read the same history from opposite sides, and each
-    maps it to ``user`` and ``assistant`` from its own point of view.
-    """
+    """One line of a dialogue, by whoever said it."""
 
     model_config = ConfigDict(extra="forbid")
 
-    speaker: Literal["user", "agent"]
+    speaker: Speaker
     text: str
+
+
+def as_messages(
+    system_prompt: str, history: Sequence[Turn], *, speaking_as: Speaker
+) -> list[dict[str, str]]:
+    """Render a system prompt and a transcript as the chat messages one side sends.
+
+    The agent (T-09, T-10) and the simulated user (T-11) read the same
+    ``history`` from opposite sides: the turns of whoever is ``speaking_as``
+    become ``assistant`` and the other's become ``user``. Both go through here,
+    so the two cannot end up sending the same dialogue in different shapes.
+    """
+    return [
+        {"role": "system", "content": system_prompt},
+        *(
+            {
+                "role": "assistant" if turn.speaker == speaking_as else "user",
+                "content": turn.text,
+            }
+            for turn in history
+        ),
+    ]
 
 
 class TurnRecord(BaseModel):

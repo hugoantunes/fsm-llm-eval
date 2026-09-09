@@ -1,33 +1,33 @@
 """Tests for the scenario schema and its validator (T-05)."""
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from helpers import FORBIDDEN_NAMES
-from sim.fsm import FsmSpec, State, load_fsm
-from sim.kb import Fact, KnowledgeBase, Needle, load_kb
+from helpers import (
+    DOCS_DIR,
+    EXAMPLES_DIR,
+    GENERAL_FACT,
+    TRACKING_FACT,
+    forbidden_names_in,
+    make_kb,
+)
+from sim.fsm import FsmSpec, State
+from sim.kb import Fact, KnowledgeBase, Needle
 from sim.schemas import CATEGORIES, Scenario, ScenarioError, load_scenarios
 
-KB = KnowledgeBase(
-    facts=[
-        Fact(
-            id="F01", intent="general", text="Support answers between 9:00 and 18:00."
-        ),
-        Fact(
-            id="F02",
-            intent="order_tracking",
-            text="Standard delivery takes 5 business days.",
-        ),
-        Fact(
-            id="F03",
-            intent="order_tracking",
-            text="Extended-delivery areas take 5 business days longer.",
-        ),
-    ],
+#: The synthetic KB and machine the validator is checked against: three facts,
+#: one of them a needle, and the three states a scenario may end in.
+KB = make_kb(
+    GENERAL_FACT,
+    TRACKING_FACT,
+    Fact(
+        id="F03",
+        intent="order_tracking",
+        text="Extended-delivery areas take 5 business days longer.",
+    ),
     needles=[
         Needle(
             fact_id="F03",
@@ -35,8 +35,6 @@ KB = KnowledgeBase(
             probe_question="I live in an extended-delivery area. When does it arrive?",
         )
     ],
-    unanswerable=[],
-    user_data_fields=[],
 )
 
 FSM = FsmSpec(
@@ -252,25 +250,16 @@ def test_max_turns_outside_the_turn_budget_raises(
 
 # --- the real scenarios of data/scenarios/ ----------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLES_DIR = REPO_ROOT / "data" / "scenarios" / "examples"
-KB_DIR = REPO_ROOT / "data" / "kb"
-FSM_DIR = REPO_ROOT / "data" / "fsm"
-
 #: Scenarios per cell of the intent x category matrix: the balanced first block
 #: and the full set with the extras. Twelve cells, so 48 and 60 (T-05, Decisões).
 FIRST_BLOCK_QUOTA = 4
 FULL_SET_QUOTA = 5
 
 
-def load_examples() -> list[Scenario]:
-    """Load the example scenarios against the real knowledge base and machine."""
-    kb = load_kb(KB_DIR)
-    return load_scenarios(EXAMPLES_DIR, kb=kb, fsm=load_fsm(FSM_DIR, kb=kb))
-
-
-def test_the_real_examples_cover_the_three_categories_with_one_canary() -> None:
-    examples = load_examples()
+def test_the_real_examples_cover_the_three_categories_with_one_canary(
+    example_scenarios: dict[str, Scenario],
+) -> None:
+    examples = example_scenarios.values()
 
     assert {scenario.category for scenario in examples} == set(CATEGORIES)
     assert [scenario.id for scenario in examples if scenario.canary is not None] == [
@@ -279,13 +268,7 @@ def test_the_real_examples_cover_the_three_categories_with_one_canary() -> None:
 
 
 def test_example_scenarios_name_no_real_brand_or_person() -> None:
-    text = "\n".join(
-        path.read_text(encoding="utf-8") for path in sorted(EXAMPLES_DIR.iterdir())
-    ).lower()
-
-    found = [name for name in FORBIDDEN_NAMES if re.search(rf"\b{name}\b", text)]
-
-    assert found == []
+    assert forbidden_names_in(EXAMPLES_DIR) == []
 
 
 def quota_table(quota: int, intents: list[str]) -> str:
@@ -306,11 +289,11 @@ def quota_table(quota: int, intents: list[str]) -> str:
     )
 
 
-def test_taxonomy_matrix_covers_every_intent_and_category_and_sums_to_48_and_60() -> (
-    None
-):
-    doc = (REPO_ROOT / "docs" / "taxonomy.md").read_text(encoding="utf-8")
-    intents = load_kb(KB_DIR).intents()
+def test_taxonomy_matrix_covers_every_intent_and_category_and_sums_to_48_and_60(
+    real_kb: KnowledgeBase,
+) -> None:
+    doc = (DOCS_DIR / "taxonomy.md").read_text(encoding="utf-8")
+    intents = real_kb.intents()
 
     cells = len(intents) * len(CATEGORIES)
 

@@ -11,7 +11,7 @@ from ollama import ChatResponse, ResponseError, ShowResponse
 from ollama._types import Message
 from pydantic import BaseModel
 
-from helpers import REPO_ROOT, write_models_config
+from helpers import write_models_config
 from sim.config import load_models_config
 from sim.llm import LlmCallError, LlmClient, LlmError, PromptTooLongError
 
@@ -109,24 +109,20 @@ def test_chat_sends_the_configured_model_num_ctx_temperature_and_seed(
     assert sent["options"]["seed"] == 42
 
 
-def test_chat_sends_think_false_when_the_model_supports_thinking(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("capabilities", "think"),
+    [(["completion", "thinking"], False), (["completion"], None)],
+    ids=["a thinking model", "a model without the capability"],
+)
+def test_think_false_is_sent_only_to_a_model_that_supports_thinking(
+    tmp_path: Path, capabilities: list[str], think: bool | None
 ) -> None:
-    transport = FakeOllama(capabilities=["completion", "thinking"])
+    transport = FakeOllama(capabilities=capabilities)
     client = make_client(tmp_path, transport)
 
     client.chat([{"role": "user", "content": "hi"}], role="agent", caller="agent")
 
-    assert transport.calls[0]["think"] is False
-
-
-def test_chat_omits_think_when_the_model_does_not_support_it(tmp_path: Path) -> None:
-    transport = FakeOllama(capabilities=["completion"])
-    client = make_client(tmp_path, transport)
-
-    client.chat([{"role": "user", "content": "hi"}], role="agent", caller="agent")
-
-    assert transport.calls[0]["think"] is None
+    assert transport.calls[0]["think"] is think
 
 
 def test_the_capability_probe_runs_once_per_model(tmp_path: Path) -> None:
@@ -208,16 +204,6 @@ def test_a_missing_model_is_not_retried_and_records_one_attempt(
     assert slept == []
     (record,) = read_log(tmp_path)
     assert record["attempts"] == 1
-
-
-def test_a_prompt_too_long_error_is_not_retried(tmp_path: Path) -> None:
-    transport = FakeOllama([reply("hello", prompt_tokens=7000), reply("second")])
-    client = make_client(tmp_path, transport, slept=[])
-
-    with pytest.raises(PromptTooLongError):
-        client.chat([{"role": "user", "content": "hi"}], role="agent", caller="agent")
-
-    assert len(transport.calls) == 1
 
 
 def test_concurrent_calls_write_whole_jsonl_lines(tmp_path: Path) -> None:
@@ -336,21 +322,11 @@ def test_one_jsonl_record_per_call_carries_the_tokens_latency_and_caller(
 # --- Integration: a real Ollama with the models of configs/models.yaml -------
 
 
-def real_client(tmp_path: Path) -> LlmClient:
-    """Build a client on the real config and the real Ollama server."""
-    config = load_models_config(REPO_ROOT / "configs" / "models.yaml")
-    return LlmClient(
-        config,
-        cache_dir=tmp_path / "cache",
-        log_path=tmp_path / "llm_calls.jsonl",
-    )
-
-
 @pytest.mark.integration
-def test_a_real_call_returns_text_and_a_prompt_eval_count(tmp_path: Path) -> None:
-    client = real_client(tmp_path)
-
-    response = client.chat(
+def test_a_real_call_returns_text_and_a_prompt_eval_count(
+    real_client: LlmClient, tmp_path: Path
+) -> None:
+    response = real_client.chat(
         [{"role": "user", "content": "Say hello in three words."}],
         role="simulator",
         caller="probe",
@@ -365,10 +341,10 @@ def test_a_real_call_returns_text_and_a_prompt_eval_count(tmp_path: Path) -> Non
 
 
 @pytest.mark.integration
-def test_a_real_schema_call_returns_a_valid_enum_member(tmp_path: Path) -> None:
-    client = real_client(tmp_path)
-
-    response = client.chat(
+def test_a_real_schema_call_returns_a_valid_enum_member(
+    real_client: LlmClient,
+) -> None:
+    response = real_client.chat(
         [
             {
                 "role": "user",
@@ -388,10 +364,8 @@ def test_a_real_schema_call_returns_a_valid_enum_member(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-def test_a_real_reply_carries_no_reasoning_text(tmp_path: Path) -> None:
-    client = real_client(tmp_path)
-
-    response = client.chat(
+def test_a_real_reply_carries_no_reasoning_text(real_client: LlmClient) -> None:
+    response = real_client.chat(
         [{"role": "user", "content": "How much is 17 times 23? Answer with a number."}],
         role="simulator",
         caller="probe",

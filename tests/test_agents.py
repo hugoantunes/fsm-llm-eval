@@ -1,17 +1,15 @@
 """Tests for the agent interface and the baseline agent (T-09)."""
 
 import re
-from pathlib import Path
 
 import pytest
 
-from helpers import CONFIG, KB_DIR, PROMPTS_DIR, FakeLlm, load_example_scenarios
+from helpers import GENERAL_FACT, PROMPTS_DIR, TRACKING_FACT, FakeLlm, make_kb
 from sim.agents import AgentError, BaselineAgent
-from sim.config import load_models_config
-from sim.kb import Fact, KnowledgeBase, UserDataField, load_kb
+from sim.kb import Fact, KnowledgeBase, UserDataField
 from sim.llm import LlmClient
 from sim.prompts import load_prompt
-from sim.schemas import MAX_TURNS, Turn, TurnRecord
+from sim.schemas import MAX_TURNS, Scenario, Turn, TurnRecord
 
 #: Four characters per token, the rule of thumb for English on these tokenizers.
 #: It makes the context budget testable without Ollama; the real count comes from
@@ -23,24 +21,17 @@ CHARS_PER_TOKEN = 4
 #: forbids saying to the customer.
 FACT_ID = re.compile(r"\bF\d{2}\b")
 
-KB = KnowledgeBase(
-    facts=[
-        Fact(
-            id="F01", intent="general", text="Support answers between 9:00 and 18:00."
-        ),
-        Fact(
-            id="F02",
-            intent="order_tracking",
-            text="Standard delivery takes 5 business days.",
-        ),
-        Fact(
-            id="F03",
-            intent="exchange_return",
-            text="Any item can be returned within 30 days.",
-        ),
-    ],
-    needles=[],
-    unanswerable=[],
+#: The synthetic KB most of these tests build a baseline on: three facts, so an
+#: assertion can name every one of them. The real KB arrives as ``real_kb``,
+#: where what is under test is the size of the prompt it produces.
+KB = make_kb(
+    GENERAL_FACT,
+    TRACKING_FACT,
+    Fact(
+        id="F03",
+        intent="exchange_return",
+        text="Any item can be returned within 30 days.",
+    ),
     user_data_fields=[
         UserDataField(
             key="order_number",
@@ -98,12 +89,12 @@ def test_the_baseline_prompt_carries_the_shared_block_and_every_fact() -> None:
     assert all(field.label in prompt for field in KB.user_data_fields)
 
 
-def test_the_baseline_prompt_carries_no_part_of_the_answer_key() -> None:
-    scenario = load_example_scenarios()["adversarial_01"]
+def test_the_baseline_prompt_carries_no_part_of_the_answer_key(
+    real_kb: KnowledgeBase, example_scenarios: dict[str, Scenario]
+) -> None:
+    scenario = example_scenarios["adversarial_01"]
 
-    prompt = BaselineAgent(
-        FakeLlm(), kb=load_kb(KB_DIR), prompts_dir=PROMPTS_DIR
-    ).system_prompt
+    prompt = BaselineAgent(FakeLlm(), kb=real_kb, prompts_dir=PROMPTS_DIR).system_prompt
 
     assert scenario.canary not in prompt
     assert scenario.reference_answer not in prompt
@@ -197,17 +188,16 @@ def test_the_dialogue_seed_reaches_the_model() -> None:
     assert llm.calls[0]["seed"] == 4217
 
 
-def test_the_baseline_prompt_stays_within_the_character_budget_with_eight_turns() -> (
-    None
-):
+def test_the_baseline_prompt_stays_within_the_character_budget_at_max_turns(
+    real_kb: KnowledgeBase, prompt_budget: int
+) -> None:
     llm = FakeLlm()
-    agent = BaselineAgent(llm, kb=load_kb(KB_DIR), prompts_dir=PROMPTS_DIR)
-    budget = load_models_config(CONFIG).max_prompt_tokens * CHARS_PER_TOKEN
+    agent = BaselineAgent(llm, kb=real_kb, prompts_dir=PROMPTS_DIR)
 
     agent.respond(verbose_history(MAX_TURNS))
 
     sent = sum(len(message["content"]) for message in llm.calls[0]["messages"])
-    assert sent < budget
+    assert sent < prompt_budget * CHARS_PER_TOKEN
 
 
 # --- Integration: a real Ollama with the models of configs/models.yaml -------
@@ -253,40 +243,32 @@ def run_dialogue(agent: BaselineAgent, messages: list[str]) -> list[TurnRecord]:
     return records
 
 
-def real_baseline(tmp_path: Path) -> BaselineAgent:
-    """Build a baseline agent on the real config, KB, prompts and Ollama server."""
-    client = LlmClient(
-        load_models_config(CONFIG),
-        cache_dir=tmp_path / "cache",
-        log_path=tmp_path / "llm_calls.jsonl",
-    )
-    return BaselineAgent(client, kb=load_kb(KB_DIR), prompts_dir=PROMPTS_DIR, seed=42)
+@pytest.fixture
+def real_baseline(real_client: LlmClient, real_kb: KnowledgeBase) -> BaselineAgent:
+    """A baseline agent on the real config, KB, prompts and Ollama server."""
+    return BaselineAgent(real_client, kb=real_kb, prompts_dir=PROMPTS_DIR, seed=42)
 
 
 @pytest.mark.integration
-def test_a_real_baseline_turn_stays_under_the_token_budget_with_eight_turns(
-    tmp_path: Path,
+def test_a_real_baseline_turn_stays_under_the_token_budget_at_max_turns(
+    real_baseline: BaselineAgent, prompt_budget: int
 ) -> None:
-    agent = real_baseline(tmp_path)
-    budget = load_models_config(CONFIG).max_prompt_tokens
-
-    record = agent.respond(verbose_history(MAX_TURNS))
+    record = real_baseline.respond(verbose_history(MAX_TURNS))
 
     print(f"\nbaseline prompt with {MAX_TURNS} exchanges: {record.prompt_tokens} of ")
-    print(f"{budget} tokens budgeted ({record.prompt_tokens / budget:.0%})")
+    print(f"{prompt_budget} tokens budgeted ")
+    print(f"({record.prompt_tokens / prompt_budget:.0%})")
     assert record.agent_reply.strip()
-    assert record.prompt_tokens < budget
+    assert record.prompt_tokens < prompt_budget
 
 
 @pytest.mark.integration
-def test_three_real_dialogues_run_through_the_baseline(tmp_path: Path) -> None:
-    kb = load_kb(KB_DIR)
-    agent = real_baseline(tmp_path)
-    budget = load_models_config(CONFIG).max_prompt_tokens
-
+def test_three_real_dialogues_run_through_the_baseline(
+    real_baseline: BaselineAgent, real_kb: KnowledgeBase, prompt_budget: int
+) -> None:
     dialogues = {
-        name: run_dialogue(agent, messages)
-        for name, messages in manual_dialogues(kb).items()
+        name: run_dialogue(real_baseline, messages)
+        for name, messages in manual_dialogues(real_kb).items()
     }
 
     for name, records in dialogues.items():
@@ -296,4 +278,4 @@ def test_three_real_dialogues_run_through_the_baseline(tmp_path: Path) -> None:
     replies = [record for records in dialogues.values() for record in records]
     assert all(record.agent_reply.strip() for record in replies)
     assert not [record for record in replies if FACT_ID.search(record.agent_reply)]
-    assert all(record.prompt_tokens < budget for record in replies)
+    assert all(record.prompt_tokens < prompt_budget for record in replies)

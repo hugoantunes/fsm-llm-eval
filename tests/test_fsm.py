@@ -1,27 +1,17 @@
 """Tests for the FSM loader and the real machine of data/fsm/ (T-02)."""
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
+from helpers import DOCS_DIR, GENERAL_FACT, TRACKING_FACT, make_kb
 from sim.fsm import FsmError, FsmSpec, load_fsm
-from sim.kb import Fact, KnowledgeBase, load_kb
+from sim.kb import Fact
 
-KB = KnowledgeBase(
-    facts=[
-        Fact(
-            id="F01", intent="general", text="Support answers between 9:00 and 18:00."
-        ),
-        Fact(
-            id="F02",
-            intent="order_tracking",
-            text="Standard delivery takes 5 business days.",
-        ),
-    ],
-    needles=[],
-    unanswerable=[],
-    user_data_fields=[],
-)
+#: The synthetic machine below is loaded against this, not against the real KB:
+#: two facts are enough to tell a released one from a withheld one.
+KB = make_kb(GENERAL_FACT, TRACKING_FACT)
 
 MACHINE = """\
 version: 1
@@ -203,11 +193,21 @@ def test_events_for_state_lists_only_that_states_events(tmp_path: Path) -> None:
     assert fsm.events_for("out_of_scope") == []
 
 
-def test_events_for_an_unknown_state_raises(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "ask",
+    [
+        lambda fsm: fsm.events_for("greetings"),
+        lambda fsm: fsm.released_facts("greetings", None, KB),
+    ],
+    ids=["events_for", "released_facts"],
+)
+def test_asking_about_an_unknown_state_raises(
+    tmp_path: Path, ask: Callable[[FsmSpec], object]
+) -> None:
     fsm = load_fsm(write_fsm(tmp_path / "fsm"), kb=KB)
 
     with pytest.raises(FsmError, match="greetings"):
-        fsm.events_for("greetings")
+        ask(fsm)
 
 
 def test_state_releasing_an_unknown_fact_id_raises(tmp_path: Path) -> None:
@@ -228,13 +228,6 @@ def test_released_facts_of_a_state_include_the_classified_intent_section(
     assert _ids(fsm.released_facts("greeting", "order_tracking", KB)) == ["F01"]
     assert _ids(fsm.released_facts("closing", "order_tracking", KB)) == ["F01", "F02"]
     assert _ids(fsm.released_facts("greeting", None, KB)) == ["F01"]
-
-
-def test_released_facts_for_an_unknown_state_raises(tmp_path: Path) -> None:
-    fsm = load_fsm(write_fsm(tmp_path / "fsm"), kb=KB)
-
-    with pytest.raises(FsmError, match="greetings"):
-        fsm.released_facts("greetings", None, KB)
 
 
 def test_released_facts_without_the_intent_a_state_needs_raises(
@@ -308,10 +301,6 @@ def test_to_mermaid_draws_one_arrow_per_declared_transition(tmp_path: Path) -> N
 
 # --- the real machine of data/fsm/ ------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-FSM_DIR = REPO_ROOT / "data" / "fsm"
-KB_DIR = REPO_ROOT / "data" / "kb"
-
 EXPECTED_STATES = [
     "closing",
     "confirmation",
@@ -336,24 +325,20 @@ CANONICAL_EVENTS = (
 )
 
 
-def load_real_fsm() -> FsmSpec:
-    """Load the machine of ``data/fsm/`` against the real knowledge base."""
-    return load_fsm(FSM_DIR, kb=load_kb(KB_DIR))
+def test_real_machine_has_the_eight_expected_states_and_loads_clean(
+    real_fsm: FsmSpec,
+) -> None:
+    assert sorted(real_fsm.states) == EXPECTED_STATES
+    assert real_fsm.initial == "greeting"
+    assert sorted(real_fsm.accepting_states) == ["closing", "out_of_scope"]
 
 
-def test_real_machine_has_the_eight_expected_states_and_loads_clean() -> None:
-    fsm = load_real_fsm()
+def test_real_machine_walks_the_whole_flow_without_the_universal_exits(
+    real_fsm: FsmSpec,
+) -> None:
+    flow = {(t.source, t.event): t.dest for t in real_fsm.transitions if not t.from_any}
 
-    assert sorted(fsm.states) == EXPECTED_STATES
-    assert fsm.initial == "greeting"
-    assert sorted(fsm.accepting_states) == ["closing", "out_of_scope"]
-
-
-def test_real_machine_walks_the_whole_flow_without_the_universal_exits() -> None:
-    fsm = load_real_fsm()
-    flow = {(t.source, t.event): t.dest for t in fsm.transitions if not t.from_any}
-
-    state = fsm.initial
+    state = real_fsm.initial
     walked = [state]
     for event in CANONICAL_EVENTS:
         state = flow[(state, event)]
@@ -370,16 +355,14 @@ def test_real_machine_walks_the_whole_flow_without_the_universal_exits() -> None
     ]
 
 
-def test_real_machine_lets_every_state_reach_out_of_scope() -> None:
-    fsm = load_real_fsm()
-
-    sources = {t.source for t in fsm.transitions if t.dest == "out_of_scope"}
-    assert sources == set(fsm.states) - {"out_of_scope"}
+def test_real_machine_lets_every_state_reach_out_of_scope(real_fsm: FsmSpec) -> None:
+    sources = {t.source for t in real_fsm.transitions if t.dest == "out_of_scope"}
+    assert sources == set(real_fsm.states) - {"out_of_scope"}
 
 
-def test_docs_fsm_diagram_matches_machine_yaml() -> None:
-    doc = (REPO_ROOT / "docs" / "fsm.md").read_text(encoding="utf-8")
+def test_docs_fsm_diagram_matches_machine_yaml(real_fsm: FsmSpec) -> None:
+    doc = (DOCS_DIR / "fsm.md").read_text(encoding="utf-8")
 
-    block = f"```mermaid\n{load_real_fsm().to_mermaid()}\n```"
+    block = f"```mermaid\n{real_fsm.to_mermaid()}\n```"
 
     assert block in doc, "the diagram is stale: run `just fsm-diagram` and paste it"

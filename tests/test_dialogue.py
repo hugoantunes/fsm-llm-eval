@@ -1,48 +1,52 @@
 """Tests for the dialogue loop (T-11)."""
 
-from collections.abc import Sequence
-from pathlib import Path
+from collections.abc import Callable, Sequence
 
 import pytest
 
-from helpers import (
-    CONFIG,
-    KB_DIR,
-    PROMPTS_DIR,
-    FakeLlm,
-    load_example_scenarios,
-    user_reply,
-)
+from helpers import PROMPTS_DIR, FakeLlm, user_reply
 from sim.agents import BaselineAgent
-from sim.config import load_models_config
 from sim.dialogue import DialogueResult, run_dialogue
-from sim.kb import load_kb
+from sim.kb import KnowledgeBase
 from sim.llm import LlmClient
+from sim.schemas import Scenario
 from sim.user import SimulatedUser
 
-KB = load_kb(KB_DIR)
-SCENARIO = load_example_scenarios()["happy_path_01"]
+#: The ``play`` fixture below, as the tests calling it see it: the customer's
+#: canned replies, then the agent's.
+Play = Callable[[Sequence[str], Sequence[str]], DialogueResult]
 
 
-def play(
-    user_replies: Sequence[str],
-    agent_replies: Sequence[str],
-    *,
-    max_turns: int = 8,
-) -> DialogueResult:
+@pytest.fixture(scope="session")
+def happy_path(example_scenarios: dict[str, Scenario]) -> Scenario:
+    """The scenario these tests play; the loop, not the scenario, is under test."""
+    return example_scenarios["happy_path_01"]
+
+
+@pytest.fixture
+def play(real_kb: KnowledgeBase, happy_path: Scenario) -> Play:
     """Run one dialogue with canned replies on both sides of it.
 
     The real agent and the real simulated user are used, each with its own fake
-    of the client of T-07: the loop is what is under test, not the models.
+    of the client of T-07, and the turn budget is the scenario's own: the loop is
+    what is under test, not the models.
     """
-    user = SimulatedUser(
-        FakeLlm(user_replies), scenario=SCENARIO, prompts_dir=PROMPTS_DIR
-    )
-    agent = BaselineAgent(FakeLlm(agent_replies), kb=KB, prompts_dir=PROMPTS_DIR)
-    return run_dialogue(agent, user, max_turns=max_turns)
+
+    def _play(
+        user_replies: Sequence[str], agent_replies: Sequence[str]
+    ) -> DialogueResult:
+        user = SimulatedUser(
+            FakeLlm(user_replies), scenario=happy_path, prompts_dir=PROMPTS_DIR
+        )
+        agent = BaselineAgent(
+            FakeLlm(agent_replies), kb=real_kb, prompts_dir=PROMPTS_DIR
+        )
+        return run_dialogue(agent, user, max_turns=happy_path.max_turns)
+
+    return _play
 
 
-def test_a_dialogue_alternates_the_user_and_the_agent() -> None:
+def test_a_dialogue_alternates_the_user_and_the_agent(play: Play) -> None:
     result = play(
         [
             user_reply("Hi, where is order NL-20260145?"),
@@ -64,7 +68,9 @@ def test_a_dialogue_alternates_the_user_and_the_agent() -> None:
     assert result.transcript[1].text == "What is the e-mail used in the purchase?"
 
 
-def test_a_dialogue_ends_on_the_agents_reply_when_the_user_reached_its_goal() -> None:
+def test_a_dialogue_ends_on_the_agents_reply_when_the_user_reached_its_goal(
+    play: Play,
+) -> None:
     result = play(
         [user_reply("Thanks, that is all.", status="goal_reached")],
         ["Glad to help. Support answers between 9:00 and 18:00."],
@@ -78,7 +84,7 @@ def test_a_dialogue_ends_on_the_agents_reply_when_the_user_reached_its_goal() ->
     )
 
 
-def test_a_dialogue_stops_when_the_user_gave_up() -> None:
+def test_a_dialogue_stops_when_the_user_gave_up(play: Play) -> None:
     result = play(
         [user_reply("This is going nowhere, I am done.", status="gave_up")],
         ["I am sorry it came to that."],
@@ -88,7 +94,9 @@ def test_a_dialogue_stops_when_the_user_gave_up() -> None:
     assert len(result.records) == 1
 
 
-def test_a_dialogue_stops_without_a_further_message_when_the_agent_closed() -> None:
+def test_a_dialogue_stops_without_a_further_message_when_the_agent_closed(
+    play: Play,
+) -> None:
     result = play(
         [
             user_reply("Hi, where is order NL-20260145?"),
@@ -103,13 +111,14 @@ def test_a_dialogue_stops_without_a_further_message_when_the_agent_closed() -> N
     assert len(result.records) == 1
 
 
-def test_a_dialogue_stops_at_the_scenarios_max_turns() -> None:
-    budget = SCENARIO.max_turns
+def test_a_dialogue_stops_at_the_scenarios_max_turns(
+    play: Play, happy_path: Scenario
+) -> None:
+    budget = happy_path.max_turns
 
     result = play(
         [user_reply("Are you still there?")] * (budget + 1),
         ["Yes, I am here."] * (budget + 1),
-        max_turns=budget,
     )
 
     assert result.stop_reason == "max_turns"
@@ -117,7 +126,7 @@ def test_a_dialogue_stops_at_the_scenarios_max_turns() -> None:
     assert len(result.transcript) == 2 * budget
 
 
-def test_a_dialogue_keeps_one_turn_record_per_agent_turn() -> None:
+def test_a_dialogue_keeps_one_turn_record_per_agent_turn(play: Play) -> None:
     result = play(
         [
             user_reply("Hi, where is order NL-20260145?"),
@@ -146,24 +155,21 @@ def test_a_dialogue_keeps_one_turn_record_per_agent_turn() -> None:
 
 @pytest.mark.integration
 def test_the_example_scenarios_run_through_the_baseline_without_stalling(
-    tmp_path: Path,
+    real_client: LlmClient,
+    real_kb: KnowledgeBase,
+    example_scenarios: dict[str, Scenario],
 ) -> None:
-    client = LlmClient(
-        load_models_config(CONFIG),
-        cache_dir=tmp_path / "cache",
-        log_path=tmp_path / "llm_calls.jsonl",
-    )
     seed = 42
 
     results = {
         scenario.id: run_dialogue(
-            BaselineAgent(client, kb=KB, prompts_dir=PROMPTS_DIR, seed=seed),
+            BaselineAgent(real_client, kb=real_kb, prompts_dir=PROMPTS_DIR, seed=seed),
             SimulatedUser(
-                client, scenario=scenario, prompts_dir=PROMPTS_DIR, seed=seed
+                real_client, scenario=scenario, prompts_dir=PROMPTS_DIR, seed=seed
             ),
             max_turns=scenario.max_turns,
         )
-        for scenario in load_example_scenarios().values()
+        for scenario in example_scenarios.values()
     }
 
     for scenario_id, result in results.items():
