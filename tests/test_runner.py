@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from helpers import CONFIG, EXAMPLES_DIR, RunCanned
+from helpers import CONFIG, EXAMPLES_DIR, FSM_DIR, RunCanned
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
 from sim.events import EventError
@@ -19,6 +19,7 @@ from sim.runner import (
     dialogue_path,
     dialogue_seed,
     hash_dataset,
+    hash_fsm,
     iter_jobs,
     run_experiment,
 )
@@ -257,6 +258,7 @@ def test_manifest_records_config_hash_digests_prompts_and_parallel(
     assert manifest.num_ctx == config.num_ctx
     assert manifest.ollama_version == config.ollama.version
     assert manifest.dataset_hash == hash_dataset(EXAMPLES_DIR)
+    assert manifest.fsm_hash == hash_fsm(FSM_DIR)
     assert manifest.model_names["agent"] == config.models.agent.name
     assert manifest.model_digests["agent"] == config.models.agent.digest
     assert manifest.prompt_versions["baseline"] >= 1

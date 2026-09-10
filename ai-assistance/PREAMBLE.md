@@ -4,7 +4,7 @@ Instructions for any AI assistant working in this repository. Claude Code import
 
 ## Project
 
-MBA thesis (TCC) experiment. Question: does a finite-state machine used as the *instruction base* of an LLM customer-service agent beat one well-written system prompt? Two agents, `baseline` (one prompt, full knowledge base) and `fsm` (per-state instruction package, KB filtered by state), same local model via Ollama, same simulated user, same scenarios. Evaluation: blind LLM judge (two calls per dialogue) plus deterministic evaluators. Statistics paired by scenario.
+MBA thesis (TCC) experiment. Question: does a finite-state machine used as the *instruction base* of an LLM customer-service agent beat one well-written system prompt? Two agents, `baseline` (one prompt, full knowledge base) and `fsm` (per-state instruction package, same full knowledge base), same local model via Ollama, same simulated user, same scenarios. Evaluation: blind LLM judge (two calls per dialogue) plus deterministic evaluators. Statistics paired by scenario.
 
 The experiment, this repository and everything the models read or write are **English** (decision of 2026-09-08: small models follow instructions and schemas more reliably in English, and English costs fewer tokens). The thesis is written in Portuguese, outside the repo, and glosses names on first use. The control documents live in `~/Documents/mba/projeto/`, in Portuguese and with the original Portuguese artifact names (map them with the table under *Layout*):
 
@@ -78,7 +78,7 @@ From the section *O que não deve mudar* of TICKETS.md:
 - Parity checklist, dated decisions table, explicit out-of-scope list, frozen dataset hash.
 - `num_ctx` explicit in config; fail loudly when a prompt exceeds 80% of it. Structured output via JSON Schema (`format=<schema>`), no defensive parsing.
 - The simulated user sees only persona, goal and script, never the KB or the reference answer.
-- Baseline gets the full KB, FSM gets the KB filtered by state: a deliberate difference, not a bug.
+- Both agents get the full KB. The FSM differs by explicit states, transitions, guards, event classification and state-specific instructions: a deliberate difference, not a bug.
 
 ## Working rules
 

@@ -56,8 +56,7 @@ covered, and escalate (F03, F04).
 ## The matrix
 
 Rows are the intents of [`data/kb/knowledge_base.md`](../data/kb/knowledge_base.md);
-`general` is not among them, because those facts are released in every state and belong
-to no particular request. The first block is balanced by construction, four scenarios per
+`general` is not among them, because those facts belong to no particular request. The first block is balanced by construction, four scenarios per
 cell:
 
 | Intent | `happy_path` | `edge` | `adversarial` | Total |

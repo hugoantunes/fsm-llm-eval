@@ -2,12 +2,9 @@
 #
 # This file is the single source of the state and event names: the engine (T-08), the
 # stage labeler's enum (T-13), the flow-adherence metric and the diagram of docs/fsm.md
-# all load them from here. `sim.fsm.load_fsm` cross-checks it against data/kb/.
-#
-# `facts` is the slice of the knowledge base a state may state, by fact ID; the FSM
-# agent sees only that slice, while the baseline sees the whole KB (a deliberate
-# difference of the experiment). `facts_from_intent` adds the whole section of the
-# intent classified in the dialogue, which is known only at run time.
+# all load them from here. Each state names an instruction package in states/. Both
+# agents receive the same full knowledge base; the packages say what to do in that
+# state, never which facts to use.
 #
 # `guard` names a condition the engine evaluates from data/kb/user_data_fields.json,
 # so the regex and the `required_for` of each datum are written in one place only.
@@ -22,30 +19,20 @@ accepting_states: [closing, out_of_scope]
 states:
   greeting:
     package: states/greeting.md
-    facts: [F01, F02, F03, F04]
   identification:
     package: states/identification.md
-    facts: [F03, F04, F05, F06, F07]
   intent_classification:
     package: states/intent_classification.md
-    facts: [F01, F03, F04]
   data_collection:
     package: states/data_collection.md
-    facts: [F03, F04, F05, F06, F07]
   solution:
     package: states/solution.md
-    facts: [F03, F04, F07, F08]
-    facts_from_intent: true
   confirmation:
     package: states/confirmation.md
-    facts: [F03, F04]
-    facts_from_intent: true
   closing:
     package: states/closing.md
-    facts: [F02, F03, F04]
   out_of_scope:
     package: states/out_of_scope.md
-    facts: [F01, F03, F04]
 
 transitions:
   - event: request_received

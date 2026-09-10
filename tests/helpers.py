@@ -102,8 +102,8 @@ def forbidden_names_in(directory: Path) -> list[str]:
 
 
 #: The two facts every synthetic knowledge base in the tests starts from: one
-#: general policy, released in every state, and one order-tracking fact. Written
-#: here so the FSM, scenario and agent tests cannot disagree on what F01 says.
+#: general policy and one order-tracking fact. Written here so the FSM, scenario
+#: and agent tests cannot disagree on what F01 says.
 GENERAL_FACT = Fact(
     id="F01", intent="general", text="Support answers between 9:00 and 18:00."
 )

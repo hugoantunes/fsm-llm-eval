@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -101,11 +101,26 @@ def dialogue_path(run_dir: Path, job: DialogueJob) -> Path:
 
 def hash_dataset(directory: Path) -> str:
     """SHA-256 the scenario files in ``directory``, in sorted path order."""
+    return _hash_paths(
+        (path.name, path.read_bytes()) for path in sorted(directory.glob("*.jsonl"))
+    )
+
+
+def hash_fsm(directory: Path) -> str:
+    """SHA-256 the machine and its state packages, in sorted path order."""
+    paths = [directory / "machine.yaml", *sorted((directory / "states").glob("*.md"))]
+    return _hash_paths(
+        (path.relative_to(directory).as_posix(), path.read_bytes()) for path in paths
+    )
+
+
+def _hash_paths(parts: Iterable[tuple[str, bytes]]) -> str:
+    """SHA-256 ``(name, content)`` pairs so two hashers share one encoding."""
     digest = hashlib.sha256()
-    for path in sorted(directory.glob("*.jsonl")):
-        digest.update(path.name.encode("utf-8"))
+    for name, content in parts:
+        digest.update(name.encode("utf-8"))
         digest.update(b"\0")
-        digest.update(path.read_bytes())
+        digest.update(content)
     return digest.hexdigest()
 
 
@@ -204,6 +219,7 @@ def run_experiment(
         ollama_version=config.ollama.version,
         num_ctx=config.num_ctx,
         dataset_hash=hash_dataset(scenarios_dir),
+        fsm_hash=hash_fsm(fsm_dir),
         scenarios_dir=str(scenarios_dir),
         prompt_versions=load_prompt_versions(prompts_dir),
         model_names={role: config.spec(role).name for role in ROLES},

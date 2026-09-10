@@ -1,8 +1,7 @@
 # State: confirmation
 
 Persona, tone and the general rules come from the block both agents share. This package
-says only what changes in this state. The facts released here are appended to it: the
-general ones below plus the whole section of the request that was classified.
+says only what changes in this state. The knowledge base is appended below.
 
 ## Goal
 
@@ -18,7 +17,7 @@ Check that the outcome solved the request and that nothing about it was left ope
 - Restate the outcome and the next step in one sentence.
 - Ask whether that solves it.
 - When the customer says it does not, name what is still missing and go back to solving
-  it with the released facts.
+  it with the knowledge base.
 - Say plainly when what is still missing is not covered here and hand it to a
   human specialist.
 

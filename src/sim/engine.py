@@ -129,8 +129,10 @@ class FsmEngine:
 
         The classifier reports an intent on any event, which is how a request
         named in ``greeting`` survives to the state that acts on it. Letting any
-        later event overwrite it would swap the released facts mid-dialogue
-        without a word, so only the intent event itself may change it.
+        later event overwrite it would swap the data the
+        ``required_data_collected`` guard and the field list read, with nothing
+        in the log to explain the change, so only the intent event itself may
+        change it.
         """
         if detection.intent is None:
             return
@@ -142,9 +144,8 @@ class FsmEngine:
 
         Identification already complete, every required datum already in hand:
         the agent must speak from the first state that still has work, or it
-        asks for what it holds and never receives the facts of the classified
-        request. The edges are the machine's own, tried in the order a dialogue
-        reaches them.
+        asks for what it already holds. The edges are the machine's own, tried
+        in the order a dialogue reaches them.
 
         ``intent_classified`` is deliberately not among them. A request the
         classifier read wrong in the opening turn would be final, because the

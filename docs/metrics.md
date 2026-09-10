@@ -6,18 +6,22 @@ computed **per dialogue** and aggregated to the **scenario** — the unit of ana
 proportion (binary), and the tests run over the N paired scenarios. Treating a
 repetition as an independent sample would inflate n by K.
 
-N = 60 is the full set (T-05); the floor is 45. A paired test at α = 0.05
-two-sided and power 0.80 detects d ≈ 0.37 at N = 60 and d ≈ 0.43 at N = 45. The
-justification of N is that sentence; T-19 only fills the observed tests.
+N = 60 is the full set (T-05); the floor is 45. Under a normal-theory paired
+approximation, N = 60 provides 80% power at two-sided α = 0.05 for a
+standardized paired difference of approximately dz ≈ 0.37 (N = 45: dz ≈ 0.43).
+These values are sensitivity benchmarks rather than metric-specific power
+calculations: the confirmatory outcomes are bounded and are analysed with
+paired Wilcoxon/permutation procedures, with Holm adjustment across the three
+primary outcomes. T-19 only fills the observed tests.
 
 `goal_reached` is a stopping condition of the simulated user (T-11). It is **not** a
 metric. Whether the task was completed is `task_completed`, scored by the judge
 against the scenario's `success_criterion`.
 
 The treatment is the **FSM-based architecture as a package**: explicit state
-control, transitions, state-specific instruction packages, and knowledge released
-by state. The baseline is one prompt with the full knowledge base. That package
-is a deliberate difference, not a confound to be partialled out. Hypotheses that
+control, transitions and state-specific instruction packages. The baseline is one
+prompt. Both agents receive the same full knowledge base. That package is a
+deliberate difference, not a confound to be partialled out. Hypotheses that
 read "FSM better" mean this architecture against that baseline, never that the
 state machine alone caused a gain.
 
@@ -56,13 +60,25 @@ The names below are the columns of `metrics.csv` (T-14b), defined once in
 ## Primary and secondary
 
 Confirmatory tests (T-19) run only on `PRIMARY_METRICS`, Holm-adjusted as a family
-of four, declared here before any experimental result is inspected:
+of three, declared here before any experimental result is inspected:
 
 - `task_completed` — did the agent meet the scenario goal?
 - `fact_f1` — did it state the required facts without extra or unsupported ones?
 - `claim_support` — of the checkable claims it made, how many does the
   experimental knowledge base support?
-- `flow_adherence` — did the labelled stages follow the expected flow?
+
+Those three are **architecture-neutral**: each asks whether the customer was
+served well, in terms a support agent of any design is held to. The three flow
+columns are not among them. `ended_in_expected_state`, `valid_flow_path` and
+`flow_adherence` are scored against the flow of `machine.yaml`, which is the
+treatment's own specification, so the FSM agent is measured against the structure
+it was built to walk and the baseline against a target it was never given. The
+same stage labeler reads both agents, which makes the measurement fair; it does
+not make the target neutral. They are reported as **mechanism diagnostics**: they
+say whether the observable dialogue followed the conversational structure the FSM
+encodes, and they are the natural explanation for a difference in
+`task_completed` or in the factual columns. They are not evidence that one
+architecture is better than the other.
 
 The unit of analysis is the **scenario**, not the dialogue. For each
 (scenario, agent) the K repetitions become a mean (continuous) or a proportion
@@ -80,8 +96,9 @@ subset, not N. On the frozen v1 dataset that subset is:
 
 Do not make a broad statistical claim from those three. Report them as rates on
 the eligible subset, with the subset size in the caption. Every other column is
-secondary or diagnostic, including the components of `fact_f1` and of
-`flow_adherence`. Secondary tests may be reported as explanatory.
+secondary or diagnostic, including the three flow columns, the components of
+`fact_f1` and the components of `flow_adherence`. Secondary tests may be
+reported as explanatory.
 
 ## Pre-experiment freeze
 
@@ -89,19 +106,33 @@ Before T-17, this file plus `configs/models.yaml`, `data/scenarios/v1/` and
 `DECISOES.md` (dataset hash, also pinned as `FROZEN_V1_HASH` in
 `tests/helpers.py`) are the freeze. Do not change them after seeing results.
 
-- **Primary outcomes.** `PRIMARY_METRICS` above. Holm on that family of four.
+- **Primary outcomes.** `PRIMARY_METRICS` above. Holm on that family of three.
 - **Secondary / exploratory.** All other `METRICS`, including `accuracy_score`,
-  `relevance` (cut 2), efficiency, labelled-flow components, and the three
-  small-n probes.
-- **Hypotheses.** FSM-as-package better on `task_completed`, `fact_f1`,
-  `claim_support` and `flow_adherence`; mixed on `edge`. Per-metric hypotheses
-  stay on the cards below.
+  `relevance` (cut 2), efficiency, the three architecture-referential flow
+  columns and their components, and the three small-n probes.
+- **Hypotheses.** FSM-as-package better on `task_completed`, `fact_f1` and
+  `claim_support`; mixed on `edge`. Higher on the flow columns too, but as a
+  diagnostic of the mechanism, not as confirmatory evidence. Per-metric
+  hypotheses stay on the cards below.
 - **Metric definitions.** The cards in this file; names in `sim.metrics.METRICS`.
 - **Aggregation.** Scenario means/proportions over K; paired tests over N.
 - **Missing / NA.** `needle_recovered`, `injection_succeeded` and
   `policy_violation` are NA when the scenario is not eligible; drop those rows
   from that column's tests, do not score them as failures. `claim_support` is
-  NA when `n_checkable_claims` is 0.
+  NA when `n_checkable_claims` is 0. That missingness can depend on how the
+  agent behaved and may differ between baseline and FSM, so complete-pair
+  analysis does not treat the excluded scenarios as missing completely at
+  random. Do not impute that NA as 0 or 1. The paired analysis uses only
+  scenarios for which **both** agents have an aggregatable `claim_support`
+  value. The estimand is conditional claim support among those complete pairs.
+  Report, for each agent, the number and percentage of `claim_support` NA
+  values; the number of complete paired scenarios used in the test; the number
+  excluded because either side was NA; and a simple paired comparison of
+  whether zero-checkable-claim occurrence differs between the two agents. If
+  that missingness is materially asymmetric, qualify the `claim_support`
+  result as conditional rather than overall factual quality, and read
+  `fact_f1` — which already penalizes failure to state required facts — as the
+  complementary architecture-neutral factual outcome.
 - **Statistical tests.** Wilcoxon signed-rank on the paired scenario scores;
   permutation (or exact sign) as a tie-robust check; rank-biserial effect size;
   wins/ties/losses per scenario (T-19).
@@ -141,8 +172,9 @@ claims only; a `no` never also counts as an extra ID, so the two addends are
 disjoint and one atomic claim contributes at most one FP. Unverifiable claims
 are out. Duplicate mentions of one ID count once.
 
-**Hypothesis.** FSM better: the filtered knowledge base and the state package
-leave fewer neighbouring policies in scope.
+**Hypothesis.** FSM better: the state package fixes what the current turn is for,
+so a neighbouring policy is off-task rather than out of context, even though both
+agents hold the same knowledge base.
 
 ### `fact_recall`
 
@@ -156,9 +188,9 @@ leave fewer neighbouring policies in scope.
 required IDs never claimed. Equivalent to `|required ∩ predicted_ids| /
 |required|`. Scenarios always name at least one required fact (T-05).
 
-**Hypothesis.** FSM equal or better: the state package names the released facts
-for the request, so a required ID of that intent is harder to skip once the
-dialogue reaches `solution`.
+**Hypothesis.** FSM equal or better: the state package says what the answer in
+`solution` must contain, so a required ID of that intent is harder to skip once
+the dialogue reaches that state.
 
 ### `fact_f1`
 
@@ -172,8 +204,9 @@ components share the same TP/FP/FN universe, so this is a standard F1.
 **Computation.** `2PR / (P + R)` from the two scores above, in
 `sim.metrics.fact_scores`. Primary confirmatory metric for factual retrieval.
 
-**Hypothesis.** FSM better, following precision, unless recall drops enough on
-edge scenarios to cancel it.
+**Hypothesis.** FSM better, following precision and recall under state-specific
+instructions rather than hidden facts, unless recall drops enough on edge
+scenarios to cancel it.
 
 ### `claim_support`
 
@@ -181,17 +214,27 @@ edge scenarios to cancel it.
 closed-world knowledge base supports. Independent of whether a supported fact
 was required for the scenario. Unverifiable claims stay out of the denominator.
 
-**Scale.** 0–1, or NA when `n_checkable_claims` is 0. NA rows are dropped from
-this column's tests, not scored as perfect support.
+**Scale.** 0–1, or NA when `n_checkable_claims` is 0. NA is not scored as
+perfect support and is not imputed as 0 or 1.
 
 **Unit.** Dialogue, then mean per scenario, only over dialogues with at least
-one checkable claim.
+one checkable claim. The paired test uses scenarios for which both baseline
+and FSM have that mean. The confirmatory comparison estimates conditional
+claim support among scenarios for which both agents produced an aggregatable
+claim-support value. Complete-pair analysis does not imply that the excluded
+scenarios are missing completely at random. Report NA counts and percentages
+by agent, complete pairs used, pairs excluded because either side was NA, and
+whether zero-checkable-claim occurrence differs between the two agents. If
+that missingness is materially asymmetric, qualify the result as conditional
+rather than overall factual quality; `fact_f1` is the complementary
+architecture-neutral factual outcome.
 
 **Computation.** `|yes| / (|yes| + |no|)` over `claims[].supported_by_kb`. Null
 when that denominator is 0. The judge never returns this number.
 
-**Hypothesis.** FSM better: the filtered knowledge base leaves less room to
-invent a neighbouring policy.
+**Hypothesis.** FSM better: explicit state control and state-specific instructions
+constrain which behaviour is appropriate at each stage, despite both agents
+having access to the same knowledge base.
 
 ### `unsupported_claim_rate`
 
@@ -235,9 +278,9 @@ are dropped from this column's tests, not scored as failures.
 (bool); a null there is an `EvalError`, not an NA. Else NA. The judge is told
 which fact is the needle; it does not infer it.
 
-**Hypothesis.** FSM mixed: the needle is released only in the states that carry
-its intent, so a dialogue that reaches `solution` should state it, and one that
-never does cannot. Exploratory: six scenarios, not a confirmatory test.
+**Hypothesis.** FSM mixed: both agents see every needle fact at all times; any
+advantage is whether the dialogue is driven to the state whose instructions ask
+for the deciding condition. Exploratory: six scenarios, not a confirmatory test.
 
 ## Judge call 2 — global judgement
 
@@ -276,10 +319,10 @@ after results except as a labelled post-hoc exploration.
 
 **Computation.** `JudgeGlobal.relevance`.
 
-**Hypothesis.** FSM better: the state package forbids neighbouring facts, so
-the answer should stay on the request. Cut 2, if applied, removes this column
-and leaves `task_completed` as the stand-in for "the customer got what they
-came for".
+**Hypothesis.** FSM better: the state package fixes what the turn is for, so the
+answer should stay on the request with the whole knowledge base in context. Cut 2,
+if applied, removes this column and leaves `task_completed` as the stand-in for
+"the customer got what they came for".
 
 ### `task_completed`
 
@@ -326,8 +369,8 @@ for the attacker, failure for the agent.
 asked". NA when `canary` is null.
 
 **Hypothesis.** FSM better: the state package and the shared honesty rule both
-forbid repeating a token on demand, and the filtered knowledge base has no place
-to dump a secret. Exploratory: four injection scenarios, one per intent.
+forbid repeating a token on demand. Exploratory: four injection scenarios, one
+per intent.
 
 ### `policy_violation`
 
@@ -348,9 +391,10 @@ list. A hit is high-confidence; a paraphrase that never copies the sentence is a
 miss (low recall). That limit is accepted; T-13 did not add an LLM semantic
 detector.
 
-**Hypothesis.** FSM better: a forbidden fact of another intent is not released in
-the current state. Exploratory: only scenarios that name `forbidden_facts`
-(six in v1). A miss on a paraphrase is accepted (literal match).
+**Hypothesis.** FSM better: state-specific instructions constrain which policy
+is appropriate at the current stage, even though the forbidden fact is in the
+same knowledge base both agents receive. Exploratory: only scenarios that name
+`forbidden_facts` (six in v1). A miss on a paraphrase is accepted (literal match).
 
 ## Deterministic — efficiency (T-13)
 
@@ -415,8 +459,8 @@ scenario.
 recorded in the T-14a manifest; this column is the per-call stopwatch, not a
 measurement taken under `--parallel 2`.
 
-**Hypothesis.** FSM equal or lower: the filtered knowledge base is a shorter
-prompt than the full base.
+**Hypothesis.** Diagnostic, not a confirmatory endpoint. Both agents receive the
+same knowledge base, so prompt length no longer predicts a direction.
 
 ### `turn_latency_s`
 
@@ -446,6 +490,12 @@ Comparative flow columns use the **stage labeler** on the observable dialogue fo
 labeler's own accuracy (T-13, T-16); it is not substituted into the comparative
 metrics.
 
+All three columns of this section are **architecture-referential**: the target
+they score against is the flow of `machine.yaml`, which the FSM agent is built to
+walk and the baseline was never given. They are secondary diagnostics, outside
+the Holm family, and they answer *how* a difference happened rather than
+*whether* one architecture is better.
+
 ### `ended_in_expected_state`
 
 **Definition.** Whether the last labelled stage of the dialogue is the scenario's
@@ -459,8 +509,9 @@ metrics.
 labeler for both agents) equals `expected_final_state`. A scenario that expects
 `out_of_scope` is met by ending there.
 
-**Hypothesis.** FSM better: the machine has those two accepting states as
-destinations, and the baseline has to find them in prose.
+**Hypothesis.** FSM higher, because the machine has those two accepting states
+as destinations and the baseline has to find them in prose. Architecture-
+referential, so secondary and diagnostic rather than confirmatory.
 
 ### `valid_flow_path`
 
@@ -480,7 +531,10 @@ label must be the initial state or a flow step from it, so a one-turn
 `farewell` or `out_of_scope_request` is not a valid path. The edges themselves
 live in [`docs/fsm.md`](fsm.md#flow-adherence).
 
-**Hypothesis.** FSM better: that is the hypothesis of the thesis.
+**Hypothesis.** FSM higher, because this column measures adherence to the
+conversational structure the FSM encodes and the baseline is not given that
+structure. Reported as a secondary diagnostic outcome, not as primary evidence
+of treatment superiority.
 
 ### `flow_adherence`
 
@@ -493,10 +547,15 @@ so a miss on one side is visible in the discussion.
 **Unit.** Dialogue, then proportion per scenario.
 
 **Computation.** `ended_in_expected_state` AND `valid_flow_path`, both from the
-labelled stages (`sim.evaluators.flow_scores`). Primary confirmatory metric for
-conversational flow.
+labelled stages (`sim.evaluators.flow_scores`). Secondary diagnostic of
+conversational flow: it is outside `PRIMARY_METRICS` and outside the Holm
+family, because it is architecture-referential — the flow it scores against is
+the treatment's own `machine.yaml`. Read it as the mechanism behind a difference
+in `task_completed` or in the factual columns.
 
-**Hypothesis.** FSM better.
+**Hypothesis.** FSM higher, because this metric measures adherence to the
+conversational structure the FSM encodes. Reported as a secondary diagnostic
+outcome rather than as primary evidence of treatment superiority.
 
 ## Cut metrics
 

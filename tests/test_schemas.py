@@ -47,9 +47,9 @@ FSM = FsmSpec(
     initial="greeting",
     accepting_states=["closing", "out_of_scope"],
     states={
-        "greeting": State(package="states/greeting.md", facts=["F01"]),
-        "closing": State(package="states/closing.md", facts=["F01"]),
-        "out_of_scope": State(package="states/out_of_scope.md", facts=["F01"]),
+        "greeting": State(package="states/greeting.md"),
+        "closing": State(package="states/closing.md"),
+        "out_of_scope": State(package="states/out_of_scope.md"),
     },
     transitions=[],
 )

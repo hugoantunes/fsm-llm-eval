@@ -1,8 +1,8 @@
 # State: data_collection
 
 Persona, tone and the general rules come from the block both agents share. This package
-says only what changes in this state. The facts released here are appended to it, and so
-is the list of data the classified request requires.
+says only what changes in this state. The knowledge base is appended below, and so is
+the list of data the classified request requires.
 
 ## Goal
 

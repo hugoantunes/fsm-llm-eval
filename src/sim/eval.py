@@ -17,6 +17,8 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from sim.config import ModelsConfig, Role
 from sim.evaluators import (
     LabelledTurn,
@@ -29,14 +31,14 @@ from sim.evaluators import (
     policy_violation,
     turn_latency_s,
 )
-from sim.fsm import FsmSpec
+from sim.fsm import DEFAULT_FSM_DIR, FsmSpec
 from sim.io import atomic_write
 from sim.judge import Judge
 from sim.kb import KnowledgeBase
 from sim.llm import Chat
 from sim.metrics import ACCURACY_SCORE, METRICS, fact_scores
 from sim.prompts import DEFAULT_PROMPTS_DIR
-from sim.runner import hash_dataset
+from sim.runner import hash_dataset, hash_fsm
 from sim.schemas import DialogueLog, JobRef, Manifest, Scenario, load_scenarios
 
 METRICS_CSV = "metrics.csv"
@@ -69,12 +71,24 @@ def evaluate_run(
     fsm: FsmSpec,
     config: ModelsConfig,
     prompts_dir: Path = DEFAULT_PROMPTS_DIR,
+    fsm_dir: Path = DEFAULT_FSM_DIR,
     on_progress: Progress | None = None,
 ) -> EvalResult:
     """Score every ok dialogue under ``run_dir`` and write the two CSVs."""
     manifest = _load_manifest(run_dir)
     scenarios_dir = Path(manifest.scenarios_dir)
-    _check_dataset(manifest, scenarios_dir)
+    _check_recorded_hash(
+        hash_dataset(scenarios_dir),
+        manifest.dataset_hash,
+        artifact="scenarios",
+        path=scenarios_dir,
+    )
+    _check_recorded_hash(
+        hash_fsm(fsm_dir),
+        manifest.fsm_hash,
+        artifact="the FSM",
+        path=fsm_dir,
+    )
     scenarios = {
         scenario.id: scenario
         for scenario in load_scenarios(scenarios_dir, kb=kb, fsm=fsm)
@@ -171,15 +185,16 @@ def _score(
     )
 
 
-def _check_dataset(manifest: Manifest, scenarios_dir: Path) -> None:
-    """Fail unless the scenario files still hash to what the run recorded."""
-    found = hash_dataset(scenarios_dir)
-    if found == manifest.dataset_hash:
+def _check_recorded_hash(
+    found: str, recorded: str, *, artifact: str, path: Path
+) -> None:
+    """Fail unless ``found`` is the hash the run recorded for ``artifact``."""
+    if found == recorded:
         return
     raise EvalError(
-        f"scenarios in {scenarios_dir} hash to {found}, but the run recorded "
-        f"{manifest.dataset_hash}. The answer key must be the one the dialogues "
-        "were played against; check out the same commit on both machines"
+        f"{artifact} in {path} hash to {found}, but the run recorded {recorded}. "
+        "The files must be the ones the dialogues were played against; check out "
+        "the same commit on both machines"
     )
 
 
@@ -202,7 +217,21 @@ def _load_manifest(run_dir: Path) -> Manifest:
             f"{path} is missing. sim eval reads the T-14a manifest to find the "
             "scenarios that produced the dialogues"
         )
-    return Manifest.model_validate_json(path.read_text(encoding="utf-8"))
+    try:
+        return Manifest.model_validate_json(path.read_text(encoding="utf-8"))
+    except ValidationError as invalid:
+        if any(
+            error["type"] == "missing" and error["loc"] == ("fsm_hash",)
+            for error in invalid.errors()
+        ):
+            raise EvalError(
+                f"{path} has no fsm_hash: this run predates the FSM hash. "
+                "Delete the directory and re-run sim run; sim eval cannot score "
+                "a manifest it cannot identify"
+            ) from invalid
+        raise EvalError(
+            f"{path} does not match the manifest schema:\n{invalid}"
+        ) from invalid
 
 
 def _load_logs(run_dir: Path) -> list[DialogueLog]:

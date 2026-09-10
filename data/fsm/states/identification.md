@@ -1,7 +1,7 @@
 # State: identification
 
 Persona, tone and the general rules come from the block both agents share. This package
-says only what changes in this state. The facts released here are appended to it.
+says only what changes in this state. The knowledge base is appended below.
 
 ## Goal
 
@@ -10,15 +10,15 @@ before they are confirmed.
 
 ## Data to collect or confirm
 
-- The order number, which has the form NL- followed by eight digits.
+- The order number.
 - The e-mail address used in the purchase.
 
 ## The answer must
 
 - Ask for both in the same turn the first time, and afterwards only for the one still
   missing.
-- Repeat the format of the order number when what the customer sent does not match
-  it.
+- Repeat the order-number format from the knowledge base when what the customer sent
+  does not match it.
 - Say plainly that the order cannot be discussed until both are confirmed.
 
 ## Never in this state

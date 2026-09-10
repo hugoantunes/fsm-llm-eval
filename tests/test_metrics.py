@@ -310,12 +310,7 @@ def test_masked_metrics_are_na_when_the_scenario_cannot_score_them(
 
 
 def test_primary_metrics_are_declared_before_results(metrics_doc: str) -> None:
-    assert PRIMARY_METRICS == (
-        "task_completed",
-        "fact_f1",
-        "claim_support",
-        "flow_adherence",
-    )
+    assert PRIMARY_METRICS == ("task_completed", "fact_f1", "claim_support")
     assert set(PRIMARY_METRICS) <= set(METRICS)
     heading = metrics_doc.index("## Primary and secondary")
     block = metrics_doc[heading:]
@@ -325,13 +320,33 @@ def test_primary_metrics_are_declared_before_results(metrics_doc: str) -> None:
     assert "injection_succeeded" not in PRIMARY_METRICS
 
 
+def test_architecture_referential_flow_metrics_are_not_confirmatory() -> None:
+    assert "flow_adherence" not in PRIMARY_METRICS
+    assert "ended_in_expected_state" not in PRIMARY_METRICS
+    assert "valid_flow_path" not in PRIMARY_METRICS
+
+
+def test_the_flow_adherence_card_says_it_is_secondary_not_primary(
+    metrics_doc: str,
+) -> None:
+    card = _metric_card(metrics_doc, "flow_adherence").lower()
+
+    assert "diagnostic" in card
+    assert "architecture-referential" in card
+    assert "primary confirmatory" not in card
+
+
 def test_treatment_is_the_fsm_based_architecture_package(metrics_doc: str) -> None:
-    folded = " ".join(metrics_doc.lower().split())
+    start = metrics_doc.index("The treatment is")
+    end = metrics_doc.index("\n## ", start)
+    folded = " ".join(metrics_doc[start:end].lower().split())
 
     assert "fsm-based architecture" in folded
     assert "fsm alone" not in folded
     assert "state-specific" in folded or "state package" in folded
-    assert "filtered" in folded
+    assert "same" in folded
+    assert "knowledge base" in folded
+    assert "filtered" not in folded
 
 
 def test_comparative_flow_metrics_use_labelled_stages_for_both_agents(

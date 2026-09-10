@@ -1,6 +1,7 @@
 """Tests for the eval pipeline of T-14b."""
 
 import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -301,7 +302,28 @@ def test_eval_writes_a_row_for_every_ok_log_not_only_manifest_jobs(
     }
 
 
-def test_eval_rejects_a_scenario_directory_that_does_not_match_the_dataset_hash(
+@pytest.mark.parametrize("field", ["dataset_hash", "fsm_hash"])
+def test_eval_rejects_a_directory_that_does_not_match_the_recorded_hash(
+    run_canned: RunCanned,
+    run_dir: Path,
+    canned_eval_llm: CannedEvalLlm,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+    field: str,
+) -> None:
+    run_canned()
+    path = run_dir / "manifest.json"
+    manifest = Manifest.model_validate_json(path.read_text(encoding="utf-8"))
+    atomic_write(
+        path,
+        manifest.model_copy(update={field: "0" * 64}).model_dump_json() + "\n",
+    )
+
+    with pytest.raises(EvalError, match="hash"):
+        _eval(run_dir, canned_eval_llm, real_kb, real_fsm)
+
+
+def test_eval_rejects_a_manifest_that_predates_the_fsm_hash(
     run_canned: RunCanned,
     run_dir: Path,
     canned_eval_llm: CannedEvalLlm,
@@ -310,13 +332,11 @@ def test_eval_rejects_a_scenario_directory_that_does_not_match_the_dataset_hash(
 ) -> None:
     run_canned()
     path = run_dir / "manifest.json"
-    manifest = Manifest.model_validate_json(path.read_text(encoding="utf-8"))
-    atomic_write(
-        path,
-        manifest.model_copy(update={"dataset_hash": "0" * 64}).model_dump_json() + "\n",
-    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    del payload["fsm_hash"]
+    atomic_write(path, json.dumps(payload) + "\n")
 
-    with pytest.raises(EvalError, match="hash"):
+    with pytest.raises(EvalError, match="predates the FSM hash"):
         _eval(run_dir, canned_eval_llm, real_kb, real_fsm)
 
 

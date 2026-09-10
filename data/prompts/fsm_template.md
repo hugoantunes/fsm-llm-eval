@@ -1,4 +1,4 @@
-Version: 1
+Version: 2
 
 $shared
 
@@ -16,9 +16,9 @@ nothing new this turn.
 
 $user_data_fields
 
-# Your knowledge base for this state
+# Your knowledge base
 
-This is the whole of what you are allowed to state in this state. Everything the
-customer asks that is not here goes to a human specialist.
+This is the whole of what you are allowed to state. Everything the customer asks that is
+not here goes to a human specialist.
 
 $knowledge_base

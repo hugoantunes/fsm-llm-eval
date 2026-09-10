@@ -206,6 +206,14 @@ def test_no_agent_instruction_file_cites_a_fact_id(name: str) -> None:
     assert FACT_ID.findall(template) == []
 
 
+def test_baseline_and_fsm_share_the_knowledge_base_section() -> None:
+    marker = "# Your knowledge base"
+    baseline = load_prompt("baseline", directory=PROMPTS_DIR).template
+    fsm = load_prompt(FSM_TEMPLATE, directory=PROMPTS_DIR).template
+
+    assert baseline[baseline.index(marker) :] == fsm[fsm.index(marker) :]
+
+
 @pytest.mark.parametrize("text", ["", "  "])
 def test_a_blank_agent_reply_raises(text: str) -> None:
     agent = baseline(FakeLlm([text]))

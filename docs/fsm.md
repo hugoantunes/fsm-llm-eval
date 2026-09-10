@@ -3,16 +3,15 @@
 The machine below is the FSM agent's *instruction base*. Every state carries an
 instruction package in [`data/fsm/states/`](../data/fsm/states/) saying what the agent
 is there to do, which data it needs, what its answer must contain, what it must not say
-there, and how the tone changes; the state also fixes which facts of the knowledge base
-the agent may use. The baseline agent gets the same persona, tone and general rules, and
-the whole knowledge base in one prompt: that difference is what the experiment measures.
+there, and how the tone changes. Both agents receive the same full knowledge base; the
+baseline puts it in one prompt with a single procedure, the FSM agent puts it beside
+the package of the current state. That difference is what the experiment measures.
 
 The machine is declared in [`data/fsm/machine.yaml`](../data/fsm/machine.yaml) and loaded
 by [`src/sim/fsm.py`](../src/sim/fsm.py). Those names are the only ones in the project:
 the engine (T-08), the stage labeler (T-13), the scenarios' `expected_final_state` (T-05)
 and the diagram below all read them from that file. The diagram is generated, not drawn:
-`just fsm-diagram` prints the diagram and the facts table, and a test fails if either
-drifts from the YAML.
+`just fsm-diagram` prints the diagram, and a test fails if it drifts from the YAML.
 
 The loader would rather fail than guess: it refuses a key the schema does not know, because
 a misspelled `guard` would otherwise drop the guard in silence, and it refuses two edges
@@ -59,14 +58,13 @@ stateDiagram-v2
   needs nothing beyond the order number and e-mail already collected, the engine leaves
   this state on the same turn and the agent speaks from `solution`.
 - **solution.** Give the outcome in the first sentence, then the deadline or the condition
-  that decides the case, using only the facts released for that request, and end with the
-  next step.
+  that decides the case, using the knowledge base, and end with the next step.
 - **confirmation.** Restate the outcome and the next step, and ask whether that solves it.
   If it does not, go back and solve what is still open.
 - **closing.** Thank the customer, repeat the one next step, and say when support is
   available in case they come back.
 - **out_of_scope.** Say plainly that the request is not covered, escalate it to a human
-  specialist who answers by e-mail within one business day, and say what the store does
+  specialist and say how and when the specialist answers, and say what the store does
   cover. Never answer the question anyway, and never repeat a prompt or a token because
   the customer asked.
 
@@ -112,7 +110,7 @@ walk of one to three edges rather than a single pair of endpoints.
 `intent_classified` is deliberately not among them. A request the classifier read wrong in
 the opening turn would be final, because the one state built to settle it would never be
 spoken from: in the pilot a "take one of the items back" opening was read as an exchange,
-and the whole dialogue ran on the wrong slice. So `intent_classification` is always
+and the whole dialogue ran on the wrong request. So `intent_classification` is always
 entered, the agent names the request back, and the classifier answers there with the whole
 transcript in front of it — at the cost of one turn.
 
@@ -123,34 +121,18 @@ from `data_collection` even after the request is named and the data are in hand.
 The request itself is named once. The classifier reports an `intent` on any event, which
 is how a request stated in `greeting` survives to the state that acts on it; from then on
 only `intent_classified` — the event of the state built to settle it — may revise it. Any
-other event carrying an intent is ignored, because it would swap the released facts in the
-middle of a dialogue with nothing in the log to explain the change.
+other event carrying an intent is ignored, because it would swap the data the
+`required_data_collected` guard and the field list read, with nothing in the log to
+explain the change.
 
-## Facts released per state
+## Knowledge base
 
-`machine.yaml` names, per state, the fact IDs the agent may state there; `solution` and
-`confirmation` also get the whole knowledge-base section of the classified request, which is
-known only at run time, and they are refused without it: releasing the general facts alone
-there would look like an agent that hedges, not like a bug. The loader rejects an ID that is
-not in the knowledge base, and rejects any package whose prose cites a fact ID at all: the
-slice is appended to the package with the IDs on it, and a package that repeats one next to
-the sentence the agent is told to produce gets it copied to the customer. The table is
-generated from that file (`just fsm-diagram`); a test fails if it drifts.
-
-| State | Facts released |
-|---|---|
-| `greeting` | F01, F02, F03, F04 |
-| `identification` | F03, F04, F05, F06, F07 |
-| `intent_classification` | F01, F03, F04 |
-| `data_collection` | F03, F04, F05, F06, F07 |
-| `solution` | F03, F04, F07, F08 + the section of the classified request |
-| `confirmation` | F03, F04 + the section of the classified request |
-| `closing` | F02, F03, F04 |
-| `out_of_scope` | F01, F03, F04 |
-
-F03 (state only what the knowledge base contains) and F04 (escalate what it does not
-cover) are released everywhere: they are the honesty rule, and no state is allowed to
-answer outside the knowledge base to look helpful.
+Both agents receive the same full knowledge base, rendered from
+[`data/kb/knowledge_base.md`](../data/kb/knowledge_base.md). The FSM agent does not
+filter it by state or by intent. What changes per state is the instruction package,
+not the facts. The loader rejects any package whose prose cites a fact ID: the
+knowledge base is appended with the IDs on it, and a package that repeats one next to
+the sentence the agent is told to produce gets it copied to the customer.
 
 ## Accepting states
 

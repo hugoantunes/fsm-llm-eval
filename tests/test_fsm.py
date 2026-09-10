@@ -1,17 +1,12 @@
 """Tests for the FSM loader and the real machine of data/fsm/ (T-02)."""
 
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from helpers import DOCS_DIR, FSM_DIR, GENERAL_FACT, TRACKING_FACT, make_kb
+from helpers import DOCS_DIR, FSM_DIR
 from sim.fsm import FsmError, FsmSpec, load_fsm
-from sim.kb import FACT_ID, Fact
-
-#: The synthetic machine below is loaded against this, not against the real KB:
-#: two facts are enough to tell a released one from a withheld one.
-KB = make_kb(GENERAL_FACT, TRACKING_FACT)
+from sim.kb import FACT_ID
 
 MACHINE = """\
 version: 1
@@ -20,13 +15,10 @@ accepting_states: [closing, out_of_scope]
 states:
   greeting:
     package: states/greeting.md
-    facts: [F01]
   closing:
     package: states/closing.md
-    facts: [F01]
   out_of_scope:
     package: states/out_of_scope.md
-    facts: [F01]
 transitions:
   - event: user_confirmed
     from: greeting
@@ -36,13 +28,6 @@ transitions:
     from: "*"
     to: out_of_scope
 """
-
-#: The same machine, with ``closing`` also releasing the classified intent's section.
-INTENT_MACHINE = MACHINE.replace(
-    "  closing:\n    package: states/closing.md\n    facts: [F01]",
-    "  closing:\n    package: states/closing.md\n    facts: [F01]\n"
-    "    facts_from_intent: true",
-)
 
 PACKAGE = """\
 # Greeting
@@ -71,10 +56,6 @@ Two sentences at most.
 STATES = ("greeting", "closing", "out_of_scope")
 
 
-def _ids(facts: list[Fact]) -> list[str]:
-    return [fact.id for fact in facts]
-
-
 def write_fsm(
     directory: Path,
     machine: str = MACHINE,
@@ -91,7 +72,7 @@ def write_fsm(
 def test_load_fsm_reads_states_events_and_transitions(tmp_path: Path) -> None:
     directory = write_fsm(tmp_path / "fsm")
 
-    fsm = load_fsm(directory, kb=KB)
+    fsm = load_fsm(directory)
 
     assert fsm.initial == "greeting"
     assert sorted(fsm.states) == ["closing", "greeting", "out_of_scope"]
@@ -108,17 +89,32 @@ def test_transition_to_an_unknown_state_raises(tmp_path: Path) -> None:
     directory = write_fsm(tmp_path / "fsm", machine=machine)
 
     with pytest.raises(FsmError, match="farewell"):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
-def test_misspelled_optional_key_in_machine_yaml_raises(tmp_path: Path) -> None:
-    machine = MACHINE.replace(
-        "    guard: required_data_collected", "    guards: required_data_collected"
-    )
+@pytest.mark.parametrize(
+    ("declaration", "replacement", "unknown"),
+    [
+        (
+            "    guard: required_data_collected",
+            "    guards: required_data_collected",
+            "guards",
+        ),
+        (
+            "    package: states/greeting.md",
+            "    package: states/greeting.md\n    facts: [F01]",
+            "facts",
+        ),
+    ],
+)
+def test_misspelled_optional_key_in_machine_yaml_raises(
+    tmp_path: Path, declaration: str, replacement: str, unknown: str
+) -> None:
+    machine = MACHINE.replace(declaration, replacement)
     directory = write_fsm(tmp_path / "fsm", machine=machine)
 
-    with pytest.raises(FsmError, match="guards"):
-        load_fsm(directory, kb=KB)
+    with pytest.raises(FsmError, match=unknown):
+        load_fsm(directory)
 
 
 def test_unknown_guard_name_raises(tmp_path: Path) -> None:
@@ -128,13 +124,13 @@ def test_unknown_guard_name_raises(tmp_path: Path) -> None:
     directory = write_fsm(tmp_path / "fsm", machine=machine)
 
     with pytest.raises(FsmError, match="customer_sounds_friendly"):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
 def test_wildcard_source_expands_to_every_state(tmp_path: Path) -> None:
     directory = write_fsm(tmp_path / "fsm")
 
-    fsm = load_fsm(directory, kb=KB)
+    fsm = load_fsm(directory)
 
     sources = {t.source for t in fsm.transitions if t.event == "out_of_scope_request"}
     assert sources == {"greeting", "closing"}
@@ -147,20 +143,20 @@ def test_two_transitions_with_the_same_state_and_event_raise(tmp_path: Path) -> 
     directory = write_fsm(tmp_path / "fsm", machine=machine)
 
     with pytest.raises(FsmError, match="out_of_scope_request"):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
 def test_state_unreachable_from_the_initial_state_raises(tmp_path: Path) -> None:
     machine = MACHINE.replace(
         "transitions:",
-        "  solution:\n    package: states/solution.md\n    facts: [F01]\ntransitions:",
+        "  solution:\n    package: states/solution.md\ntransitions:",
     )
     directory = write_fsm(
         tmp_path / "fsm", machine=machine, packages={"solution": PACKAGE}
     )
 
     with pytest.raises(FsmError, match="solution"):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
 @pytest.mark.parametrize(
@@ -181,72 +177,23 @@ def test_initial_and_accepting_states_must_be_declared(
     directory = write_fsm(tmp_path / "fsm", machine=machine)
 
     with pytest.raises(FsmError, match=unknown):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
 def test_events_for_state_lists_only_that_states_events(tmp_path: Path) -> None:
     directory = write_fsm(tmp_path / "fsm")
 
-    fsm = load_fsm(directory, kb=KB)
+    fsm = load_fsm(directory)
 
     assert fsm.events_for("greeting") == ["out_of_scope_request", "user_confirmed"]
     assert fsm.events_for("out_of_scope") == []
 
 
-@pytest.mark.parametrize(
-    "ask",
-    [
-        lambda fsm: fsm.events_for("greetings"),
-        lambda fsm: fsm.released_facts("greetings", None, KB),
-    ],
-    ids=["events_for", "released_facts"],
-)
-def test_asking_about_an_unknown_state_raises(
-    tmp_path: Path, ask: Callable[[FsmSpec], object]
-) -> None:
-    fsm = load_fsm(write_fsm(tmp_path / "fsm"), kb=KB)
+def test_asking_about_an_unknown_state_raises(tmp_path: Path) -> None:
+    fsm = load_fsm(write_fsm(tmp_path / "fsm"))
 
     with pytest.raises(FsmError, match="greetings"):
-        ask(fsm)
-
-
-def test_state_releasing_an_unknown_fact_id_raises(tmp_path: Path) -> None:
-    machine = MACHINE.replace("facts: [F01]", "facts: [F01, F99]", 1)
-    directory = write_fsm(tmp_path / "fsm", machine=machine)
-
-    with pytest.raises(FsmError, match="F99"):
-        load_fsm(directory, kb=KB)
-
-
-def test_released_facts_of_a_state_include_the_classified_intent_section(
-    tmp_path: Path,
-) -> None:
-    directory = write_fsm(tmp_path / "fsm", machine=INTENT_MACHINE)
-
-    fsm = load_fsm(directory, kb=KB)
-
-    assert _ids(fsm.released_facts("greeting", "order_tracking", KB)) == ["F01"]
-    assert _ids(fsm.released_facts("closing", "order_tracking", KB)) == ["F01", "F02"]
-    assert _ids(fsm.released_facts("greeting", None, KB)) == ["F01"]
-
-
-def test_released_facts_without_the_intent_a_state_needs_raises(
-    tmp_path: Path,
-) -> None:
-    fsm = load_fsm(write_fsm(tmp_path / "fsm", machine=INTENT_MACHINE), kb=KB)
-
-    with pytest.raises(FsmError, match="closing"):
-        fsm.released_facts("closing", None, KB)
-
-
-def test_released_facts_for_an_intent_the_kb_does_not_have_raises(
-    tmp_path: Path,
-) -> None:
-    directory = write_fsm(tmp_path / "fsm", machine=INTENT_MACHINE)
-    fsm = load_fsm(directory, kb=KB)
-
-    with pytest.raises(FsmError, match="gift_wrapping"):
-        fsm.released_facts("closing", "gift_wrapping", KB)
+        fsm.events_for("greetings")
 
 
 def test_missing_package_file_raises(tmp_path: Path) -> None:
@@ -254,10 +201,10 @@ def test_missing_package_file_raises(tmp_path: Path) -> None:
     (directory / "states" / "closing.md").unlink()
 
     with pytest.raises(FsmError, match=r"closing\.md"):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
-@pytest.mark.parametrize("fact_id", ["F01", "F02"], ids=["released", "withheld"])
+@pytest.mark.parametrize("fact_id", ["F01", "F02"])
 def test_package_citing_a_fact_id_raises(tmp_path: Path, fact_id: str) -> None:
     package = PACKAGE.replace(
         "Never state anything about a specific order.",
@@ -266,7 +213,7 @@ def test_package_citing_a_fact_id_raises(tmp_path: Path, fact_id: str) -> None:
     directory = write_fsm(tmp_path / "fsm", packages={"greeting": package})
 
     with pytest.raises(FsmError, match=fact_id):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
 def test_no_real_state_package_cites_a_fact_id(real_fsm: FsmSpec) -> None:
@@ -283,7 +230,7 @@ def test_package_with_a_persona_section_of_its_own_raises(tmp_path: Path) -> Non
     directory = write_fsm(tmp_path / "fsm", packages={"greeting": package})
 
     with pytest.raises(FsmError, match="Persona"):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
 def test_package_missing_a_required_heading_raises(tmp_path: Path) -> None:
@@ -291,13 +238,13 @@ def test_package_missing_a_required_heading_raises(tmp_path: Path) -> None:
     directory = write_fsm(tmp_path / "fsm", packages={"greeting": package})
 
     with pytest.raises(FsmError, match="Never in this state"):
-        load_fsm(directory, kb=KB)
+        load_fsm(directory)
 
 
 def test_to_mermaid_draws_one_arrow_per_declared_transition(tmp_path: Path) -> None:
     directory = write_fsm(tmp_path / "fsm")
 
-    diagram = load_fsm(directory, kb=KB).to_mermaid()
+    diagram = load_fsm(directory).to_mermaid()
 
     assert diagram.splitlines()[0] == "stateDiagram-v2"
     assert "    greeting --> closing : user_confirmed [required_data_collected]" in (
@@ -305,18 +252,6 @@ def test_to_mermaid_draws_one_arrow_per_declared_transition(tmp_path: Path) -> N
     )
     assert "note right of out_of_scope" in diagram
     assert diagram.count("-->") == 4
-
-
-def test_to_facts_table_lists_each_states_facts(tmp_path: Path) -> None:
-    table = load_fsm(write_fsm(tmp_path / "fsm"), kb=KB).to_facts_table()
-    with_intent = load_fsm(
-        write_fsm(tmp_path / "intent", machine=INTENT_MACHINE), kb=KB
-    ).to_facts_table()
-
-    assert table.splitlines()[:2] == ["| State | Facts released |", "|---|---|"]
-    assert "| `greeting` | F01 |" in table
-    assert "| `closing` | F01 |" in table
-    assert "| `closing` | F01 + the section of the classified request |" in with_intent
 
 
 # --- the real machine of data/fsm/ ------------------------------------------
@@ -332,21 +267,6 @@ EXPECTED_STATES = [
     "solution",
 ]
 
-
-#: The per-state slices of the real machine: the FSM agent's context advantage, and
-#: the experiment's central manipulation. Widening every list to the whole KB would
-#: still load, and would make the two agents identical.
-EXPECTED_RELEASED_FACTS = {
-    "greeting": ["F01", "F02", "F03", "F04"],
-    "identification": ["F03", "F04", "F05", "F06", "F07"],
-    "intent_classification": ["F01", "F03", "F04"],
-    "data_collection": ["F03", "F04", "F05", "F06", "F07"],
-    "solution": ["F03", "F04", "F07", "F08"],
-    "confirmation": ["F03", "F04"],
-    "closing": ["F02", "F03", "F04"],
-    "out_of_scope": ["F01", "F03", "F04"],
-}
-EXPECTED_FACTS_FROM_INTENT = frozenset({"solution", "confirmation"})
 
 #: The events of a happy-path dialogue, in order: the flow the FSM agent is meant to
 #: walk when nothing goes wrong. The universal exits are not part of it.
@@ -395,26 +315,9 @@ def test_real_machine_lets_every_state_reach_out_of_scope(real_fsm: FsmSpec) -> 
     assert sources == set(real_fsm.states) - {"out_of_scope"}
 
 
-def test_real_machine_releases_the_declared_fact_slices(real_fsm: FsmSpec) -> None:
-    assert {
-        name: state.facts for name, state in real_fsm.states.items()
-    } == EXPECTED_RELEASED_FACTS
-    assert {
-        name for name, state in real_fsm.states.items() if state.facts_from_intent
-    } == EXPECTED_FACTS_FROM_INTENT
-
-
 def test_docs_fsm_diagram_matches_machine_yaml(real_fsm: FsmSpec) -> None:
     doc = (DOCS_DIR / "fsm.md").read_text(encoding="utf-8")
 
     block = f"```mermaid\n{real_fsm.to_mermaid()}\n```"
 
     assert block in doc, "the diagram is stale: run `just fsm-diagram` and paste it"
-
-
-def test_docs_fsm_facts_table_matches_machine_yaml(real_fsm: FsmSpec) -> None:
-    doc = (DOCS_DIR / "fsm.md").read_text(encoding="utf-8")
-
-    assert real_fsm.to_facts_table() in doc, (
-        "the facts table is stale: run `just fsm-diagram` and paste it"
-    )

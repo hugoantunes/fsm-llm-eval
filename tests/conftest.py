@@ -86,9 +86,9 @@ def real_kb() -> KnowledgeBase:
 
 
 @pytest.fixture(scope="session")
-def real_fsm(real_kb: KnowledgeBase) -> FsmSpec:
-    """The machine of ``data/fsm/``, cross-checked against the real KB (T-02)."""
-    return load_fsm(FSM_DIR, kb=real_kb)
+def real_fsm() -> FsmSpec:
+    """The machine of ``data/fsm/`` (T-02)."""
+    return load_fsm(FSM_DIR)
 
 
 @pytest.fixture(scope="session")

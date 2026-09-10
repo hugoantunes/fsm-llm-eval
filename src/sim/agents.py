@@ -2,10 +2,10 @@
 
 Both agents answer through :meth:`Agent.respond`, produce the same
 :class:`~sim.schemas.TurnRecord` and share one block of persona, tone and general
-rules. What differs is the structure of the instruction: the baseline carries the
-whole knowledge base from the first message, while the FSM agent carries the
-package of the current state and only the facts released for it. That difference
-is the experiment, not a bug.
+rules. Both carry the same full knowledge base. What differs is the structure of
+the instruction: the baseline is one prompt, the FSM agent is a per-state
+instruction package, explicit states, transitions, guards and event
+classification. That difference is the experiment, not a bug.
 """
 
 import time
@@ -147,7 +147,7 @@ class BaselineAgent(Agent):
 
 
 class FsmAgent(Agent):
-    """Per-state instruction package and the KB slice that state releases."""
+    """Per-state instruction package, same full knowledge base as the baseline."""
 
     name = "fsm"
 
@@ -163,10 +163,10 @@ class FsmAgent(Agent):
     ) -> None:
         super().__init__(llm, seed=seed)
         self._kb = kb
-        self._spec = spec
         self._prompts_dir = prompts_dir
         self._shared = load_prompt(SHARED_PROMPT, directory=prompts_dir).template
         self._template = load_prompt(FSM_TEMPLATE, directory=prompts_dir)
+        self._knowledge_base = render_facts(kb.facts)
         self._packages = {
             name: (fsm_dir / state.package).read_text(encoding="utf-8")
             for name, state in spec.states.items()
@@ -180,10 +180,11 @@ class FsmAgent(Agent):
         """Detect the user event, transition, and answer from the new state.
 
         The customer's turn moves the machine; the agent then speaks from
-        ``state_after``, with that state's package and the facts it releases.
-        One turn can walk more than one edge, so the whole walk is recorded
-        beside its endpoints: the states in between are where the dialogue
-        really went, and nothing else would tell T-13 that it was a path.
+        ``state_after``, with that state's package and the same knowledge base
+        the baseline carries. One turn can walk more than one edge, so the
+        whole walk is recorded beside its endpoints: the states in between are
+        where the dialogue really went, and nothing else would tell T-13 that
+        it was a path.
         """
         source = self._engine.state
         walk = self._engine.step(
@@ -201,7 +202,10 @@ class FsmAgent(Agent):
         )
 
     def _render(self, state: str) -> str:
-        """Fill the FSM template for ``state`` with its package and released facts."""
+        """Fill the FSM template for ``state``.
+
+        The package changes with the state; the knowledge base is the full set.
+        """
         return self._template.render(
             shared=self._shared,
             state_package=self._packages[state],
@@ -211,9 +215,7 @@ class FsmAgent(Agent):
                 ),
                 prompts_dir=self._prompts_dir,
             ),
-            knowledge_base=render_facts(
-                self._spec.released_facts(state, self._engine.intent, self._kb)
-            ),
+            knowledge_base=self._knowledge_base,
         )
 
 

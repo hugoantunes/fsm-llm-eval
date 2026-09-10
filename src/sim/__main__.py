@@ -100,7 +100,7 @@ def _run(args: argparse.Namespace, *, llm_factory: LlmFactory | None) -> int:
     """Load config and data, play the jobs, write ``runs/<exp_id>/``."""
     config = load_models_config()
     kb = load_kb()
-    fsm = load_fsm(kb=kb)
+    fsm = load_fsm()
     scenarios_dir = Path(args.scenarios)
     scenarios = load_scenarios(scenarios_dir, kb=kb, fsm=fsm)
     run_dir = Path(args.runs_dir) / args.exp_id
@@ -155,7 +155,7 @@ def _eval(args: argparse.Namespace, *, llm: Chat | None) -> int:
     run_dir = Path(args.run)
     config = load_models_config()
     kb = load_kb()
-    fsm = load_fsm(kb=kb)
+    fsm = load_fsm()
     client = llm or _client(config, run_dir)
     bar = tqdm(
         total=0,

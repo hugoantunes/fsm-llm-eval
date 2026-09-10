@@ -14,8 +14,8 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 DEFAULT_KB_DIR = Path("data/kb")
 
-#: The section whose facts every state releases: the general policies, which are
-#: not an intent a customer arrives with and which no scenario addresses (T-05).
+#: The section whose facts belong to no single request, and which no scenario
+#: addresses (T-05).
 GENERAL_INTENT = "general"
 
 #: A fact identifier wherever it appears in a text, as in "the e-mail (F05)".
@@ -103,8 +103,8 @@ class KnowledgeBase(BaseModel):
     def intents(self) -> list[str]:
         """Return the intents a customer arrives with, in file order.
 
-        ``general`` is not among them: those facts are released in every state
-        and belong to no single request, so no scenario addresses them (T-05).
+        ``general`` is not among them: those facts belong to no single request,
+        so no scenario addresses them (T-05).
         """
         sections = (f.intent for f in self.facts if f.intent != GENERAL_INTENT)
         return list(dict.fromkeys(sections))
@@ -113,10 +113,9 @@ class KnowledgeBase(BaseModel):
 def render_facts(facts: Iterable[Fact]) -> str:
     """Render KB facts for a prompt, grouped by intent, in the file's own shape.
 
-    Agents and the judge render facts through here, so the only difference
-    between their prompts is *which* facts are in them: all of them for the
-    baseline and the judge, the ones the current state releases for the FSM
-    agent (T-10).
+    Agents and the judge render facts through here. Both agents and the judge
+    receive every fact; the callable still takes a subset so a test can render
+    a handful.
     """
     groups: dict[str, list[Fact]] = {}
     for fact in facts:

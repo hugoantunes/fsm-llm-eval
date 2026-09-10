@@ -213,6 +213,8 @@ class Manifest(BaseModel):
     ``n_llm_calls`` and ``n_llm_cached`` are counted from ``llm_calls.jsonl``
     after the dialogues finish, so cache hits on the simulator (and later the
     judge) show up even when the dialogue's ``cached`` flag is only the agent.
+    ``fsm_hash`` is the machine and its state packages, so a run can be traced
+    back to the instruction base that produced it.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -222,6 +224,7 @@ class Manifest(BaseModel):
     ollama_version: str
     num_ctx: int
     dataset_hash: str
+    fsm_hash: str
     scenarios_dir: str
     prompt_versions: dict[str, int]
     model_names: dict[str, str]
@@ -355,9 +358,8 @@ def _check_intent(entry: Scenario, where: str, kb: KnowledgeBase) -> None:
     if entry.intent in intents:
         return
     raise ScenarioError(
-        f"{where}: the intent {entry.intent!r} is not one of {intents}. The FSM "
-        f"agent releases the facts of the classified intent by that name (T-02), "
-        f"and 'general' is not one: its facts are released in every state"
+        f"{where}: the intent {entry.intent!r} is not one of {intents}. "
+        f"'general' is not one: its facts belong to no particular request"
     )
 
 
@@ -379,9 +381,9 @@ def _check_required_facts_match_intent(
 ) -> None:
     """Fail unless every required fact is general or of this scenario's intent.
 
-    In solution and confirmation the FSM agent only sees those facts (T-02). A
-    required fact from another intent would be impossible for it to state, and
-    the metric would measure the state filter rather than the agent (T-06).
+    A required fact from another intent would score the scenario as a miss when
+    the agent correctly stays on-request, so the metric would punish relevance
+    rather than measure retrieval (T-06).
     """
     allowed = {
         fact.id for fact in kb.facts if fact.intent in (GENERAL_INTENT, entry.intent)
@@ -391,8 +393,9 @@ def _check_required_facts_match_intent(
         return
     raise ScenarioError(
         f"{where}: {entry.id} requires {extra}, which are not in 'general' or "
-        f"{entry.intent!r}. The FSM agent only receives those facts in solution "
-        f"and confirmation, so a required fact from another intent cannot be said"
+        f"{entry.intent!r}. Required facts must belong to this request or to "
+        f"the general policies, so the metric measures the agent and not a "
+        f"cross-intent answer key"
     )
 
 

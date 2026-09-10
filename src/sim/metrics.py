@@ -39,11 +39,13 @@ METRICS = (
     "flow_adherence",
 )
 
+#: The confirmatory family (T-19), Holm-adjusted together. ``flow_adherence`` is
+#: deliberately not here: it is scored against the treatment's own flow, so it is a
+#: mechanism diagnostic rather than evidence that one architecture beats the other.
 PRIMARY_METRICS = (
     "task_completed",
     "fact_f1",
     "claim_support",
-    "flow_adherence",
 )
 
 CARD_FIELDS = ("Definition", "Scale", "Unit", "Computation", "Hypothesis")

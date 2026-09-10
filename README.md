@@ -2,8 +2,8 @@
 
 Simulation and evaluation harness comparing two LLM customer-service agents: a **baseline**
 (one well-written system prompt with the full knowledge base) and an **FSM** agent (a finite-state
-machine as the instruction base: on every turn, only the instruction package and the facts released
-for the current state). Same local model (Ollama), same simulated user, same scenarios; evaluation
+machine as the instruction base: on every turn, the instruction package of the current state plus
+the same full knowledge base the baseline carries). Same local model (Ollama), same simulated user, same scenarios; evaluation
 by a blind LLM judge and by deterministic evaluators; paired statistics per scenario.
 
 Experiment for an MBA thesis (TCC, written in Portuguese): *Sistema de Simulações e Avaliação para
@@ -116,7 +116,7 @@ repo, empty until the first run; change the parent with `--runs-dir`):
 | Path | What it is |
 |---|---|
 | `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop reason, and per turn the FSM states, the user event and every edge the turn walked (empty on the baseline) |
-| `manifest.json` | config, dataset hash, model digests, `num_ctx`, prompt versions, job list, throughput, LLM call / cache-hit counts |
+| `manifest.json` | config, dataset hash, FSM hash, model digests, `num_ctx`, prompt versions, job list, throughput, LLM call / cache-hit counts |
 | `llm_calls.jsonl`, `cache/` | every LLM call (`baseline`, `fsm`, `simulated_user`, `classifier`, then `judge_facts`, `judge_global`, `stage_labeler` after eval), keyed by prompt hash. Compact JSON: `"cached":true` has no space after the colon |
 | `metrics.csv` | one row per ok dialogue: identity columns plus every metric of T-04 |
 | `metrics_turn.csv` | one row per agent turn: labelled stage and, on the FSM side, true `state_after` |
@@ -133,7 +133,7 @@ shuffled before the judge (seed from `configs/models.yaml`). CSV rows follow the
 manifest's job list, then any other ok logs on disk (a later `--agent fsm --resume`
 must not drop the baseline half). Re-eval of a growing directory after `rsync` is
 free via the cache: it does not need named blocks. The scenario files must still hash
-to `manifest.dataset_hash`.
+to `manifest.dataset_hash`. The FSM files must still hash to `manifest.fsm_hash`.
 
 Full execution (T-17), on the Air: `caffeinate -is uv run python -m sim run ... --parallel 2`, in
 blocks with `--resume`; after each block, `rsync -av runs/ <pro>:~/projects/fsm-llm-eval/runs/` and

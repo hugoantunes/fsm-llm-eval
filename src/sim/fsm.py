@@ -1,7 +1,7 @@
 """Load the finite-state machine of ``data/fsm/`` (T-02).
 
 ``machine.yaml`` is the single source of the state and event names: the FSM engine
-(T-08), the stage labeler's ``enum`` (T-13) and the Mermaid diagram and facts table of
+(T-08), the stage labeler's ``enum`` (T-13) and the Mermaid diagram of
 ``docs/fsm.md`` all read them from here instead of repeating them.
 """
 
@@ -11,7 +11,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from sim.kb import FACT_ID, Fact, KnowledgeBase, load_kb
+from sim.kb import FACT_ID
 
 DEFAULT_FSM_DIR = Path("data/fsm")
 
@@ -47,8 +47,6 @@ class State(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     package: str
-    facts: list[str]
-    facts_from_intent: bool = False
 
 
 class Transition(BaseModel):
@@ -65,7 +63,7 @@ class Transition(BaseModel):
 
 
 class FsmSpec(BaseModel):
-    """The machine as declared in ``machine.yaml``, cross-checked against the KB."""
+    """The machine as declared in ``machine.yaml``."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -91,39 +89,8 @@ class FsmSpec(BaseModel):
         raise FsmError(
             f"{state!r} is not a state of machine.yaml, whose states are "
             f"{sorted(self.states)}. An unknown state would give the classifier "
-            f"of T-08 an empty enum and release no fact at all"
+            f"of T-08 an empty enum"
         )
-
-    def released_facts(
-        self, state: str, intent: str | None, kb: KnowledgeBase
-    ) -> list[Fact]:
-        """Return the KB facts the FSM agent may state in ``state``, in ID order.
-
-        This filter is what makes the FSM agent's context differ from the
-        baseline's full knowledge base, a deliberate difference of the experiment.
-        A state marked ``facts_from_intent`` also gets the whole section of the
-        classified ``intent``, and demands one: ``intent`` is ``None`` only in the
-        states the dialogue passes through before classification.
-        """
-        self._check_state(state)
-        declaration = self.states[state]
-        released = set(declaration.facts)
-        if declaration.facts_from_intent:
-            if intent is None:
-                raise FsmError(
-                    f"state {state!r} releases the facts of the classified intent, "
-                    f"so it cannot be entered without one. Passing none would "
-                    f"quietly leave the agent with the general facts alone"
-                )
-            from_intent = {fact.id for fact in kb.facts if fact.intent == intent}
-            if not from_intent:
-                raise FsmError(
-                    f"state {state!r} releases the facts of the intent "
-                    f"{intent!r}, which is not a section of knowledge_base.md. "
-                    f"An unknown intent would silently release nothing"
-                )
-            released |= from_intent
-        return [fact for fact in kb.facts if fact.id in released]
 
     def to_mermaid(self) -> str:
         """Render the machine as the Mermaid diagram of ``docs/fsm.md``.
@@ -147,17 +114,6 @@ class FsmSpec(BaseModel):
             lines.append("    end note")
         return "\n".join(lines)
 
-    def to_facts_table(self) -> str:
-        """Render the per-state fact slices as the Markdown table of ``docs/fsm.md``."""
-        intent_note = " + the section of the classified request"
-        rows = ["| State | Facts released |", "|---|---|"]
-        for name, state in self.states.items():
-            facts = ", ".join(state.facts)
-            if state.facts_from_intent:
-                facts = f"{facts}{intent_note}"
-            rows.append(f"| `{name}` | {facts} |")
-        return "\n".join(rows)
-
     def _events_from_any(self) -> dict[str, list[str]]:
         """Return the events declared out of every state, by destination."""
         by_dest: dict[str, list[str]] = {}
@@ -170,12 +126,8 @@ class FsmSpec(BaseModel):
         return by_dest
 
 
-def load_fsm(
-    directory: Path = DEFAULT_FSM_DIR, *, kb: KnowledgeBase | None = None
-) -> FsmSpec:
+def load_fsm(directory: Path = DEFAULT_FSM_DIR) -> FsmSpec:
     """Load and cross-check the machine stored in ``directory``."""
-    if kb is None:
-        kb = load_kb()
     raw = yaml.safe_load((directory / "machine.yaml").read_text(encoding="utf-8"))
     try:
         spec = FsmSpec.model_validate(raw)
@@ -191,7 +143,6 @@ def load_fsm(
     spec = spec.model_copy(update={"transitions": _expand_wildcards(spec)})
     _check_unambiguous_events(spec)
     _check_reachability(spec)
-    _check_released_facts(spec, kb)
     _check_packages(spec, directory)
     return spec
 
@@ -293,20 +244,6 @@ def _check_reachability(spec: FsmSpec) -> None:
         )
 
 
-def _check_released_facts(spec: FsmSpec, kb: KnowledgeBase) -> None:
-    """Fail unless every fact a state releases exists in the knowledge base."""
-    known = kb.fact_ids()
-    for name, state in spec.states.items():
-        for fact_id in state.facts:
-            if fact_id in known:
-                continue
-            raise FsmError(
-                f"state {name!r} releases {fact_id}, which is not a fact of "
-                f"knowledge_base.md. Fix the ID in machine.yaml; facts are never "
-                f"renumbered"
-            )
-
-
 def _check_packages(spec: FsmSpec, directory: Path) -> None:
     """Fail unless every state's instruction package is where it says it is."""
     for name, state in spec.states.items():
@@ -349,7 +286,7 @@ def _check_package_cites_no_fact_id(name: str, package: str) -> None:
         return
     raise FsmError(
         f"the package of state {name!r} cites {sorted(set(cited))}. A package says "
-        f"what to do, never which fact to say it from: the slice of the knowledge "
-        f"base is appended to it at run time with the IDs on it, and a package that "
+        f"what to do, never which fact to say it from: the knowledge base is "
+        f"appended to it at run time with the IDs on it, and a package that "
         f"repeats one gets it copied to the customer, which the shared block forbids"
     )

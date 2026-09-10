@@ -17,9 +17,9 @@ from helpers import (
     load_labeled_events,
     play_user_turns,
 )
-from sim.agents import FsmAgent
+from sim.agents import BaselineAgent, FsmAgent
 from sim.fsm import FsmSpec
-from sim.kb import Fact, KnowledgeBase
+from sim.kb import KnowledgeBase, render_facts
 from sim.prompts import load_prompt
 from sim.schemas import Scenario, Turn, TurnRecord
 
@@ -137,11 +137,7 @@ def test_a_none_turn_answers_from_greeting(
 
     assert load_prompt("agent_shared", directory=PROMPTS_DIR).template in prompt
     assert greeting in prompt
-    assert all(
-        fact_of(real_kb, fact_id).text in prompt
-        for fact_id in ("F01", "F02", "F03", "F04")
-    )
-    assert fact_of(real_kb, "F09").text not in prompt
+    assert render_facts(real_kb.facts) in prompt
     assert "# State: identification" not in prompt
     assert preferred not in prompt
     assert_prompt_carries_no_answer_key(prompt, example_scenarios["adversarial_01"])
@@ -151,12 +147,8 @@ def test_a_none_turn_answers_from_greeting(
     assert last_agent_call(greeting_none.llm)["caller"] == "fsm"
 
 
-def test_a_scripted_dialogue_walks_greeting_to_closing(
-    closing_walk: Walk, real_kb: KnowledgeBase
-) -> None:
+def test_a_scripted_dialogue_walks_greeting_to_closing(closing_walk: Walk) -> None:
     records = closing_walk.records
-    prompts = [call["messages"][0]["content"] for call in agent_calls(closing_walk.llm)]
-    solved = [record.state_after for record in records].index("solution")
 
     assert [record.state_after for record in records] == [
         "identification",
@@ -165,8 +157,6 @@ def test_a_scripted_dialogue_walks_greeting_to_closing(
         "confirmation",
         "closing",
     ]
-    assert fact_of(real_kb, "F09").text in prompts[solved]
-    assert fact_of(real_kb, "F10").text in prompts[solved]
 
 
 def test_the_turn_that_walks_two_edges_records_both_of_them(
@@ -199,31 +189,43 @@ def test_the_recorded_walk_is_a_contiguous_path_of_the_machine(
     assert walked[-1].dest == "closing"
 
 
-def test_out_of_scope_does_not_carry_another_states_facts(
+def test_out_of_scope_carries_its_own_package_not_anothers(
     out_of_scope_turn: AgentTurn,
-    real_kb: KnowledgeBase,
     real_fsm: FsmSpec,
 ) -> None:
     prompt = out_of_scope_turn.prompt
 
     assert out_of_scope_turn.record.state_after == "out_of_scope"
     assert package_text(real_fsm, "out_of_scope") in prompt
-    assert all(
-        fact_of(real_kb, fact_id).text in prompt for fact_id in ("F01", "F03", "F04")
-    )
-    assert fact_of(real_kb, "F09").text not in prompt
-    assert fact_of(real_kb, "F18").text not in prompt
     assert "Give the outcome in the first sentence" not in prompt
+
+
+def test_every_state_and_the_baseline_carry_the_same_knowledge_base(
+    greeting_none: AgentTurn,
+    closing_walk: Walk,
+    out_of_scope_turn: AgentTurn,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+) -> None:
+    kb = render_facts(real_kb.facts)
+    prompts = [
+        greeting_none.prompt,
+        *[call["messages"][0]["content"] for call in agent_calls(closing_walk.llm)],
+        out_of_scope_turn.prompt,
+    ]
+    baseline = BaselineAgent(FakeLlm(), kb=real_kb, prompts_dir=PROMPTS_DIR)
+
+    assert all(kb in prompt for prompt in prompts)
+    assert kb in baseline.system_prompt
+    assert package_text(real_fsm, "greeting") in greeting_none.prompt
+    assert package_text(real_fsm, "out_of_scope") in out_of_scope_turn.prompt
+    assert package_text(real_fsm, "greeting") not in out_of_scope_turn.prompt
+    assert package_text(real_fsm, "out_of_scope") not in greeting_none.prompt
 
 
 def package_text(spec: FsmSpec, state: str) -> str:
     """Read the instruction package of ``state`` from the real FSM directory."""
     return (FSM_DIR / spec.states[state].package).read_text(encoding="utf-8")
-
-
-def fact_of(kb: KnowledgeBase, fact_id: str) -> Fact:
-    """Return the KB fact with ``fact_id``."""
-    return next(fact for fact in kb.facts if fact.id == fact_id)
 
 
 def field_label(kb: KnowledgeBase, key: str) -> str:
