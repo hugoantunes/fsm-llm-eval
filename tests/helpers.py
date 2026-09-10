@@ -45,6 +45,9 @@ SCENARIOS_DIR = REPO_ROOT / "data" / "scenarios"
 EXAMPLES_DIR = SCENARIOS_DIR / "examples"
 V1_DIR = SCENARIOS_DIR / "v1"
 PLAN_PATH = SCENARIOS_DIR / "plan.yaml"
+#: SHA-256 of ``data/scenarios/v1/*.jsonl`` (DECISOES.md 2026-09-10). ``just check``
+#: fails if the files move; ``docs/taxonomy.md`` must quote the same digest.
+FROZEN_V1_HASH = "0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9"
 CONFIG = REPO_ROOT / "configs" / "models.yaml"
 DOCS_DIR = REPO_ROOT / "docs"
 LABELED_EVENTS = REPO_ROOT / "tests" / "fixtures" / "user_events.jsonl"

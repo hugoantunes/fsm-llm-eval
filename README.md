@@ -12,9 +12,9 @@ plan, the ticket board (T-01 to T-24), the decisions table and the session log l
 `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`), outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
-> Status: `sim run` (T-14a) and `sim eval` (T-14b) are in place. The blind two-call
-> judge (T-12) and the deterministic evaluators and stage labeler (T-13) score the
-> logs. Metrics and rubrics: T-04, `docs/metrics.md`.
+> Status: `sim run` (T-14a) and `sim eval` (T-14b) are in place. The golden dataset
+> (`data/scenarios/v1/`, T-06) is frozen; `just check` fails if those files move.
+> Next: T-15 (pilot). Metrics and rubrics: T-04, `docs/metrics.md`.
 
 ## Requirements
 
@@ -79,6 +79,9 @@ uv run python -m sim run --help
 
 # Smoke: 3 example scenarios x 2 agents x 1 rep → runs/exp/
 just run exp
+
+# Experiment dataset (T-06, frozen): N=60
+just run exp data/scenarios/v1 3 2
 
 # One agent only (debug or resume a failed side)
 just run exp --agent fsm
@@ -146,6 +149,7 @@ just test-all           # includes the tests marked `integration` (they need Oll
 just lint               # ruff check + ruff format --check
 just format             # ruff format + ruff check --fix
 just check              # lint + test: the gate the hooks run
+just generate-scenarios # expand plan.yaml into the next unused vN (never overwrite frozen v1)
 just fsm-diagram        # Mermaid diagram of data/fsm/machine.yaml, for docs/fsm.md
 just install-analysis   # pandas, scipy, matplotlib, jupyter (T-19, T-20)
 ```
@@ -166,14 +170,14 @@ Parts that do not exist yet are marked with the ticket that creates them.
 | `tests/` | pytest; anything that talks to Ollama is marked `integration` |
 | `data/kb/` | knowledge base: numbered facts (F01...), needles, unanswerable questions (T-01) |
 | `data/fsm/` | `machine.yaml` (states, events, transitions, guards) and `states/*.md` (instruction package per state) (T-02) |
-| `data/prompts/` | versioned prompts: baseline, FSM template, simulated user, event classifier, stage labeler, judge shared/facts/global |
-| `data/scenarios/` | golden dataset: `examples/` (T-05) and `v1/`, frozen by hash (T-06) |
+| `data/prompts/` | versioned prompts: baseline, FSM template, simulated user, event classifier, stage labeler, judge shared/facts/global; `scenario_phrasing.md` (T-06, unused on the frozen `--phrasing seed` set) |
+| `data/scenarios/` | golden dataset: `examples/` (T-05), `plan.yaml` (authoring source), and frozen `v1/` (T-06). Do not edit `v1/` |
 | `configs/` | `models.yaml`: models, digests, `num_ctx`, fixed parameters |
 | `runs/` | output of `sim run` / `sim eval`: dialogues, manifest, LLM cache, `metrics.csv`, `metrics_turn.csv`. Contents git-ignored; moved between machines by `rsync` |
 | `results/` | `metrics.csv` (T-18, audited copy), `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-19, T-20; CSVs git-ignored, regenerated from `runs/`) |
 | `notebooks/` | `analysis.ipynb`: regenerates tables and figures from `metrics.csv` (T-20) |
-| `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`; `generate_scenarios.py` (T-06) |
-| `docs/` | `setup.md`; `metrics.md`, `taxonomy.md`, `fsm.md`, `pilot.md`, `parity.md`, `judge_validation.md` and the appendices (T-02 to T-22) |
+| `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`; `generate_scenarios.py` (T-06; default out is the next unused `vN`, never overwrite `v1`) |
+| `docs/` | `setup.md`; `metrics.md`, `taxonomy.md`, `fsm.md`, `decisions_and_limitations.md`; later `pilot.md`, `parity.md`, `judge_validation.md` and the appendices (T-02 to T-22) |
 | `ai-assistance/` | instructions for AI assistants (`PREAMBLE.md`, `DEVELOPMENT.md`) and the hook scripts |
 | `.claude/` | Claude Code config: hooks and permissions (`settings.json`), the `/ticket` skill, path-scoped rules |
 

@@ -54,6 +54,10 @@ digests:
 verify-models:
     uv run python scripts/models.py verify
 
+# Expand plan.yaml into the next unused data/scenarios/vN (refuses a dir that already has JSONL; never overwrite frozen v1)
+generate-scenarios *args:
+    uv run python scripts/generate_scenarios.py --n 60 --phrasing seed {{args}}
+
 # python -m sim run (T-14a). Example: just run exp data/scenarios/v1 3 2 --resume
 run exp_id="exp" scenarios="data/scenarios/examples" reps="1" parallel="2" *args:
     uv run python -m sim run --exp-id {{exp_id}} --scenarios {{scenarios}} --reps {{reps}} --parallel {{parallel}} {{args}}

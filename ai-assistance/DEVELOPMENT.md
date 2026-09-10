@@ -45,6 +45,8 @@ Duplication in an experiment is not just ugly. It is how the two agents end up b
 | State and event names | `data/fsm/machine.yaml` | FSM engine, stage-labeler `enum`, Mermaid diagram: **load** them |
 | KB fact IDs (`F01`, ...) | `data/kb/knowledge_base.md` | scenarios, judge and policy checks reference the IDs |
 | Scenario shape | `src/sim/schemas.py` | generator, validator, runner and judge import it |
+| Frozen v1 dataset hash | `FROZEN_V1_HASH` in `tests/helpers.py` | DECISOES.md, `docs/taxonomy.md`, `tests/test_dataset.py` |
+| Scenario cell plan | `data/scenarios/plan.yaml` | `scripts/generate_scenarios.py`; not loaded by `sim run` |
 | Models, digests, `num_ctx`, params | `configs/models.yaml` | LLM client and runner manifest read it |
 | Prompts and rubrics | `data/prompts/*.md` | loaded at runtime, never embedded in Python strings |
 | Persona, tone, general rules | one shared text block | both agents include the same block |
@@ -80,7 +82,7 @@ Identifiers are ASCII `snake_case`: `scenario`, `greeting`, `data_collection`, `
 - Before committing: `just check` (lint plus unit tests). The hooks in `.claude/settings.json` and `.cursor/hooks.json` run ruff on every edited file, run `just check` before a `git commit`, and run it again when a turn ends with uncommitted changes. A red gate is fixed, never bypassed.
 - Small commits, imperative English subject, ticket prefix: `T-08: load FSM from machine.yaml with transitions`.
 - Any choice that changes the experiment (a model, a parameter, a metric, a cut) gets a dated row in `DECISOES.md` before anything is run with it.
-- `runs/` is never committed; result CSVs are regenerated from `runs/`. The dataset in `data/scenarios/v1/` is frozen once its hash is recorded.
+- `runs/` is never committed; result CSVs are regenerated from `runs/`. The dataset in `data/scenarios/v1/` is frozen (T-06; hash in `DECISOES.md` and `FROZEN_V1_HASH`).
 - Dependencies: `uv add <pkg>` or `uv add --group dev <pkg>`; commit `pyproject.toml` and `uv.lock` together. The lock is what makes both machines identical, so never edit it by hand.
 
 ## 7. Definition of done (per ticket)

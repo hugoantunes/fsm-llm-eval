@@ -42,4 +42,4 @@ What holds in every session:
 - The repository is English only: code, comments, docs, prompts, data and identifiers.
 - Always `uv run ...`; add dependencies with `uv add`, never pip.
 - Commit messages are imperative, English and ticket-prefixed: `T-08: load FSM from machine.yaml`.
-- Never commit `runs/`; never edit `data/scenarios/v1/` once its hash is recorded.
+- Never commit `runs/`; never edit `data/scenarios/v1/` (T-06 freeze; hash in `DECISOES.md` and `FROZEN_V1_HASH`).

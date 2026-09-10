@@ -27,7 +27,8 @@ That folder is on iCloud: if a file is unreadable it is probably evicted, so ask
 - `just` lists the recipes. `just install`: `uv sync` (Python 3.13, dev group). `just install-analysis` adds pandas, scipy, matplotlib, jupyter.
 - `just test`: pytest without `integration` tests. `just test-all` includes them (needs Ollama with the models in `configs/models.yaml`). Extra arguments go to pytest: `just test tests/test_cli.py -k help`.
 - `just lint` / `just format`: ruff check and ruff format. `just check` = lint + test; it is the gate the hooks run.
-- `just run [exp_id] [scenarios] [reps] [parallel] [args...]` and `just eval runs/<exp_id>`: thin wrappers over `python -m sim run|eval` (T-14a, T-14b).
+- `just run [exp_id] [scenarios] [reps] [parallel] [args...]` and `just eval runs/<exp_id>`: thin wrappers over `python -m sim run|eval` (T-14a, T-14b). Smoke defaults to `data/scenarios/examples`; the experiment is `data/scenarios/v1`.
+- `just generate-scenarios`: expand `plan.yaml`. Default `--out` is the next unused `data/scenarios/vN`; a directory that already has JSONL is refused. Do not overwrite frozen `v1`.
 - `just pull-models` / `just digests` / `just verify-models`: pull the models of `configs/models.yaml`, print their digests, fail on any digest mismatch (`scripts/models.py`).
 - Always go through `uv run ...`; add dependencies with `uv add` (or `uv add --group dev`), never pip.
 
@@ -37,7 +38,7 @@ That folder is on iCloud: if a file is unreadable it is probably evicted, so ask
 |---|---|
 | `src/sim/` | the package (`python -m sim`): LLM client, FSM engine, agents, simulated user, judge, evaluators, runner, eval |
 | `tests/` | pytest; `@pytest.mark.integration` on anything that talks to Ollama |
-| `data/` | KB (`kb/`), FSM (`fsm/machine.yaml`, `fsm/states/*.md`), prompts (`prompts/*.md`), scenarios (`scenarios/examples/`, `scenarios/v1/`) |
+| `data/` | KB (`kb/`), FSM (`fsm/machine.yaml`, `fsm/states/*.md`), prompts (`prompts/*.md`), scenarios (`scenarios/plan.yaml`, `scenarios/examples/`, frozen `scenarios/v1/`) |
 | `configs/models.yaml` | models, digests, `num_ctx`, fixed params: the single place for these |
 | `runs/` | everything produced by `sim run` / `sim eval`: dialogue JSONL, LLM call logs, prompt cache, `metrics.csv`, `metrics_turn.csv`. Git-ignored; moved between machines by rsync |
 | `results/`, `notebooks/`, `docs/`, `scripts/` | analysis outputs, `analysis.ipynb`, project docs (English; the thesis translates what it lifts), utilities |
@@ -53,7 +54,7 @@ TICKETS.md predates the English-only decision. When a ticket names an artifact, 
 | `data/kb/base_conhecimento.md`, `agulhas.json`, `sem_resposta.json` | `data/kb/knowledge_base.md`, `needles.json`, `unanswerable.json` |
 | `data/fsm/maquina.yaml`, `data/fsm/estados/*.md` | `data/fsm/machine.yaml`, `data/fsm/states/*.md` |
 | `data/prompts/juiz_fatos.md`, `juiz_global.md` | `data/prompts/judge_facts.md`, `judge_global.md`, plus `judge_shared.md` (blindness block, T-04) |
-| `data/cenarios/exemplos/`, `data/cenarios/v1/` | `data/scenarios/examples/`, `data/scenarios/v1/` |
+| `data/cenarios/exemplos/`, `data/cenarios/v1/` | `data/scenarios/examples/`, `data/scenarios/plan.yaml` (authoring; not loaded at runtime), frozen `data/scenarios/v1/` |
 | `scripts/gerar_cenarios.py` | `scripts/generate_scenarios.py` |
 | `metricas.csv`, `metricas_turno.csv`, `descritiva.csv`, `testes.csv`, `ambiente.txt`, `casos.md`, `tabelas/`, `figuras/` | `metrics.csv`, `metrics_turn.csv`, `descriptive.csv`, `tests.csv`, `environment.txt`, `cases.md`, `tables/`, `figures/` |
 | `notebooks/analise.ipynb` | `notebooks/analysis.ipynb` |
@@ -84,7 +85,7 @@ From the section *O que não deve mudar* of TICKETS.md:
 - Work one ticket at a time in the order of *Ordem de execução*, preferably through `/ticket T-xx`. Its acceptance criteria are the test list; a ticket is done when they are checked, `just check` is green, and any experiment-affecting choice is logged in `DECISOES.md` (`AAAA-MM-DD · Ticket · Decisão · Por quê`).
 - Vertical slice first: make the thin end-to-end path work, then fatten it (full KB, 8 states, full dataset). Do not implement future tickets while passing by.
 - Cuts (N, K, metrics) are decided before looking at results, per *Plano de corte*. Never drop data or scenarios after seeing numbers.
-- Never commit `runs/`; never edit `data/scenarios/v1/` after its hash is recorded.
+- Never commit `runs/`; never edit `data/scenarios/v1/` (T-06 freeze: hash in `DECISOES.md` and `FROZEN_V1_HASH` in `tests/helpers.py`; `just check` fails if the files move).
 - Commit messages: imperative, English, ticket prefix (`T-07: add ollama client with prompt-hash cache`).
 
 ## Enforcement

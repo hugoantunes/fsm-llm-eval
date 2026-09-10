@@ -86,8 +86,8 @@ secondary or diagnostic, including the components of `fact_f1` and of
 ## Pre-experiment freeze
 
 Before T-17, this file plus `configs/models.yaml`, `data/scenarios/v1/` and
-`DECISOES.md` (dataset hash) are the freeze. Do not change them after seeing
-results.
+`DECISOES.md` (dataset hash, also pinned as `FROZEN_V1_HASH` in
+`tests/helpers.py`) are the freeze. Do not change them after seeing results.
 
 - **Primary outcomes.** `PRIMARY_METRICS` above. Holm on that family of four.
 - **Secondary / exploratory.** All other `METRICS`, including `accuracy_score`,

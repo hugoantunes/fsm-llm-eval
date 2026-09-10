@@ -8,8 +8,11 @@ dialogue.
 
 The shape is fixed by [`src/sim/schemas.py`](../src/sim/schemas.py) and the two worked
 examples are in [`data/scenarios/examples/`](../data/scenarios/examples/). The frozen
-dataset of T-06 goes to `data/scenarios/v1/`, one JSONL per category, one scenario per
-line, and never changes once its hash is recorded.
+dataset of T-06 lives in `data/scenarios/v1/`, one JSONL per category, one scenario per
+line, and does not change
+(`0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9`,
+DECISOES.md 2026-09-10; `FROZEN_V1_HASH` in `tests/helpers.py`). The authoring source
+is `data/scenarios/plan.yaml`; `sim run` never reads it.
 
 ## The three categories
 
