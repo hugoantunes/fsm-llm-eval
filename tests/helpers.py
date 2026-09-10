@@ -21,7 +21,14 @@ from sim.config import Role
 from sim.kb import Fact, KnowledgeBase, Needle, UserDataField
 from sim.llm import LlmResponse, Message
 from sim.metrics import Accuracy, JudgeClaim, JudgeFacts, JudgeGlobal
-from sim.schemas import Scenario, Turn, TurnRecord
+from sim.schemas import (
+    DialogueLog,
+    DialogueStatus,
+    Scenario,
+    StopReason,
+    Turn,
+    TurnRecord,
+)
 from sim.user import UserReply, UserStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -213,6 +220,78 @@ def user_reply(message: str, status: UserStatus = "continue") -> str:
 def classifier_reply(event: str, intent: str | None = None) -> str:
     """Render one schema-valid answer from the user-event classifier of T-08."""
     return json.dumps({"event": event, "intent": intent})
+
+
+def make_turn_record(
+    turn: int = 1,
+    *,
+    user_message: str = "Where is my order?",
+    agent_reply: str = "I can help with that.",
+    llm_latency_s: float = 0.5,
+    turn_latency_s: float = 0.8,
+    cached: bool = False,
+    state_before: str | None = None,
+    state_after: str | None = None,
+    event: str | None = None,
+) -> TurnRecord:
+    """Build one turn record; only the fields a test cares about need saying."""
+    return TurnRecord(
+        turn=turn,
+        user_message=user_message,
+        agent_reply=agent_reply,
+        model="agent-model",
+        prompt_hash="a" * 64,
+        prompt_tokens=10,
+        output_tokens=4,
+        llm_latency_s=llm_latency_s,
+        turn_latency_s=turn_latency_s,
+        cached=cached,
+        state_before=state_before,
+        state_after=state_after,
+        event=event,
+    )
+
+
+def make_dialogue_log(
+    records: Sequence[TurnRecord],
+    *,
+    scenario_id: str = "happy_path_01",
+    agent: str = "baseline",
+    repetition: int = 1,
+    seed: int = 42,
+    status: DialogueStatus = "ok",
+    stop_reason: StopReason | None = "goal_reached",
+) -> DialogueLog:
+    """Build one dialogue log from turn records, for the evaluators of T-13."""
+    return DialogueLog(
+        scenario_id=scenario_id,
+        agent=agent,
+        repetition=repetition,
+        seed=seed,
+        status=status,
+        stop_reason=stop_reason,
+        records=list(records),
+    )
+
+
+def strip_fsm_meta(records: Sequence[TurnRecord]) -> list[TurnRecord]:
+    """Copy ``records`` without FSM bookkeeping, as a baseline log stores them."""
+    return [
+        record.model_copy(
+            update={
+                "state_before": None,
+                "state_after": None,
+                "event": None,
+                "transitions": [],
+            }
+        )
+        for record in records
+    ]
+
+
+def stage_labels_reply(stages: Sequence[str]) -> str:
+    """Render one schema-valid answer from the stage labeler of T-13."""
+    return json.dumps({"stages": list(stages)})
 
 
 def judge_facts_reply(

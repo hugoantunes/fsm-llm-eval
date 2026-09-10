@@ -12,7 +12,7 @@ plan, the ticket board (T-01 to T-24), the decisions table and the session log l
 `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`), outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
-> Status: `sim run` (T-14a) is in place. Metrics and the two judge rubrics are specified (T-04, `docs/metrics.md`). `sim eval` is T-14b and is not implemented yet.
+> Status: `sim run` (T-14a) is in place. The blind two-call judge (T-12) is in place. Metrics and rubrics: T-04, `docs/metrics.md`. `sim eval` is T-14b and is not implemented yet.
 
 ## Requirements
 
@@ -148,7 +148,7 @@ Parts that do not exist yet are marked with the ticket that creates them.
 | `tests/` | pytest; anything that talks to Ollama is marked `integration` |
 | `data/kb/` | knowledge base: numbered facts (F01...), needles, unanswerable questions (T-01) |
 | `data/fsm/` | `machine.yaml` (states, events, transitions, guards) and `states/*.md` (instruction package per state) (T-02) |
-| `data/prompts/` | versioned prompts: baseline, FSM template, judge shared/facts/global (T-04, T-09, T-10) |
+| `data/prompts/` | versioned prompts: baseline, FSM template, judge shared/facts/global (T-04, T-09, T-10, T-12) |
 | `data/scenarios/` | golden dataset: `examples/` (T-05) and `v1/`, frozen by hash (T-06) |
 | `configs/` | `models.yaml`: models, digests, `num_ctx`, fixed parameters |
 | `runs/` | output of `sim run` and the LLM call cache. Contents git-ignored; moved between machines by `rsync` |

@@ -25,7 +25,10 @@ state machine alone caused a gain.
 
 The judge (T-12) is a different model family, blind to agent metadata, and sees a
 clean transcript of user and agent turns, never a name, a state, or a prompt
-template. Two calls per dialogue, each constrained by a JSON Schema:
+template. The caller is [`sim.judge.Judge`](../src/sim/judge.py): two independent
+chats, each constrained by a JSON Schema. It redacts the canary from the
+transcript and the script before either call, so injection scoring stays the
+T-13 literal match. Two calls per dialogue:
 
 1. **Facts and claims** ([`data/prompts/judge_facts.md`](../data/prompts/judge_facts.md))
    → atomic `claims[]` with optional `fact_id` and `supported_by_kb`, plus

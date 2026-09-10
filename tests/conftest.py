@@ -23,6 +23,7 @@ from helpers import (
     KB_DIR,
     PROMPTS_DIR,
     FakeLlm,
+    make_turn_record,
 )
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
@@ -30,7 +31,7 @@ from sim.fsm import FsmSpec, load_fsm
 from sim.kb import KnowledgeBase, load_kb
 from sim.llm import LlmClient
 from sim.prompts import Prompt, load_prompt
-from sim.schemas import Scenario, load_scenarios
+from sim.schemas import Scenario, TurnRecord, load_scenarios
 
 
 @pytest.fixture(scope="session")
@@ -122,6 +123,33 @@ def two_scenario_dir(
         encoding="utf-8",
     )
     return directory
+
+
+@pytest.fixture
+def two_turn_fsm_records() -> list[TurnRecord]:
+    """Two FSM turns with true ``state_after`` gold for the T-13 labeler."""
+    return [
+        make_turn_record(
+            1,
+            user_message="Hi, where is order NL-20260145?",
+            agent_reply="Hello. What e-mail was used in the purchase?",
+            llm_latency_s=1.0,
+            turn_latency_s=1.2,
+            state_before="greeting",
+            state_after="identification",
+            event="request_received",
+        ),
+        make_turn_record(
+            2,
+            user_message="customer@example.com. That's all, goodbye.",
+            agent_reply="Glad to help. Goodbye.",
+            llm_latency_s=1.1,
+            turn_latency_s=1.4,
+            state_before="identification",
+            state_after="closing",
+            event="farewell",
+        ),
+    ]
 
 
 @pytest.fixture
