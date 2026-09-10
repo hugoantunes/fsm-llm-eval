@@ -7,6 +7,7 @@ markdown is parsed here once and everything else imports the result.
 
 import json
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -107,6 +108,24 @@ class KnowledgeBase(BaseModel):
         """
         sections = (f.intent for f in self.facts if f.intent != GENERAL_INTENT)
         return list(dict.fromkeys(sections))
+
+
+def render_facts(facts: Iterable[Fact]) -> str:
+    """Render KB facts for a prompt, grouped by intent, in the file's own shape.
+
+    Agents and the judge render facts through here, so the only difference
+    between their prompts is *which* facts are in them: all of them for the
+    baseline and the judge, the ones the current state releases for the FSM
+    agent (T-10).
+    """
+    groups: dict[str, list[Fact]] = {}
+    for fact in facts:
+        groups.setdefault(fact.intent, []).append(fact)
+    lines: list[str] = []
+    for intent, group in groups.items():
+        lines.extend(["", f"## {intent}", ""])
+        lines.extend(f"- **{fact.id}** — {fact.text}" for fact in group)
+    return "\n".join(lines).strip()
 
 
 def parse_facts(markdown: str) -> list[Fact]:

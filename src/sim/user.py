@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict
 
 from sim.llm import Chat
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
-from sim.schemas import Scenario, Turn, as_messages
+from sim.schemas import Scenario, Turn, as_messages, render_script
 
 #: The prompt file of ``data/prompts/``, holding the brief and nothing else.
 PROMPT = "simulated_user"
@@ -69,7 +69,7 @@ class SimulatedUser:
         self.system_prompt = load_prompt(PROMPT, directory=prompts_dir).render(
             persona=scenario.user_persona,
             goal=scenario.user_goal,
-            script=_render_script(scenario.script),
+            script=render_script(scenario.script),
         )
 
     def speak(self, history: Sequence[Turn]) -> UserReply:
@@ -131,8 +131,3 @@ def _check_the_agent_spoke_last(history: Sequence[Turn]) -> None:
             "would be answering itself. Append the agent's reply first; two "
             "customer turns in a row mean the loop lost one"
         )
-
-
-def _render_script(script: Sequence[str]) -> str:
-    """Number the beats, so the prompt can ask for them in order."""
-    return "\n".join(f"{number}. {beat}" for number, beat in enumerate(script, start=1))

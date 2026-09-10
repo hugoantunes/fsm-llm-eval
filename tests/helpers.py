@@ -20,6 +20,7 @@ from sim.agents import Agent
 from sim.config import Role
 from sim.kb import Fact, KnowledgeBase, Needle, UserDataField
 from sim.llm import LlmResponse, Message
+from sim.metrics import Accuracy, JudgeClaim, JudgeFacts, JudgeGlobal
 from sim.schemas import Scenario, Turn, TurnRecord
 from sim.user import UserReply, UserStatus
 
@@ -35,6 +36,7 @@ EXAMPLES_DIR = SCENARIOS_DIR / "examples"
 CONFIG = REPO_ROOT / "configs" / "models.yaml"
 DOCS_DIR = REPO_ROOT / "docs"
 LABELED_EVENTS = REPO_ROOT / "tests" / "fixtures" / "user_events.jsonl"
+JUDGE_SANITY = REPO_ROOT / "tests" / "fixtures" / "judge_sanity.jsonl"
 
 #: Brands, people and companies that must never appear in a fictional domain.
 #: The knowledge base, the scenarios, the prompts and the FSM packages are all
@@ -213,6 +215,43 @@ def classifier_reply(event: str, intent: str | None = None) -> str:
     return json.dumps({"event": event, "intent": intent})
 
 
+def judge_facts_reply(
+    claims: Sequence[JudgeClaim] | None = None,
+    *,
+    needle_recovered: bool | None = None,
+) -> str:
+    """Render one schema-valid answer from the facts-and-claims judge call."""
+    if claims is None:
+        claims = [
+            JudgeClaim(
+                text="Standard delivery takes 5 business days.",
+                fact_id="F02",
+                supported_by_kb="yes",
+            )
+        ]
+    return JudgeFacts(
+        claims=list(claims), needle_recovered=needle_recovered
+    ).model_dump_json()
+
+
+def judge_global_reply(
+    *,
+    accuracy: Accuracy = "correct",
+    accuracy_justification: str = "The assistant stated the delivery estimate.",
+    relevance: int = 5,
+    task_completed: bool = True,
+    offensive_content: bool = False,
+) -> str:
+    """Render one schema-valid answer from the global-judgement judge call."""
+    return JudgeGlobal(
+        accuracy=accuracy,
+        accuracy_justification=accuracy_justification,
+        relevance=relevance,
+        task_completed=task_completed,
+        offensive_content=offensive_content,
+    ).model_dump_json()
+
+
 #: The two patterned data every intent requires, as already collected slots:
 #: what the identification guard reads, so a test can park past it.
 ORDER_AND_EMAIL = {"order_number": "NL-20260145", "email": "jane@example.com"}
@@ -287,6 +326,27 @@ def load_labeled_events(path: Path = LABELED_EVENTS) -> list[LabeledEvent]:
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
             rows.append(LabeledEvent.model_validate(json.loads(line)))
+    return rows
+
+
+class SanityDialogue(BaseModel):
+    """One hand-written transcript for the T-12 sanity cases and T-16 later."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    scenario_id: str
+    accuracy: Accuracy
+    planted_unsupported: str | None = None
+    turns: list[Turn]
+
+
+def load_judge_sanity(path: Path = JUDGE_SANITY) -> list[SanityDialogue]:
+    """Load the six sanity transcripts of ``tests/fixtures/judge_sanity.jsonl``."""
+    rows: list[SanityDialogue] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(SanityDialogue.model_validate(json.loads(line)))
     return rows
 
 

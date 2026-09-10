@@ -10,16 +10,22 @@ is the experiment, not a bug.
 
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from sim.engine import FsmEngine
 from sim.fsm import DEFAULT_FSM_DIR, FsmSpec
-from sim.kb import Fact, KnowledgeBase, UserDataField
+from sim.kb import KnowledgeBase, UserDataField, render_facts
 from sim.llm import Chat
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
-from sim.schemas import TransitionRecord, Turn, TurnRecord, as_messages
+from sim.schemas import (
+    TransitionRecord,
+    Turn,
+    TurnRecord,
+    as_messages,
+    render_transcript,
+)
 
 #: The block both agents include, word for word: persona, tone, general rules.
 SHARED_PROMPT = "agent_shared"
@@ -183,7 +189,7 @@ class FsmAgent(Agent):
         walk = self._engine.step(
             history[-1].text,
             turn=sum(1 for turn in history if turn.speaker == "user"),
-            transcript=_transcript(history),
+            transcript=render_transcript(history),
         )
         dest = self._engine.state
         return Instruction(
@@ -209,23 +215,6 @@ class FsmAgent(Agent):
                 self._spec.released_facts(state, self._engine.intent, self._kb)
             ),
         )
-
-
-def render_facts(facts: Iterable[Fact]) -> str:
-    """Render KB facts for a prompt, grouped by intent, in the file's own shape.
-
-    Both agents render facts through here, so the only difference between their
-    prompts is *which* facts are in them: all of them for the baseline, the ones
-    the current state releases for the FSM agent (T-10).
-    """
-    groups: dict[str, list[Fact]] = {}
-    for fact in facts:
-        groups.setdefault(fact.intent, []).append(fact)
-    lines: list[str] = []
-    for intent, group in groups.items():
-        lines.extend(["", f"## {intent}", ""])
-        lines.extend(f"- **{fact.id}** — {fact.text}" for fact in group)
-    return "\n".join(lines).strip()
 
 
 def render_user_data_fields(
@@ -284,11 +273,6 @@ def _fields_to_collect(
     if state != collect_state or intent is None:
         return []
     return [field for field in kb.user_data_fields if intent in field.required_for]
-
-
-def _transcript(history: Sequence[Turn]) -> str:
-    """Render ``history`` as the classifier's ``$transcript``."""
-    return "\n".join(f"{turn.speaker}: {turn.text}" for turn in history)
 
 
 def _check_the_user_spoke_last(history: Sequence[Turn]) -> None:

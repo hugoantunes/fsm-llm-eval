@@ -16,10 +16,9 @@ from sim.agents import (
     SHARED_PROMPT,
     AgentError,
     BaselineAgent,
-    render_facts,
     render_user_data_fields,
 )
-from sim.kb import FACT_ID, Fact, KnowledgeBase, UserDataField
+from sim.kb import FACT_ID, Fact, KnowledgeBase, UserDataField, render_facts
 from sim.llm import LlmClient
 from sim.prompts import load_prompt
 from sim.schemas import MAX_TURNS, Scenario, Turn

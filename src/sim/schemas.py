@@ -83,6 +83,20 @@ def as_messages(
     ]
 
 
+def render_transcript(history: Sequence[Turn]) -> str:
+    """Render ``history`` as ``speaker: text`` lines, oldest first.
+
+    The event classifier, the judge and anyone else that inlines a transcript
+    into a prompt go through here, so a turn cannot be formatted two ways.
+    """
+    return "\n".join(f"{turn.speaker}: {turn.text}" for turn in history)
+
+
+def render_script(script: Sequence[str]) -> str:
+    """Number the beats, so a prompt can ask for them in order."""
+    return "\n".join(f"{number}. {beat}" for number, beat in enumerate(script, start=1))
+
+
 class TransitionRecord(BaseModel):
     """One attempted edge of the machine: whether it fired, and its endpoints.
 
