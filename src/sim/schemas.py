@@ -218,11 +218,11 @@ class Scenario(BaseModel):
     user_persona: str
     user_goal: str
     script: list[str] = Field(min_length=1)
-    reference_answer: str
+    reference_answer: str = Field(min_length=1)
     required_facts: list[str] = Field(min_length=1)
     forbidden_facts: list[str] = []
     expected_final_state: str
-    success_criterion: str
+    success_criterion: str = Field(min_length=1)
     max_turns: int = Field(ge=MIN_TURNS, le=MAX_TURNS)
     is_needle: bool = False
     canary: str | None = None
@@ -330,8 +330,8 @@ def _check_facts(entry: Scenario, where: str, kb: KnowledgeBase) -> None:
             continue
         raise ScenarioError(
             f"{where}: {entry.id} names {fact_id}, which is not a fact of "
-            f"knowledge_base.md. Recall and fidelity are measured by ID (T-12), "
-            f"so an ID nobody can state would score the scenario as failed"
+            f"knowledge_base.md. fact_recall and claim_support are measured by ID "
+            f"(T-12), so an ID nobody can state would score the scenario as failed"
         )
 
 
@@ -352,12 +352,14 @@ def _check_needle(entry: Scenario, where: str, kb: KnowledgeBase) -> None:
     if not entry.is_needle:
         return
     needles = {needle.fact_id for needle in kb.needles}
-    if needles & set(entry.required_facts):
+    found = sorted(needles & set(entry.required_facts))
+    if len(found) == 1:
         return
     raise ScenarioError(
-        f"{where}: {entry.id} is flagged is_needle but requires none of the "
-        f"needle facts {sorted(needles)} of needles.json. The needle metric asks "
-        f"whether the specific fact was recovered (T-04), so it needs one"
+        f"{where}: {entry.id} is flagged is_needle but requires {found or 'none'} "
+        f"of the needle facts {sorted(needles)} of needles.json. "
+        f"needle_recovered is one boolean, so a needle scenario names exactly one "
+        f"needle fact (T-04)"
     )
 
 

@@ -20,12 +20,16 @@ GENERAL_INTENT = "general"
 #: A fact identifier wherever it appears in a text, as in "the e-mail (F05)".
 #: The state packages of T-02 and the agents' instruction files are checked
 #: against it, so the shape of an ID is written in one place.
-FACT_ID = re.compile(r"\bF\d{2}\b")
+FACT_ID_BODY = r"F\d{2}"
+FACT_ID = re.compile(rf"\b{FACT_ID_BODY}\b")
+#: The JSON Schema ``pattern`` the judge decoder is constrained to (T-04): the
+#: same body, anchored, so Ollama cannot emit a free-text stand-in.
+FACT_ID_SCHEMA_PATTERN = rf"^{FACT_ID_BODY}$"
 
 #: ``## Order tracking · `order_tracking` `` — human title plus the intent slug.
 _SECTION = re.compile(r"^##\s+(?P<title>.+?)\s+·\s+`(?P<intent>[a-z_]+)`\s*$")
 #: ``- **F14** — Items bought on promotion...`` — one atomic fact per line.
-_FACT = re.compile(r"^-\s+\*\*(?P<id>F\d{2})\*\*\s+—\s+(?P<text>.+?)\s*$")
+_FACT = re.compile(rf"^-\s+\*\*(?P<id>{FACT_ID_BODY})\*\*\s+—\s+(?P<text>.+?)\s*$")
 
 
 class KnowledgeBaseError(ValueError):

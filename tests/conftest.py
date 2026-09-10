@@ -15,13 +15,62 @@ from pathlib import Path
 
 import pytest
 
-from helpers import CONFIG, EXAMPLES_DIR, FSM_DIR, KB_DIR, FakeLlm
+from helpers import (
+    CONFIG,
+    DOCS_DIR,
+    EXAMPLES_DIR,
+    FSM_DIR,
+    KB_DIR,
+    PROMPTS_DIR,
+    FakeLlm,
+)
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
 from sim.fsm import FsmSpec, load_fsm
 from sim.kb import KnowledgeBase, load_kb
 from sim.llm import LlmClient
+from sim.prompts import Prompt, load_prompt
 from sim.schemas import Scenario, load_scenarios
+
+
+@pytest.fixture(scope="session")
+def metrics_doc() -> str:
+    """The metrics cards of ``docs/metrics.md`` (T-04)."""
+    return (DOCS_DIR / "metrics.md").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="session")
+def judge_shared_prompt() -> Prompt:
+    """The blindness block both judge calls include (T-04)."""
+    return load_prompt("judge_shared", directory=PROMPTS_DIR)
+
+
+@pytest.fixture(scope="session")
+def judge_facts_prompt() -> Prompt:
+    """The facts-and-claims rubric (T-04)."""
+    return load_prompt("judge_facts", directory=PROMPTS_DIR)
+
+
+@pytest.fixture(scope="session")
+def judge_global_prompt() -> Prompt:
+    """The global-judgement rubric (T-04)."""
+    return load_prompt("judge_global", directory=PROMPTS_DIR)
+
+
+@pytest.fixture(scope="session")
+def judge_prompt_templates(
+    judge_shared_prompt: Prompt,
+    judge_facts_prompt: Prompt,
+    judge_global_prompt: Prompt,
+) -> str:
+    """The three judge files concatenated, for scans that cover every call."""
+    return "\n".join(
+        (
+            judge_shared_prompt.template,
+            judge_facts_prompt.template,
+            judge_global_prompt.template,
+        )
+    )
 
 
 @pytest.fixture(scope="session")

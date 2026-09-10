@@ -165,6 +165,9 @@ when they accept the hand-over. The engine of T-08 must therefore not hand this 
 
 Flow adherence (T-13) asks two questions of a dialogue: did it end in the state the
 scenario expected, and is the sequence of labelled stages a path this machine allows?
+Both answers, for the comparison, come from the stage labeler run on the observable
+dialogue of **both** agents. The FSM agent's true `state_after` validates the
+labeler; it is not substituted into the comparative metrics.
 
 The second question is answered over the **flow edges only**, the ones with `from_any`
 false. A sequence that can be explained solely by `farewell` or by `out_of_scope_request`

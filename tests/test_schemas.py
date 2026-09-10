@@ -102,10 +102,20 @@ def test_load_scenarios_reads_every_jsonl_of_a_directory_in_name_order(
     assert scenarios[1].script[0] == "Ask where the order is."
 
 
-@pytest.mark.parametrize("field", ["script", "required_facts"])
-def test_an_empty_script_or_required_facts_raises(tmp_path: Path, field: str) -> None:
+@pytest.mark.parametrize(
+    ("field", "empty"),
+    [
+        ("script", []),
+        ("required_facts", []),
+        ("reference_answer", ""),
+        ("success_criterion", ""),
+    ],
+)
+def test_an_empty_evaluation_input_raises(
+    tmp_path: Path, field: str, empty: list[str] | str
+) -> None:
     directory = write_scenarios(
-        tmp_path / "scenarios", happy_path=[scenario(**{field: []})]
+        tmp_path / "scenarios", happy_path=[scenario(**{field: empty})]
     )
 
     with pytest.raises(ScenarioError, match=field):
@@ -242,6 +252,28 @@ def test_is_needle_without_any_needle_fact_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ScenarioError, match="needle"):
         load_scenarios(directory, kb=KB, fsm=FSM)
+
+
+def test_is_needle_with_two_needle_facts_raises(tmp_path: Path) -> None:
+    kb = KB.model_copy(
+        update={
+            "needles": [
+                Needle(
+                    fact_id="F01",
+                    why="a",
+                    probe_question="When are you open?",
+                ),
+                *KB.needles,
+            ]
+        }
+    )
+    directory = write_scenarios(
+        tmp_path / "scenarios",
+        happy_path=[scenario(is_needle=True, required_facts=["F01", "F03"])],
+    )
+
+    with pytest.raises(ScenarioError, match="exactly one"):
+        load_scenarios(directory, kb=kb, fsm=FSM)
 
 
 @pytest.mark.parametrize("max_turns", [2, 20])

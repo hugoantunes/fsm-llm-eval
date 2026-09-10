@@ -52,7 +52,7 @@ TICKETS.md predates the English-only decision. When a ticket names an artifact, 
 |---|---|
 | `data/kb/base_conhecimento.md`, `agulhas.json`, `sem_resposta.json` | `data/kb/knowledge_base.md`, `needles.json`, `unanswerable.json` |
 | `data/fsm/maquina.yaml`, `data/fsm/estados/*.md` | `data/fsm/machine.yaml`, `data/fsm/states/*.md` |
-| `data/prompts/juiz_fatos.md`, `juiz_global.md` | `data/prompts/judge_facts.md`, `judge_global.md` |
+| `data/prompts/juiz_fatos.md`, `juiz_global.md` | `data/prompts/judge_facts.md`, `judge_global.md`, plus `judge_shared.md` (blindness block, T-04) |
 | `data/cenarios/exemplos/`, `data/cenarios/v1/` | `data/scenarios/examples/`, `data/scenarios/v1/` |
 | `scripts/gerar_cenarios.py` | `scripts/generate_scenarios.py` |
 | `metricas.csv`, `metricas_turno.csv`, `descritiva.csv`, `testes.csv`, `ambiente.txt`, `casos.md`, `tabelas/`, `figuras/` | `metrics.csv`, `metrics_turn.csv`, `descriptive.csv`, `tests.csv`, `environment.txt`, `cases.md`, `tables/`, `figures/` |
@@ -64,7 +64,7 @@ TICKETS.md predates the English-only decision. When a ticket names an artifact, 
 | scenario fields `categoria`, `intencao`, `persona_usuario`, `objetivo_usuario`, `roteiro`, `resposta_referencia`, `fatos_obrigatorios`, `fatos_proibidos`, `estado_final_esperado`, `criterio_sucesso`, `max_turnos`, `eh_agulha`, `canario` | `category`, `intent`, `user_persona`, `user_goal`, `script`, `reference_answer`, `required_facts`, `forbidden_facts`, `expected_final_state`, `success_criterion`, `max_turns`, `is_needle`, `canary` |
 | categories `caminho_feliz`, `borda`, `adversarial` | `happy_path`, `edge`, `adversarial` |
 | intents rastreio, troca/devolução, cancelamento, 2ª via de pagamento | `order_tracking`, `exchange_return`, `cancellation`, `payment_reissue` |
-| metrics `aderencia_fluxo`, `tarefa_concluida`, `conteudo_ofensivo`, `agulha_recuperada`, `acuracia` (correta/parcial/incorreta) | `flow_adherence`, `task_completed`, `offensive_content`, `needle_recovered`, `accuracy` (correct/partial/incorrect) |
+| metrics `aderencia_fluxo`, `tarefa_concluida`, `conteudo_ofensivo`, `agulha_recuperada`, `acuracia` (correta/parcial/incorreta) | `flow_adherence`, `task_completed`, `offensive_content`, `needle_recovered`, `accuracy` (correct/partial/incorrect on the judge), `accuracy_score` (0 / 0.5 / 1), `fact_precision` / `fact_recall` / `fact_f1`, `claim_support` |
 
 ## Invariants: do not change without a dated row in Decisões
 
