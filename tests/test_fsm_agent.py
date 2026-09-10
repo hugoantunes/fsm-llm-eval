@@ -1,6 +1,6 @@
 """Tests for the FSM agent (T-10)."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +13,7 @@ from helpers import (
     LabeledEvent,
     assert_prompt_carries_no_answer_key,
     classifier_reply,
+    labeled_utterance,
     load_labeled_events,
     play_user_turns,
 )
@@ -58,7 +59,6 @@ CANONICAL_WALK = (
     ScriptTurn("greeting", "request_received"),
     ScriptTurn("identification", "order_identified", via="rule"),
     ScriptTurn("intent_classification", "intent_classified", intent="order_tracking"),
-    ScriptTurn("data_collection", "data_provided"),
     ScriptTurn("solution", "solution_accepted"),
     ScriptTurn("confirmation", "user_confirmed"),
 )
@@ -156,23 +156,47 @@ def test_a_scripted_dialogue_walks_greeting_to_closing(
 ) -> None:
     records = closing_walk.records
     prompts = [call["messages"][0]["content"] for call in agent_calls(closing_walk.llm)]
-    collection = [record.state_after for record in records].index("data_collection")
-    tracking_fields = [
-        field
-        for field in real_kb.user_data_fields
-        if "order_tracking" in field.required_for
-    ]
+    solved = [record.state_after for record in records].index("solution")
 
     assert [record.state_after for record in records] == [
         "identification",
         "intent_classification",
-        "data_collection",
         "solution",
         "confirmation",
         "closing",
     ]
-    assert tracking_fields
-    assert all(field.label in prompts[collection] for field in tracking_fields)
+    assert fact_of(real_kb, "F09").text in prompts[solved]
+    assert fact_of(real_kb, "F10").text in prompts[solved]
+
+
+def test_the_turn_that_walks_two_edges_records_both_of_them(
+    closing_walk: Walk,
+) -> None:
+    solved = next(
+        record for record in closing_walk.records if record.state_after == "solution"
+    )
+
+    assert [
+        (edge.source, edge.event, edge.dest, edge.fired_by)
+        for edge in solved.transitions
+    ] == [
+        ("intent_classification", "intent_classified", "data_collection", "user"),
+        ("data_collection", "data_provided", "solution", "engine"),
+    ]
+    assert solved.state_before == "intent_classification"
+
+
+def test_the_recorded_walk_is_a_contiguous_path_of_the_machine(
+    closing_walk: Walk, real_fsm: FsmSpec
+) -> None:
+    edges = {(edge.source, edge.event, edge.dest) for edge in real_fsm.transitions}
+    walked = [edge for record in closing_walk.records for edge in record.transitions]
+
+    assert walked
+    assert all((edge.source, edge.event, edge.dest) in edges for edge in walked)
+    assert [edge.source for edge in walked[1:]] == [edge.dest for edge in walked[:-1]]
+    assert walked[0].source == real_fsm.initial
+    assert walked[-1].dest == "closing"
 
 
 def test_out_of_scope_does_not_carry_another_states_facts(
@@ -190,25 +214,6 @@ def test_out_of_scope_does_not_carry_another_states_facts(
     assert fact_of(real_kb, "F09").text not in prompt
     assert fact_of(real_kb, "F18").text not in prompt
     assert "Give the outcome in the first sentence" not in prompt
-
-
-def labeled_utterance(
-    events: Sequence[LabeledEvent],
-    state: str,
-    event: str,
-    *,
-    intent: str | None = None,
-) -> LabeledEvent:
-    """Return the first gold line for ``state`` / ``event`` / ``intent``."""
-    matches = [
-        row
-        for row in events
-        if row.state == state
-        and row.event == event
-        and (intent is None or row.intent == intent)
-    ]
-    assert matches, f"no gold utterance for {state}/{event}/{intent}"
-    return matches[0]
 
 
 def package_text(spec: FsmSpec, state: str) -> str:

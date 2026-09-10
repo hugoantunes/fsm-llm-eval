@@ -19,7 +19,8 @@ from sim import __version__
 from sim.agents import Agent, AgentError, BaselineAgent, FsmAgent
 from sim.config import ROLES, ModelsConfig
 from sim.dialogue import DialogueError, run_dialogue
-from sim.fsm import DEFAULT_FSM_DIR, FsmSpec
+from sim.events import EventError
+from sim.fsm import DEFAULT_FSM_DIR, FsmError, FsmSpec
 from sim.io import atomic_write
 from sim.kb import KnowledgeBase
 from sim.llm import LLM_CALLS_LOG, Chat, LlmCallRecord, LlmError
@@ -59,6 +60,12 @@ def iter_jobs(
     incremental (cut 1a). Agents are always emitted in :data:`AGENTS` order,
     even if the caller listed them backwards.
     """
+    unknown = sorted({name for name in agents if name not in AGENTS})
+    if unknown:
+        raise RunnerError(
+            f"unknown agent {unknown[0]!r}. Choose one of {AGENTS}, or omit "
+            f"--agent to run both"
+        )
     selected = [name for name in AGENTS if name in agents]
     return [
         DialogueJob(scenario=scenario, agent=agent, repetition=repetition)
@@ -144,7 +151,7 @@ def run_experiment(
         raise RunnerError(f"--reps must be at least 1, not {reps}")
     seed_base = _seed_base(config)
     selected = [name for name in AGENTS if name in agents]
-    jobs = iter_jobs(scenarios, agents=selected, reps=reps)
+    jobs = iter_jobs(scenarios, agents=agents, reps=reps)
     run_dir.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     n_ok = n_failed = n_skipped = 0
@@ -241,7 +248,14 @@ def _play(
     user = SimulatedUser(llm, scenario=job.scenario, prompts_dir=prompts_dir, seed=seed)
     try:
         result = run_dialogue(agent, user, max_turns=job.scenario.max_turns)
-    except (LlmError, AgentError, UserError, DialogueError) as failure:
+    except (
+        LlmError,
+        AgentError,
+        UserError,
+        DialogueError,
+        EventError,
+        FsmError,
+    ) as failure:
         return DialogueLog(
             scenario_id=job.scenario.id,
             agent=job.agent,

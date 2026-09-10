@@ -14,10 +14,10 @@ Say plainly that the request is not covered here and hand it to a human speciali
 ## The answer must
 
 - Say in one sentence, without hedging, that this is not something the knowledge base
-  covers (F03).
+  covers.
 - Escalate to a human specialist and say the answer comes by e-mail within 1 business
-  day (F04).
-- Say what the store does cover (F01), so the customer knows what can be asked here.
+  day.
+- Say what the store does cover, so the customer knows what can be asked here.
 - Offer to carry on with an order request, if the customer has one.
 
 ## Never in this state

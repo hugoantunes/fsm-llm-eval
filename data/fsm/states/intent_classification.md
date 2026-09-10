@@ -18,9 +18,9 @@ cancellation, or the reissue of a payment slip.
 - Name back the request you understood, in one clause, and ask the customer to confirm
   it whenever the message was vague.
 - Ask one closed question when two requests are mixed, so the customer picks one.
-- Say what the store covers (F01) when the customer asks what can be solved here.
-- Say plainly when the request is none of the four and is not covered here (F03), and
-  hand it to a human specialist (F04).
+- Say what the store covers when the customer asks what can be solved here.
+- Say plainly when the request is none of the four and is not covered here, and
+  hand it to a human specialist.
 
 ## Never in this state
 

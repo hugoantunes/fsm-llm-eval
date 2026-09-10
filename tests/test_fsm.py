@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from helpers import DOCS_DIR, GENERAL_FACT, TRACKING_FACT, make_kb
+from helpers import DOCS_DIR, FSM_DIR, GENERAL_FACT, TRACKING_FACT, make_kb
 from sim.fsm import FsmError, FsmSpec, load_fsm
-from sim.kb import Fact
+from sim.kb import FACT_ID, Fact
 
 #: The synthetic machine below is loaded against this, not against the real KB:
 #: two facts are enough to tell a released one from a withheld one.
@@ -257,17 +257,25 @@ def test_missing_package_file_raises(tmp_path: Path) -> None:
         load_fsm(directory, kb=KB)
 
 
-def test_package_mentioning_a_fact_not_released_for_that_state_raises(
-    tmp_path: Path,
-) -> None:
+@pytest.mark.parametrize("fact_id", ["F01", "F02"], ids=["released", "withheld"])
+def test_package_citing_a_fact_id_raises(tmp_path: Path, fact_id: str) -> None:
     package = PACKAGE.replace(
         "Never state anything about a specific order.",
-        "Never promise a delivery date (F02).",
+        f"Never promise a delivery date ({fact_id}).",
     )
     directory = write_fsm(tmp_path / "fsm", packages={"greeting": package})
 
-    with pytest.raises(FsmError, match="F02"):
+    with pytest.raises(FsmError, match=fact_id):
         load_fsm(directory, kb=KB)
+
+
+def test_no_real_state_package_cites_a_fact_id(real_fsm: FsmSpec) -> None:
+    cited = {
+        name: FACT_ID.findall((FSM_DIR / state.package).read_text(encoding="utf-8"))
+        for name, state in real_fsm.states.items()
+    }
+
+    assert {name: found for name, found in cited.items() if found} == {}
 
 
 def test_package_with_a_persona_section_of_its_own_raises(tmp_path: Path) -> None:

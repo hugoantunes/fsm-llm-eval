@@ -6,16 +6,18 @@ from typing import Any
 
 import pytest
 
-from helpers import CONFIG, EXAMPLES_DIR, FakeLlm
+from helpers import CONFIG, EXAMPLES_DIR
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
-from sim.fsm import FsmSpec
+from sim.events import EventError
+from sim.fsm import FsmError, FsmSpec
 from sim.io import atomic_write
 from sim.kb import KnowledgeBase
 from sim.llm import LLM_CALLS_LOG, Chat, LlmCallRecord, LlmClient, LlmError
 from sim.runner import (
     AGENTS,
     DialogueJob,
+    RunnerError,
     dialogue_path,
     dialogue_seed,
     hash_dataset,
@@ -112,10 +114,19 @@ def test_a_dialogue_file_is_written_atomically(tmp_path: Path) -> None:
     assert list(path.parent.glob("*.tmp")) == []
 
 
+def _read_log(run_dir: Path, job: DialogueJob) -> DialogueLog:
+    """Load the dialogue JSONL of ``job``."""
+    return DialogueLog.model_validate_json(
+        dialogue_path(run_dir, job).read_text(encoding="utf-8")
+    )
+
+
+@pytest.mark.parametrize("status", ["ok", "failed"])
 def test_resume_skips_a_complete_file_and_retries_a_missing_one(
     two_example_scenarios: tuple[Scenario, Scenario],
     run_dir: Path,
     run_canned: RunCanned,
+    status: str,
 ) -> None:
     jobs = iter_jobs(two_example_scenarios, agents=("baseline",), reps=1)
     done, missing = jobs
@@ -126,8 +137,9 @@ def test_resume_skips_a_complete_file_and_retries_a_missing_one(
             agent=done.agent,
             repetition=done.repetition,
             seed=0,
-            status="ok",
-            stop_reason="goal_reached",
+            status=status,
+            error="the server went away" if status == "failed" else None,
+            stop_reason="goal_reached" if status == "ok" else None,
         ).model_dump_json()
         + "\n",
     )
@@ -153,8 +165,11 @@ def test_resume_skips_a_complete_file_and_retries_a_missing_one(
     assert leftover.exists()
 
 
-class _FailingLlm(FakeLlm):
+class _FailingLlm:
     """A Chat that always raises, so one job can fail without aborting the run."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
 
     def chat(
         self,
@@ -166,27 +181,32 @@ class _FailingLlm(FakeLlm):
         seed: object = None,
         num_predict: object = None,
     ) -> object:
-        raise LlmError("the server went away")
+        raise self._error
 
 
-def _read_log(run_dir: Path, job: DialogueJob) -> DialogueLog:
-    """Load the dialogue JSONL of ``job``."""
-    return DialogueLog.model_validate_json(
-        dialogue_path(run_dir, job).read_text(encoding="utf-8")
-    )
-
-
+@pytest.mark.parametrize(
+    "error",
+    [
+        LlmError("the server went away"),
+        EventError(
+            "event intent_classified in state 'intent_classification' with no intent"
+        ),
+        FsmError("machine.yaml has no path to solution"),
+    ],
+    ids=["llm", "event", "fsm"],
+)
 def test_a_failed_dialogue_is_recorded_and_does_not_abort_the_run(
     two_example_scenarios: tuple[Scenario, Scenario],
     run_dir: Path,
     run_canned: RunCanned,
+    error: Exception,
 ) -> None:
     jobs = iter_jobs(two_example_scenarios, agents=("baseline",), reps=1)
     failing = jobs[0].scenario.id
 
     def factory(job: DialogueJob) -> Chat:
         if job.scenario.id == failing:
-            return _FailingLlm()
+            return _FailingLlm(error)
         return make_canned_llm(job)
 
     manifest = run_canned(agents=("baseline",), llm_factory=factory)
@@ -196,10 +216,11 @@ def test_a_failed_dialogue_is_recorded_and_does_not_abort_the_run(
     ok = _read_log(run_dir, jobs[1])
     assert failed.status == "failed"
     assert failed.error is not None
-    assert "server went away" in failed.error
+    assert str(error) in failed.error
     assert failed.records == []
     assert ok.status == "ok"
     assert ok.records
+    assert (run_dir / "manifest.json").exists()
 
 
 def test_two_scenarios_two_agents_one_rep_write_four_dialogue_files(
@@ -232,6 +253,9 @@ def test_two_scenarios_two_agents_one_rep_write_four_dialogue_files(
             assert record.state_before is not None
             assert record.state_after is not None
             assert record.event is not None
+            assert record.transitions[0].source == record.state_before
+            assert record.transitions[0].event == record.event
+            assert record.transitions[-1].dest == record.state_after
         dumped += log.model_dump_json()
     for scenario in two_example_scenarios:
         assert scenario.reference_answer not in dumped
@@ -335,6 +359,13 @@ def test_progress_is_reported_once_per_finished_dialogue(
     run_canned(on_progress=lambda done, total: seen.append((done, total)))
 
     assert seen == [(1, 4), (2, 4), (3, 4), (4, 4)]
+
+
+def test_unknown_agent_is_rejected(
+    two_example_scenarios: tuple[Scenario, Scenario],
+) -> None:
+    with pytest.raises(RunnerError, match="nonsense"):
+        iter_jobs(two_example_scenarios, agents=("nonsense",), reps=1)
 
 
 # --- Integration: a real Ollama with the models of configs/models.yaml -------

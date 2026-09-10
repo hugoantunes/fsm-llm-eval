@@ -19,8 +19,8 @@ Check that the outcome solved the request and that nothing about it was left ope
 - Ask whether that solves it.
 - When the customer says it does not, name what is still missing and go back to solving
   it with the released facts.
-- Say plainly when what is still missing is not covered here (F03) and hand it to a
-  human specialist (F04).
+- Say plainly when what is still missing is not covered here and hand it to a
+  human specialist.
 
 ## Never in this state
 

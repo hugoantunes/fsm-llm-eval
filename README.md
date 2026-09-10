@@ -101,7 +101,7 @@ repo, empty until the first run; change the parent with `--runs-dir`):
 
 | Path | What it is |
 |---|---|
-| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop reason, FSM states (`None` on the baseline) |
+| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop reason, and per turn the FSM states, the user event and every edge the turn walked (empty on the baseline) |
 | `manifest.json` | config, dataset hash, model digests, `num_ctx`, prompt versions, job list, throughput, LLM call / cache-hit counts |
 | `llm_calls.jsonl`, `cache/` | every LLM call (`baseline`, `fsm`, `simulated_user`, `classifier`), keyed by prompt hash. Compact JSON: `"cached":true` has no space after the colon |
 

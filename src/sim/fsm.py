@@ -11,7 +11,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from sim.kb import Fact, KnowledgeBase, load_kb
+from sim.kb import FACT_ID, Fact, KnowledgeBase, load_kb
 
 DEFAULT_FSM_DIR = Path("data/fsm")
 
@@ -32,9 +32,6 @@ PACKAGE_SECTIONS = (
     "## Never in this state",
     "## Tone in this state",
 )
-
-#: A fact of the KB cited in the prose of a state package, as in "the e-mail (F05)".
-_MENTIONED_FACT = re.compile(r"\bF\d{2}\b")
 
 #: A section heading of a state package. The title of the file is a single ``#``.
 _PACKAGE_HEADING = re.compile(r"^##\s+.*$", re.MULTILINE)
@@ -321,7 +318,7 @@ def _check_packages(spec: FsmSpec, directory: Path) -> None:
             )
         package = path.read_text(encoding="utf-8")
         _check_package_sections(name, package)
-        _check_package_mentions(name, state, package)
+        _check_package_cites_no_fact_id(name, package)
 
 
 def _check_package_sections(name: str, package: str) -> None:
@@ -345,14 +342,14 @@ def _check_package_sections(name: str, package: str) -> None:
         )
 
 
-def _check_package_mentions(name: str, state: State, package: str) -> None:
-    """Fail unless the facts a package cites are the ones its state releases."""
-    for fact_id in _MENTIONED_FACT.findall(package):
-        if fact_id in state.facts:
-            continue
-        raise FsmError(
-            f"the package of state {name!r} cites {fact_id}, which the state does "
-            f"not release (it releases {state.facts}). Release it in machine.yaml "
-            f"or drop the mention; the facts of the classified intent are injected "
-            f"at run time and are never cited by ID"
-        )
+def _check_package_cites_no_fact_id(name: str, package: str) -> None:
+    """Fail unless the package's prose is free of knowledge-base identifiers."""
+    cited = FACT_ID.findall(package)
+    if not cited:
+        return
+    raise FsmError(
+        f"the package of state {name!r} cites {sorted(set(cited))}. A package says "
+        f"what to do, never which fact to say it from: the slice of the knowledge "
+        f"base is appended to it at run time with the IDs on it, and a package that "
+        f"repeats one gets it copied to the customer, which the shared block forbids"
+    )

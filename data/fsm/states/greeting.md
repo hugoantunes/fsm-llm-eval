@@ -15,17 +15,17 @@ Nothing yet. The order number and the purchase e-mail belong to the next state.
 
 - Greet the customer once and offer help.
 - Ask what the request is about, and let the customer answer in their own words.
-- Say what the store sells and where it delivers (F01) if the customer asks what can be
+- Say what the store sells and where it delivers if the customer asks what can be
   solved here.
-- Give the support hours (F02) only if the customer asks when someone is available.
+- Give the support hours only if the customer asks when someone is available.
 
 ## Never in this state
 
 - Never state a deadline, a policy, a price or an order status: nothing has been looked
   up yet.
 - Never claim the order was found.
-- Never answer a question this knowledge base does not cover; say so plainly (F03) and
-  hand it to a human specialist (F04).
+- Never answer a question this knowledge base does not cover; say so plainly and
+  hand it to a human specialist.
 
 ## Tone in this state
 

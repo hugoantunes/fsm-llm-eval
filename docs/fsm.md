@@ -55,7 +55,9 @@ stateDiagram-v2
   return, cancellation, or the reissue of a payment slip. Name it back to the customer;
   when two requests are mixed, ask which one comes first.
 - **data_collection.** Ask for whatever the classified request still needs, all in one
-  turn, and repeat what is already confirmed so nothing is sent twice.
+  turn, and repeat what is already confirmed so nothing is sent twice. When the request
+  needs nothing beyond the order number and e-mail already collected, the engine leaves
+  this state on the same turn and the agent speaks from `solution`.
 - **solution.** Give the outcome in the first sentence, then the deadline or the condition
   that decides the case, using only the facts released for that request, and end with the
   next step.
@@ -98,15 +100,42 @@ each datum and the data each request requires are written in one place only:
   `required_for` names the classified request. A guard that fails keeps the dialogue in
   the state, which is what a human agent does when the customer answers half the question.
 
+A state with nothing left to *ask* is left without waiting for another user turn: after
+the customer's event, the engine fires `order_identified` and then `data_provided`, each
+one only where the current state accepts it and its guard already holds. That is what
+carries tracking and payment-slip reissue — whose only required data are the order number
+and the e-mail — out of `data_collection`, and it is what stops the agent asking for what
+the opening message already gave it. Those edges are the machine's own; the log marks them
+`fired_by: engine`, against the customer's own `fired_by: user`, so one turn records a
+walk of one to three edges rather than a single pair of endpoints.
+
+`intent_classified` is deliberately not among them. A request the classifier read wrong in
+the opening turn would be final, because the one state built to settle it would never be
+spoken from: in the pilot a "take one of the items back" opening was read as an exchange,
+and the whole dialogue ran on the wrong slice. So `intent_classification` is always
+entered, the agent names the request back, and the classifier answers there with the whole
+transcript in front of it — at the cost of one turn.
+
+Detection never short-circuits on what the dialogue already holds: every state still asks
+the classifier, so `out_of_scope_request` stays reachable from `intent_classification` and
+from `data_collection` even after the request is named and the data are in hand.
+
+The request itself is named once. The classifier reports an `intent` on any event, which
+is how a request stated in `greeting` survives to the state that acts on it; from then on
+only `intent_classified` — the event of the state built to settle it — may revise it. Any
+other event carrying an intent is ignored, because it would swap the released facts in the
+middle of a dialogue with nothing in the log to explain the change.
+
 ## Facts released per state
 
 `machine.yaml` names, per state, the fact IDs the agent may state there; `solution` and
 `confirmation` also get the whole knowledge-base section of the classified request, which is
 known only at run time, and they are refused without it: releasing the general facts alone
 there would look like an agent that hedges, not like a bug. The loader rejects an ID that is
-not in the knowledge base, and rejects a package that cites a fact its state does not
-release. The table is generated from that file (`just fsm-diagram`); a test fails if it
-drifts.
+not in the knowledge base, and rejects any package whose prose cites a fact ID at all: the
+slice is appended to the package with the IDs on it, and a package that repeats one next to
+the sentence the agent is told to produce gets it copied to the customer. The table is
+generated from that file (`just fsm-diagram`); a test fails if it drifts.
 
 | State | Facts released |
 |---|---|

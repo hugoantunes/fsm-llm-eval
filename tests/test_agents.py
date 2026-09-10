@@ -1,7 +1,5 @@
 """Tests for the agent interface and the baseline agent (T-09)."""
 
-import re
-
 import pytest
 
 from helpers import (
@@ -13,8 +11,15 @@ from helpers import (
     make_kb,
     play_user_turns,
 )
-from sim.agents import AgentError, BaselineAgent, render_facts, render_user_data_fields
-from sim.kb import Fact, KnowledgeBase, UserDataField
+from sim.agents import (
+    FSM_TEMPLATE,
+    SHARED_PROMPT,
+    AgentError,
+    BaselineAgent,
+    render_facts,
+    render_user_data_fields,
+)
+from sim.kb import FACT_ID, Fact, KnowledgeBase, UserDataField
 from sim.llm import LlmClient
 from sim.prompts import load_prompt
 from sim.schemas import MAX_TURNS, Scenario, Turn
@@ -25,9 +30,9 @@ from sim.schemas import MAX_TURNS, Scenario, Turn
 #: of T-07 refuses anything over 80% of ``num_ctx`` anyway.
 CHARS_PER_TOKEN = 4
 
-#: A knowledge-base identifier in a reply: an internal label the shared block
-#: forbids saying to the customer.
-FACT_ID = re.compile(r"\bF\d{2}\b")
+#: The three instruction files the two agents are built from: the block they
+#: share and one template each. What differs between them is the experiment.
+AGENT_PROMPTS = (SHARED_PROMPT, "baseline", FSM_TEMPLATE)
 
 #: The synthetic KB most of these tests build a baseline on: three facts, so an
 #: assertion can name every one of them. The real KB arrives as ``real_kb``,
@@ -186,12 +191,20 @@ def test_the_turn_record_carries_both_latencies_the_tokens_and_the_prompt_hash()
     assert record.turn_latency_s != record.llm_latency_s
 
 
-def test_the_baseline_record_leaves_state_and_event_empty() -> None:
+def test_the_baseline_record_leaves_the_fsm_bookkeeping_empty() -> None:
     record = baseline().respond([Turn(speaker="user", text="Hello?")])
 
     assert record.state_before is None
     assert record.state_after is None
     assert record.event is None
+    assert record.transitions == []
+
+
+@pytest.mark.parametrize("name", AGENT_PROMPTS)
+def test_no_agent_instruction_file_cites_a_fact_id(name: str) -> None:
+    template = load_prompt(name, directory=PROMPTS_DIR).template
+
+    assert FACT_ID.findall(template) == []
 
 
 @pytest.mark.parametrize("text", ["", "  "])

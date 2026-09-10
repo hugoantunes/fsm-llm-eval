@@ -125,3 +125,28 @@ def test_run_writes_into_the_experiment_directory(
     )
     assert manifest.n_ok == 4
     assert len(list((exp / "dialogues").glob("*.jsonl"))) == 4
+
+
+def test_run_with_zero_reps_does_not_create_the_experiment_directory(
+    tmp_path: Path, two_scenario_dir: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runs_dir = tmp_path / "runs"
+
+    code = main(
+        [
+            "run",
+            "--scenarios",
+            str(two_scenario_dir),
+            "--exp-id",
+            "ghost",
+            "--runs-dir",
+            str(runs_dir),
+            "--reps",
+            "0",
+        ],
+        llm_factory=make_canned_llm,
+    )
+
+    assert code == 1
+    assert "reps" in capsys.readouterr().err
+    assert not (runs_dir / "ghost").exists()

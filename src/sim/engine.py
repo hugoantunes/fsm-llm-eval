@@ -6,27 +6,23 @@ each attempted transition. :mod:`sim.events` classifies the user turn that
 feeds :meth:`FsmEngine.apply`.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from transitions import Machine
 
-from sim.events import NONE, detect_user_event, patterned_keys_required_for_every_intent
+from sim.events import (
+    NONE,
+    Detection,
+    detect_user_event,
+    machine_rules,
+    patterned_keys_required_for_every_intent,
+    required_data_held,
+)
 from sim.fsm import FsmError, FsmSpec, Transition
 from sim.kb import KnowledgeBase
 from sim.llm import Chat
 from sim.prompts import DEFAULT_PROMPTS_DIR
-
-
-@dataclass(frozen=True)
-class TransitionRecord:
-    """One attempted edge: whether it fired, and the states around it."""
-
-    turn: int
-    source: str
-    dest: str
-    event: str
-    valid: bool
+from sim.schemas import FiredBy, TransitionRecord
 
 
 class FsmEngine:
@@ -34,7 +30,9 @@ class FsmEngine:
 
     Accepting states are not terminal: ``out_of_scope`` still leaves for
     identification or closing. A failed guard or a ``none`` event keeps the
-    dialogue where it is and records ``valid=False``.
+    dialogue where it is and records ``valid=False``. ``history`` is every edge
+    of the whole dialogue, in order, each one saying whether the customer fired
+    it or the engine advanced on its own.
     """
 
     def __init__(
@@ -51,6 +49,7 @@ class FsmEngine:
         self._llm = llm
         self._prompts_dir = prompts_dir
         self._seed = seed
+        self._rules = machine_rules(spec, kb.user_data_fields, kb.intents())
         self.collected: dict[str, str] = {}
         self.intent: str | None = None
         self.history: list[TransitionRecord] = []
@@ -79,8 +78,14 @@ class FsmEngine:
 
     def step(
         self, user_message: str, *, turn: int, transcript: str | None = None
-    ) -> TransitionRecord:
-        """Detect the user event in ``user_message`` and apply it."""
+    ) -> tuple[TransitionRecord, ...]:
+        """Detect the user event in ``user_message`` and walk what it opens.
+
+        Returns every edge this turn attempted, in order: the customer's own
+        event first, fired or refused, then whatever the machine could advance
+        on its own. Each one is an edge of ``machine.yaml``, so the log keeps a
+        real path rather than the endpoints of a jump (T-13).
+        """
         detection = detect_user_event(
             user_message,
             state=self.state,
@@ -95,11 +100,14 @@ class FsmEngine:
             seed=self._seed,
         )
         self.collected.update(detection.slots)
-        if detection.event == "intent_classified":
-            self.intent = detection.intent
-        return self.apply(detection.event, turn=turn)
+        self._remember_intent(detection)
+        walked = [self.apply(detection.event, turn=turn)]
+        walked.extend(self._advance_when_ready(turn))
+        return tuple(walked)
 
-    def apply(self, event: str, *, turn: int) -> TransitionRecord:
+    def apply(
+        self, event: str, *, turn: int, fired_by: FiredBy = "user"
+    ) -> TransitionRecord:
         """Fire ``event`` from the current state, or stay if it cannot fire."""
         source = self.state
         if event != NONE and event in self._spec.events_for(source):
@@ -111,9 +119,47 @@ class FsmEngine:
             dest=dest,
             event=event,
             valid=dest != source,
+            fired_by=fired_by,
         )
         self.history.append(record)
         return record
+
+    def _remember_intent(self, detection: Detection) -> None:
+        """Keep the first request named, and revise it only where it is settled.
+
+        The classifier reports an intent on any event, which is how a request
+        named in ``greeting`` survives to the state that acts on it. Letting any
+        later event overwrite it would swap the released facts mid-dialogue
+        without a word, so only the intent event itself may change it.
+        """
+        if detection.intent is None:
+            return
+        if self.intent is None or detection.event == self._rules.intent_event:
+            self.intent = detection.intent
+
+    def _advance_when_ready(self, turn: int) -> list[TransitionRecord]:
+        """Leave every state that has nothing left to do after the user event.
+
+        Identification already complete, every required datum already in hand:
+        the agent must speak from the first state that still has work, or it
+        asks for what it holds and never receives the facts of the classified
+        request. The edges are the machine's own, tried in the order a dialogue
+        reaches them.
+
+        ``intent_classified`` is deliberately not among them. A request the
+        classifier read wrong in the opening turn would be final, because the
+        one state built to settle it would never be spoken from; the classifier
+        is asked there instead, with the whole transcript in front of it.
+        """
+        ready = (
+            (self._rules.identify_event, self.order_and_email_present()),
+            (self._rules.collect_event, self.required_data_collected()),
+        )
+        walked: list[TransitionRecord] = []
+        for event, holds in ready:
+            if holds and event in self._spec.events_for(self.state):
+                walked.append(self.apply(event, turn=turn, fired_by="engine"))
+        return walked
 
     def order_and_email_present(self) -> bool:
         """Guard: every patterned field every intent requires is in hand."""
@@ -126,12 +172,8 @@ class FsmEngine:
 
     def required_data_collected(self) -> bool:
         """Guard: every field the classified intent requires is in hand."""
-        if self.intent is None:
-            return False
-        return all(
-            field.key in self.collected
-            for field in self._kb.user_data_fields
-            if self.intent in field.required_for
+        return required_data_held(
+            self._kb.user_data_fields, self.intent, self.collected
         )
 
 

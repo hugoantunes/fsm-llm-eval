@@ -42,6 +42,11 @@ StopReason = Literal["goal_reached", "user_gave_up", "agent_closed", "max_turns"
 #: Whether that dialogue produced a complete log or stopped on an error.
 DialogueStatus = Literal["ok", "failed"]
 
+#: Who fired one edge of the machine: the customer's own event, or the engine
+#: leaving a state that had nothing left to do (T-08). Both are edges of
+#: ``machine.yaml``; only the first is something the customer did.
+FiredBy = Literal["user", "engine"]
+
 
 class ScenarioError(ValueError):
     """A scenario is malformed; the message says what to fix and where."""
@@ -78,13 +83,35 @@ def as_messages(
     ]
 
 
+class TransitionRecord(BaseModel):
+    """One attempted edge of the machine: whether it fired, and its endpoints.
+
+    Every record is one transition of ``machine.yaml``. A turn produces a list of
+    them, so the states the dialogue passed through are in the log and T-13 can
+    ask whether the sequence is a path of the FSM, count the transitions and the
+    self-loops, and score the stage labeler against a true state per turn.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn: int
+    source: str
+    dest: str
+    event: str
+    valid: bool
+    fired_by: FiredBy
+
+
 class TurnRecord(BaseModel):
     """What one agent turn produced: the reply and what the metrics need (T-09).
 
     Both agents fill the same record, which is what makes them comparable;
-    ``state_before``, ``state_after`` and ``event`` are the FSM bookkeeping of
-    T-10 and stay ``None`` for the baseline, whose path is reconstructed by the
-    stage labeler of T-13 instead.
+    ``state_before``, ``state_after``, ``event`` and ``transitions`` are the FSM
+    bookkeeping of T-10 and stay empty for the baseline, whose path is
+    reconstructed by the stage labeler of T-13 instead. ``state_before`` and
+    ``state_after`` are where the turn began and ended, which is what the labeler
+    is compared against; ``transitions`` is the walk between them, edge by edge,
+    because one user turn can open more than one.
 
     The prompt itself is not stored here: ``prompt_hash`` addresses it in the
     ``llm_calls.jsonl`` of T-07, which is the same key its cache uses, so the text
@@ -110,6 +137,7 @@ class TurnRecord(BaseModel):
     state_before: str | None = None
     state_after: str | None = None
     event: str | None = None
+    transitions: list[TransitionRecord] = Field(default_factory=list)
 
 
 class DialogueLog(BaseModel):

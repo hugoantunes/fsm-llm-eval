@@ -19,7 +19,7 @@ from sim.fsm import DEFAULT_FSM_DIR, FsmSpec
 from sim.kb import Fact, KnowledgeBase, UserDataField
 from sim.llm import Chat
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
-from sim.schemas import Turn, TurnRecord, as_messages
+from sim.schemas import TransitionRecord, Turn, TurnRecord, as_messages
 
 #: The block both agents include, word for word: persona, tone, general rules.
 SHARED_PROMPT = "agent_shared"
@@ -41,13 +41,15 @@ class Instruction:
     """What an agent decided to send this turn, and how it got there.
 
     The baseline sends the same system prompt every turn and leaves the rest
-    empty; the FSM agent of T-10 fills the state and the event it detected.
+    empty; the FSM agent of T-10 fills the state, the event it detected and the
+    edges that event walked.
     """
 
     system_prompt: str
     state_before: str | None = None
     state_after: str | None = None
     event: str | None = None
+    transitions: tuple[TransitionRecord, ...] = ()
 
 
 class Agent(ABC):
@@ -99,6 +101,7 @@ class Agent(ABC):
             state_before=instruction.state_before,
             state_after=instruction.state_after,
             event=instruction.event,
+            transitions=list(instruction.transitions),
         )
 
     @abstractmethod
@@ -172,9 +175,12 @@ class FsmAgent(Agent):
 
         The customer's turn moves the machine; the agent then speaks from
         ``state_after``, with that state's package and the facts it releases.
+        One turn can walk more than one edge, so the whole walk is recorded
+        beside its endpoints: the states in between are where the dialogue
+        really went, and nothing else would tell T-13 that it was a path.
         """
         source = self._engine.state
-        record = self._engine.step(
+        walk = self._engine.step(
             history[-1].text,
             turn=sum(1 for turn in history if turn.speaker == "user"),
             transcript=_transcript(history),
@@ -184,7 +190,8 @@ class FsmAgent(Agent):
             system_prompt=self._render(dest),
             state_before=source,
             state_after=dest,
-            event=record.event,
+            event=walk[0].event,
+            transitions=walk,
         )
 
     def _render(self, state: str) -> str:

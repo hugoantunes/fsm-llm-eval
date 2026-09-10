@@ -17,6 +17,11 @@ DEFAULT_KB_DIR = Path("data/kb")
 #: not an intent a customer arrives with and which no scenario addresses (T-05).
 GENERAL_INTENT = "general"
 
+#: A fact identifier wherever it appears in a text, as in "the e-mail (F05)".
+#: The state packages of T-02 and the agents' instruction files are checked
+#: against it, so the shape of an ID is written in one place.
+FACT_ID = re.compile(r"\bF\d{2}\b")
+
 #: ``## Order tracking · `order_tracking` `` — human title plus the intent slug.
 _SECTION = re.compile(r"^##\s+(?P<title>.+?)\s+·\s+`(?P<intent>[a-z_]+)`\s*$")
 #: ``- **F14** — Items bought on promotion...`` — one atomic fact per line.

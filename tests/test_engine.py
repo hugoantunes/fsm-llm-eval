@@ -2,16 +2,21 @@
 
 import pytest
 
+from helpers import ORDER_AND_EMAIL, PROMPTS_DIR, FakeLlm, classifier_reply
 from sim.engine import NONE, FsmEngine
 from sim.events import patterned_keys_required_for_every_intent
 from sim.fsm import FsmSpec, Transition
 from sim.kb import KnowledgeBase
 
+#: One message carrying both identifying data, so the rules alone can walk the
+#: engine several states forward without the classifier being asked anything.
+IDENTIFIED = "My order is NL-20260145 and the email is jane@example.com."
+
 
 @pytest.fixture
 def fsm_engine(real_fsm: FsmSpec, real_kb: KnowledgeBase) -> FsmEngine:
     """A fresh engine on the real machine; mutable, so one per test."""
-    return FsmEngine(real_fsm, kb=real_kb)
+    return FsmEngine(real_fsm, kb=real_kb, prompts_dir=PROMPTS_DIR)
 
 
 def test_engine_starts_in_the_initial_state(
@@ -33,8 +38,79 @@ def test_every_real_transition_fires_when_its_guard_is_met(
         assert record.source == transition.source
         assert record.dest == transition.dest
         assert record.event == transition.event
+        assert record.fired_by == "user"
         assert engine.state == transition.dest
         assert engine.history[-1] == record
+
+
+def settled_in_intent_classification(
+    spec: FsmSpec, kb: KnowledgeBase, intent: str = "order_tracking"
+) -> FsmEngine:
+    """An engine one classifier answer away from the solution of ``intent``.
+
+    Parked where the request is settled, with the identifying data already
+    collected, so the next turn walks the user's own edge and then the one the
+    engine fires because ``data_collection`` has nothing left to ask.
+    """
+    llm = FakeLlm([classifier_reply("intent_classified", intent)])
+    engine = FsmEngine(spec, kb=kb, llm=llm, prompts_dir=PROMPTS_DIR)
+    engine.park("intent_classification")
+    engine.collected.update(ORDER_AND_EMAIL)
+    return engine
+
+
+def test_a_turn_records_every_edge_it_walks_and_who_fired_it(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    engine = settled_in_intent_classification(real_fsm, real_kb)
+
+    walk = engine.step("I want to know where my package is.", turn=1)
+
+    assert [(edge.source, edge.event, edge.dest, edge.fired_by) for edge in walk] == [
+        ("intent_classification", "intent_classified", "data_collection", "user"),
+        ("data_collection", "data_provided", "solution", "engine"),
+    ]
+    assert all(edge.turn == 1 and edge.valid for edge in walk)
+    assert list(engine.history) == list(walk)
+
+
+def test_every_walked_edge_is_a_transition_of_the_machine(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    edges = {(edge.source, edge.event, edge.dest) for edge in real_fsm.transitions}
+    engine = settled_in_intent_classification(real_fsm, real_kb)
+
+    walk = engine.step("I want to know where my package is.", turn=1)
+
+    assert all((edge.source, edge.event, edge.dest) in edges for edge in walk)
+    assert [edge.source for edge in walk[1:]] == [edge.dest for edge in walk[:-1]]
+
+
+def test_a_request_already_named_still_passes_through_intent_classification(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm([classifier_reply("request_received", "order_tracking")])
+    engine = FsmEngine(real_fsm, kb=real_kb, llm=llm, prompts_dir=PROMPTS_DIR)
+
+    engine.step(f"Where is my order? {IDENTIFIED}", turn=1)
+
+    assert engine.intent == "order_tracking"
+    assert engine.state == "intent_classification"
+
+
+def test_identification_completed_in_the_opening_message_does_not_wait(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm([classifier_reply("request_received")])
+    engine = FsmEngine(real_fsm, kb=real_kb, llm=llm, prompts_dir=PROMPTS_DIR)
+
+    walk = engine.step(f"Hi, where is my order? {IDENTIFIED}", turn=1)
+
+    assert [(edge.event, edge.fired_by) for edge in walk] == [
+        ("request_received", "user"),
+        ("order_identified", "engine"),
+    ]
+    assert engine.state == "intent_classification"
 
 
 @pytest.mark.parametrize(

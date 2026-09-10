@@ -103,7 +103,6 @@ def _run(args: argparse.Namespace, *, llm_factory: LlmFactory | None) -> int:
     scenarios_dir = Path(args.scenarios)
     scenarios = load_scenarios(scenarios_dir, kb=kb, fsm=fsm)
     run_dir = Path(args.runs_dir) / args.exp_id
-    run_dir.mkdir(parents=True, exist_ok=True)
     factory = llm_factory or _shared_client(config, run_dir)
     agents = args.agent or list(AGENTS)
     bar = tqdm(

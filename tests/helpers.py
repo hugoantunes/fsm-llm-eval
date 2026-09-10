@@ -213,6 +213,10 @@ def classifier_reply(event: str, intent: str | None = None) -> str:
     return json.dumps({"event": event, "intent": intent})
 
 
+#: The two patterned data every intent requires, as already collected slots:
+#: what the identification guard reads, so a test can park past it.
+ORDER_AND_EMAIL = {"order_number": "NL-20260145", "email": "jane@example.com"}
+
 #: One canned user turn that ends the dialogue after the agent's first reply.
 CANNED_USER_TURN = "Hi, where is my order?"
 CANNED_AGENT_REPLY = "Hello from support."
@@ -284,6 +288,26 @@ def load_labeled_events(path: Path = LABELED_EVENTS) -> list[LabeledEvent]:
         if line.strip():
             rows.append(LabeledEvent.model_validate(json.loads(line)))
     return rows
+
+
+def labeled_utterance(
+    events: Sequence[LabeledEvent],
+    state: str,
+    event: str,
+    *,
+    intent: str | None = None,
+) -> LabeledEvent:
+    """Return the first gold line for ``state`` / ``event`` / ``intent``."""
+    matches = [
+        row
+        for row in events
+        if row.state == state
+        and row.event == event
+        and (intent is None or row.intent == intent)
+    ]
+    if not matches:
+        raise AssertionError(f"no gold utterance for {state}/{event}/{intent}")
+    return matches[0]
 
 
 def load_script(relative_path: str) -> ModuleType:

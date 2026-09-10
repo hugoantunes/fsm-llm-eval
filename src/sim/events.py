@@ -5,12 +5,17 @@ farewell list first. Only when they do not fire does the small model classify,
 constrained to the events the current state accepts plus ``none``. Pattern-less
 fields (item, reason, preferred resolution) come back on that schema so the
 guard of ``data_collection`` can see them.
+
+Every rule here is about what the customer just did. What the dialogue already
+holds — the intent, the required data — moves the machine through
+:meth:`sim.engine.FsmEngine._advance_when_ready` instead, after the classifier
+has had its turn to answer.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -38,6 +43,11 @@ _FAREWELL = re.compile(
 _IDENTIFY_GUARD = "order_and_email_present"
 _COLLECT_GUARD = "required_data_collected"
 
+#: The unguarded edge that settles which of the four requests this is. It is the
+#: one rule edge no guard names, so it is looked up by event; ``machine.yaml``
+#: stays the only place the name is written, and a rename raises there.
+INTENT_EVENT = "intent_classified"
+
 CLASSIFIER = "classifier"
 
 #: Keys of the classifier schema that are not slot values.
@@ -58,14 +68,19 @@ class EventError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class _SlotRules:
-    """The slot-rule edges and keys, read from the spec and the field list."""
+class MachineRules:
+    """The edges the detector and the engine key their rules off.
+
+    Every name is read from ``machine.yaml``, so renaming an event or a guard
+    there raises here instead of silently switching a rule off.
+    """
 
     identify_state: str
     identify_event: str
     identify_keys: tuple[str, ...]
     collect_state: str
     collect_event: str
+    intent_event: str
 
 
 def patterned_keys_required_for_every_intent(
@@ -90,6 +105,17 @@ def patterned_keys_required_for_every_intent(
     return keys
 
 
+def required_data_held(
+    fields: Sequence[UserDataField],
+    intent: str | None,
+    held: Mapping[str, str],
+) -> bool:
+    """Return whether every field the classified intent requires is in ``held``."""
+    if intent is None:
+        return False
+    return all(item.key in held for item in fields if intent in item.required_for)
+
+
 def detect_user_event(
     message: str,
     *,
@@ -104,13 +130,20 @@ def detect_user_event(
     prompts_dir: Path = DEFAULT_PROMPTS_DIR,
     seed: int | None = None,
 ) -> Detection:
-    """Return the user event for ``message`` in ``state``, rules first."""
+    """Return the user event for ``message`` in ``state``, rules first.
+
+    A rule fires only on something the customer did this turn: said goodbye,
+    completed the identification, sent or corrected a datum. That a state has
+    nothing left to do is not a user event and is not detected here; the engine
+    advances on its own afterwards, so every state keeps listening for the
+    classifier's answer instead of being short-circuited by what is already held.
+    """
     allowed = spec.events_for(state)
     slots = _extract_slots(message, fields)
     held = {**collected, **slots}
     changed = [key for key, value in slots.items() if collected.get(key) != value]
     free_text = _patternless_for_intent(fields, intent)
-    rules = _slot_rules(spec, fields, intents)
+    rules = machine_rules(spec, fields, intents)
 
     if _FAREWELL_EVENT in allowed and _FAREWELL.search(message):
         return Detection(_FAREWELL_EVENT, slots=slots)
@@ -160,10 +193,10 @@ def user_event_schema(
     )
 
 
-def _slot_rules(
+def machine_rules(
     spec: FsmSpec, fields: Sequence[UserDataField], intents: Sequence[str]
-) -> _SlotRules:
-    """Derive the slot rules from the guarded edges and ``required_for``."""
+) -> MachineRules:
+    """Derive the rule edges from the guarded edges and ``required_for``."""
     names = {edge.event for edge in spec.transitions}
     if _FAREWELL_EVENT not in names:
         raise EventError(
@@ -173,12 +206,14 @@ def _slot_rules(
         )
     identify = _unique_guarded_edge(spec, _IDENTIFY_GUARD)
     collect = _unique_guarded_edge(spec, _COLLECT_GUARD)
-    return _SlotRules(
+    intent_edge = _unique_named_event(spec, INTENT_EVENT)
+    return MachineRules(
         identify_state=identify.source,
         identify_event=identify.event,
         identify_keys=patterned_keys_required_for_every_intent(fields, intents),
         collect_state=collect.source,
         collect_event=collect.event,
+        intent_event=intent_edge.event,
     )
 
 
@@ -191,6 +226,21 @@ def _unique_guarded_edge(spec: FsmSpec, guard: str) -> Transition:
             f"(found {len(matches)}). The detector keys the slot rules off that "
             f"edge so a rename in the YAML cannot silently fall through to the "
             f"classifier"
+        )
+    return matches[0]
+
+
+def _unique_named_event(spec: FsmSpec, event: str) -> Transition:
+    """Return the single non-star transition for ``event``, or raise."""
+    matches = [
+        edge for edge in spec.transitions if edge.event == event and not edge.from_any
+    ]
+    if len(matches) != 1:
+        raise EventError(
+            f"machine.yaml must have exactly one non-star transition for "
+            f"{event!r} (found {len(matches)}). The detector keys the already-"
+            f"known-intent rule off that edge so a rename cannot silently fall "
+            f"through to the classifier"
         )
     return matches[0]
 
@@ -281,7 +331,7 @@ def _classify_with_llm(
     payload = parsed.model_dump()
     event = payload["event"]
     classified_intent = payload["intent"]
-    if event == "intent_classified" and classified_intent is None:
+    if event == INTENT_EVENT and classified_intent is None:
         raise EventError(
             f"event intent_classified in state {state!r} with no intent "
             f"(transcript: {transcript!r}). The classifier must name one of "
