@@ -1,7 +1,7 @@
 """Command-line entry point: ``python -m sim {run,eval}``.
 
 ``sim run`` (T-14a) plays dialogues into ``runs/<exp_id>/``. ``sim eval``
-(T-14b) is not implemented yet.
+(T-14b) scores those logs into ``metrics.csv`` and ``metrics_turn.csv``.
 """
 
 from __future__ import annotations
@@ -15,9 +15,10 @@ from tqdm import tqdm
 
 from sim import __version__
 from sim.config import ModelsConfig, load_models_config
+from sim.eval import EvalError, evaluate_run
 from sim.fsm import load_fsm
 from sim.kb import load_kb
-from sim.llm import LLM_CALLS_LOG, LlmClient
+from sim.llm import LLM_CALLS_LOG, Chat, LlmClient
 from sim.runner import AGENTS, LlmFactory, RunnerError, run_experiment
 from sim.schemas import load_scenarios
 
@@ -76,22 +77,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(
-    argv: Sequence[str] | None = None, *, llm_factory: LlmFactory | None = None
+    argv: Sequence[str] | None = None,
+    *,
+    llm_factory: LlmFactory | None = None,
+    eval_llm: Chat | None = None,
 ) -> int:
     """Parse ``argv`` and dispatch to the requested subcommand.
 
-    ``llm_factory`` is a test seam: production builds one :class:`LlmClient`
-    shared by every dialogue.
+    ``llm_factory`` is the test seam for ``run`` (one fake per dialogue job).
+    ``eval_llm`` is the seam for ``eval`` (one client for the judge and labeler).
+    Production builds one :class:`LlmClient` on the experiment cache.
 
     Returns the process exit code.
     """
     args = build_parser().parse_args(argv)
     if args.command == "eval":
-        print(
-            "sim: 'eval' is not implemented yet (see T-14b in TICKETS.md)",
-            file=sys.stderr,
-        )
-        return 1
+        return _eval(args, llm=eval_llm)
     return _run(args, llm_factory=llm_factory)
 
 
@@ -149,13 +150,60 @@ def _run(args: argparse.Namespace, *, llm_factory: LlmFactory | None) -> int:
     return 1 if manifest.n_failed else 0
 
 
-def _shared_client(config: ModelsConfig, run_dir: Path) -> LlmFactory:
-    """One cached client for the process, shared across the thread pool."""
-    client = LlmClient(
+def _eval(args: argparse.Namespace, *, llm: Chat | None) -> int:
+    """Score the dialogues under ``--run`` and write the two CSVs."""
+    run_dir = Path(args.run)
+    config = load_models_config()
+    kb = load_kb()
+    fsm = load_fsm(kb=kb)
+    client = llm or _client(config, run_dir)
+    bar = tqdm(
+        total=0,
+        unit="dlg",
+        disable=not sys.stderr.isatty(),
+        desc=run_dir.name,
+    )
+
+    def on_progress(done: int, total: int) -> None:
+        if bar.total != total:
+            bar.total = total
+        bar.n = done
+        bar.refresh()
+
+    try:
+        result = evaluate_run(
+            run_dir,
+            llm=client,
+            kb=kb,
+            fsm=fsm,
+            config=config,
+            on_progress=on_progress,
+        )
+    except EvalError as failure:
+        print(f"sim: {failure}", file=sys.stderr)
+        return 1
+    finally:
+        bar.close()
+    print(
+        f"sim: scored {result.n_scored} dialogue(s) in {run_dir} "
+        f"({result.n_failed} failed, metrics.csv, metrics_turn.csv)",
+        file=sys.stdout,
+    )
+    return 0
+
+
+def _client(config: ModelsConfig, run_dir: Path) -> LlmClient:
+    """One cached client on the experiment directory, shared by run and eval."""
+    return LlmClient(
         config,
         cache_dir=run_dir / "cache",
         log_path=run_dir / LLM_CALLS_LOG,
     )
+
+
+def _shared_client(config: ModelsConfig, run_dir: Path) -> LlmFactory:
+    """One cached client for the process, shared across the thread pool."""
+    client = _client(config, run_dir)
     return lambda _job: client
 
 

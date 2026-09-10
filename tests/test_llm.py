@@ -7,11 +7,10 @@ from typing import Any, Literal
 
 import httpx
 import pytest
-from ollama import ChatResponse, ResponseError, ShowResponse
-from ollama._types import Message
+from ollama import ResponseError
 from pydantic import BaseModel
 
-from helpers import MINIMAL_MODELS_YAML, write_models_config
+from helpers import MINIMAL_MODELS_YAML, FakeOllama, reply, write_models_config
 from sim.config import load_models_config
 from sim.llm import LlmCallError, LlmClient, LlmError, PromptTooLongError
 
@@ -20,62 +19,6 @@ class Event(BaseModel):
     """A schema with an enum, the shape the classifier of T-08 will use."""
 
     event: Literal["order_identified", "intent_classified", "none"]
-
-
-def reply(
-    text: str = "hello",
-    *,
-    prompt_tokens: int | None = 100,
-    output_tokens: int = 5,
-) -> ChatResponse:
-    """Build the response the real Ollama would return for one chat call."""
-    return ChatResponse(
-        model="agent-model",
-        message=Message(role="assistant", content=text),
-        done=True,
-        prompt_eval_count=prompt_tokens,
-        eval_count=output_tokens,
-    )
-
-
-class FakeOllama:
-    """Stand-in for ``ollama.Client``: records the calls, returns canned replies.
-
-    The replies are real ``ChatResponse`` objects, so the fake cannot drift from
-    the fields the client reads.
-    """
-
-    def __init__(
-        self,
-        replies: list[ChatResponse | Exception] | None = None,
-        *,
-        capabilities: list[str] | None = None,
-        show_errors: list[Exception] | None = None,
-    ) -> None:
-        self.replies = replies if replies is not None else [reply()]
-        self.capabilities = (
-            ["completion", "thinking"] if capabilities is None else capabilities
-        )
-        self.show_errors = list(show_errors or [])
-        self.calls: list[dict[str, Any]] = []
-        self.shown: list[str] = []
-
-    def chat(self, **kwargs: Any) -> ChatResponse:
-        """Record the call and hand back the next canned reply."""
-        self.calls.append(kwargs)
-        if not self.replies:
-            raise AssertionError("FakeOllama ran out of replies")
-        answer = self.replies.pop(0)
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
-
-    def show(self, model: str) -> ShowResponse:
-        """Record the capability probe and report the configured capabilities."""
-        self.shown.append(model)
-        if self.show_errors:
-            raise self.show_errors.pop(0)
-        return ShowResponse(model_info={}, capabilities=self.capabilities)
 
 
 def read_log(tmp_path: Path) -> list[dict[str, Any]]:

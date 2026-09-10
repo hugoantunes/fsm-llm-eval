@@ -1,12 +1,10 @@
 """Tests for the experiment runner of T-14a."""
 
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import pytest
 
-from helpers import CONFIG, EXAMPLES_DIR
+from helpers import CONFIG, EXAMPLES_DIR, RunCanned
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
 from sim.events import EventError
@@ -25,39 +23,6 @@ from sim.runner import (
     run_experiment,
 )
 from sim.schemas import DialogueLog, Manifest, Scenario
-
-RunCanned = Callable[..., Manifest]
-
-
-@pytest.fixture
-def run_canned(
-    real_kb: KnowledgeBase,
-    real_fsm: FsmSpec,
-    run_dir: Path,
-    two_example_scenarios: tuple[Scenario, Scenario],
-) -> RunCanned:
-    """Run the experiment on the 2x2 pair with a one-turn fake per job."""
-    config = load_models_config(CONFIG)
-
-    def _run(**kwargs: Any) -> Manifest:
-        params: dict[str, Any] = {
-            "scenarios": list(two_example_scenarios),
-            "agents": AGENTS,
-            "reps": 1,
-            "parallel": 1,
-            "resume": False,
-            "run_dir": run_dir,
-            "llm_factory": make_canned_llm,
-            "kb": real_kb,
-            "fsm": real_fsm,
-            "config": config,
-            "scenarios_dir": EXAMPLES_DIR,
-            "exp_id": "exp",
-        }
-        params.update(kwargs)
-        return run_experiment(**params)
-
-    return _run
 
 
 def test_jobs_are_ordered_repetition_then_scenario_then_agent(

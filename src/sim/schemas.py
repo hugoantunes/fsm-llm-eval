@@ -154,6 +154,18 @@ class TurnRecord(BaseModel):
     transitions: list[TransitionRecord] = Field(default_factory=list)
 
 
+def transcript_from_records(records: Sequence[TurnRecord]) -> list[Turn]:
+    """Flatten each turn record into the user then agent lines the judge reads."""
+    return [
+        turn
+        for record in records
+        for turn in (
+            Turn(speaker="user", text=record.user_message),
+            Turn(speaker="agent", text=record.agent_reply),
+        )
+    ]
+
+
 class DialogueLog(BaseModel):
     """One dialogue as stored under ``runs/<exp_id>/dialogues/`` (T-14a).
 
@@ -171,6 +183,11 @@ class DialogueLog(BaseModel):
     error: str | None = None
     stop_reason: StopReason | None = None
     records: list[TurnRecord] = Field(default_factory=list)
+
+    @property
+    def transcript(self) -> list[Turn]:
+        """The user and agent turns, flattened from ``records``."""
+        return transcript_from_records(self.records)
 
 
 class JobRef(BaseModel):

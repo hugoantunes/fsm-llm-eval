@@ -12,9 +12,9 @@ plan, the ticket board (T-01 to T-24), the decisions table and the session log l
 `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`), outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
-> Status: `sim run` (T-14a) is in place. The blind two-call judge (T-12) and the
-> deterministic evaluators and stage labeler (T-13) are in place. Metrics and
-> rubrics: T-04, `docs/metrics.md`. `sim eval` is T-14b and is not implemented yet.
+> Status: `sim run` (T-14a) and `sim eval` (T-14b) are in place. The blind two-call
+> judge (T-12) and the deterministic evaluators and stage labeler (T-13) score the
+> logs. Metrics and rubrics: T-04, `docs/metrics.md`.
 
 ## Requirements
 
@@ -88,6 +88,15 @@ just run exp data/scenarios/examples 3 2
 just run exp data/scenarios/examples 3 2 --resume
 ```
 
+Score a run without re-playing the dialogues (`just eval runs/<exp_id>`). Judge and
+labeler calls go through the same prompt-hash cache, so a second eval of the same
+directory is free when the rubrics have not changed:
+
+```bash
+just eval runs/exp
+# uv run python -m sim eval --run runs/exp
+```
+
 Equivalent without `just`:
 
 ```bash
@@ -105,7 +114,9 @@ repo, empty until the first run; change the parent with `--runs-dir`):
 |---|---|
 | `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop reason, and per turn the FSM states, the user event and every edge the turn walked (empty on the baseline) |
 | `manifest.json` | config, dataset hash, model digests, `num_ctx`, prompt versions, job list, throughput, LLM call / cache-hit counts |
-| `llm_calls.jsonl`, `cache/` | every LLM call (`baseline`, `fsm`, `simulated_user`, `classifier`), keyed by prompt hash. Compact JSON: `"cached":true` has no space after the colon |
+| `llm_calls.jsonl`, `cache/` | every LLM call (`baseline`, `fsm`, `simulated_user`, `classifier`, then `judge_facts`, `judge_global`, `stage_labeler` after eval), keyed by prompt hash. Compact JSON: `"cached":true` has no space after the colon |
+| `metrics.csv` | one row per ok dialogue: identity columns plus every metric of T-04 |
+| `metrics_turn.csv` | one row per agent turn: labelled stage and, on the FSM side, true `state_after` |
 
 The schedule is repetition → scenario → agent, so after repetition K the paired dataset is
 complete and extra reps are incremental. `--resume` skips a job iff its final JSONL exists; a
@@ -113,8 +124,13 @@ leftover `.tmp` is not complete and that job runs again. A failed dialogue is re
 (`status=failed`) and does not abort the rest; delete its file to retry. The process exits 1 if
 any dialogue failed. `--parallel` is a thread pool of dialogues, matched to `OLLAMA_NUM_PARALLEL`.
 
-`sim eval` (T-14b) will read a `runs/<exp_id>/` and write `metrics.csv` without re-executing; it is
-not implemented yet.
+`sim eval` reads a `runs/<exp_id>/` and writes `metrics.csv` and `metrics_turn.csv`
+there, without re-executing the dialogues. Failed logs are skipped. Dialogues are
+shuffled before the judge (seed from `configs/models.yaml`). CSV rows follow the
+manifest's job list, then any other ok logs on disk (a later `--agent fsm --resume`
+must not drop the baseline half). Re-eval of a growing directory after `rsync` is
+free via the cache: it does not need named blocks. The scenario files must still hash
+to `manifest.dataset_hash`.
 
 Full execution (T-17), on the Air: `caffeinate -is uv run python -m sim run ... --parallel 2`, in
 blocks with `--resume`; after each block, `rsync -av runs/ <pro>:~/projects/fsm-llm-eval/runs/` and
@@ -153,8 +169,8 @@ Parts that do not exist yet are marked with the ticket that creates them.
 | `data/prompts/` | versioned prompts: baseline, FSM template, simulated user, event classifier, stage labeler, judge shared/facts/global |
 | `data/scenarios/` | golden dataset: `examples/` (T-05) and `v1/`, frozen by hash (T-06) |
 | `configs/` | `models.yaml`: models, digests, `num_ctx`, fixed parameters |
-| `runs/` | output of `sim run` and the LLM call cache. Contents git-ignored; moved between machines by `rsync` |
-| `results/` | `metrics.csv`, `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-14b, T-19, T-20; CSVs git-ignored, regenerated from `runs/`) |
+| `runs/` | output of `sim run` / `sim eval`: dialogues, manifest, LLM cache, `metrics.csv`, `metrics_turn.csv`. Contents git-ignored; moved between machines by `rsync` |
+| `results/` | `metrics.csv` (T-18, audited copy), `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-19, T-20; CSVs git-ignored, regenerated from `runs/`) |
 | `notebooks/` | `analysis.ipynb`: regenerates tables and figures from `metrics.csv` (T-20) |
 | `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`; `generate_scenarios.py` (T-06) |
 | `docs/` | `setup.md`; `metrics.md`, `taxonomy.md`, `fsm.md`, `pilot.md`, `parity.md`, `judge_validation.md` and the appendices (T-02 to T-22) |

@@ -13,7 +13,7 @@ manifest, ``--resume`` and the thread pool. None of that belongs here.
 from pydantic import BaseModel, ConfigDict
 
 from sim.agents import Agent
-from sim.schemas import StopReason, Turn, TurnRecord
+from sim.schemas import StopReason, Turn, TurnRecord, transcript_from_records
 from sim.user import SimulatedUser
 
 
@@ -37,14 +37,7 @@ class DialogueResult(BaseModel):
     @property
     def transcript(self) -> list[Turn]:
         """The user and agent turns, flattened from ``records``."""
-        return [
-            turn
-            for record in self.records
-            for turn in (
-                Turn(speaker="user", text=record.user_message),
-                Turn(speaker="agent", text=record.agent_reply),
-            )
-        ]
+        return transcript_from_records(self.records)
 
 
 def run_dialogue(

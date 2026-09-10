@@ -12,6 +12,7 @@ under their own names, so the two can never be confused.
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,7 +23,9 @@ from helpers import (
     FSM_DIR,
     KB_DIR,
     PROMPTS_DIR,
+    CannedEvalLlm,
     FakeLlm,
+    RunCanned,
     make_turn_record,
 )
 from helpers import canned_llm_factory as make_canned_llm
@@ -31,7 +34,8 @@ from sim.fsm import FsmSpec, load_fsm
 from sim.kb import KnowledgeBase, load_kb
 from sim.llm import LlmClient
 from sim.prompts import Prompt, load_prompt
-from sim.schemas import Scenario, TurnRecord, load_scenarios
+from sim.runner import AGENTS, run_experiment
+from sim.schemas import Manifest, Scenario, TurnRecord, load_scenarios
 
 
 @pytest.fixture(scope="session")
@@ -156,6 +160,43 @@ def two_turn_fsm_records() -> list[TurnRecord]:
 def canned_llm_factory() -> Callable[..., FakeLlm]:
     """One-turn FakeLlm per job, so a thread pool cannot mix their queues."""
     return make_canned_llm
+
+
+@pytest.fixture
+def run_canned(
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+    run_dir: Path,
+    two_example_scenarios: tuple[Scenario, Scenario],
+) -> RunCanned:
+    """Run the experiment on the 2x2 pair with a one-turn fake per job."""
+    config = load_models_config(CONFIG)
+
+    def _run(**kwargs: Any) -> Manifest:
+        params: dict[str, Any] = {
+            "scenarios": list(two_example_scenarios),
+            "agents": AGENTS,
+            "reps": 1,
+            "parallel": 1,
+            "resume": False,
+            "run_dir": run_dir,
+            "llm_factory": make_canned_llm,
+            "kb": real_kb,
+            "fsm": real_fsm,
+            "config": config,
+            "scenarios_dir": EXAMPLES_DIR,
+            "exp_id": "exp",
+        }
+        params.update(kwargs)
+        return run_experiment(**params)
+
+    return _run
+
+
+@pytest.fixture
+def canned_eval_llm() -> CannedEvalLlm:
+    """Repeating judge and labeler answers, so a second eval does not run dry."""
+    return CannedEvalLlm()
 
 
 @pytest.fixture(scope="session")

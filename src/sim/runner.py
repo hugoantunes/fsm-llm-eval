@@ -85,10 +85,18 @@ def dialogue_seed(base: int, scenario_id: str, repetition: int) -> int:
     return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
 
 
+def dialogue_filename(scenario_id: str, agent: str, repetition: int) -> str:
+    """Return the JSONL file name of one (scenario, agent, repetition)."""
+    return f"{scenario_id}__{agent}__rep{repetition:02d}.jsonl"
+
+
 def dialogue_path(run_dir: Path, job: DialogueJob) -> Path:
     """Return the JSONL path of ``job`` under ``run_dir``."""
-    name = f"{job.scenario.id}__{job.agent}__rep{job.repetition:02d}.jsonl"
-    return run_dir / "dialogues" / name
+    return (
+        run_dir
+        / "dialogues"
+        / dialogue_filename(job.scenario.id, job.agent, job.repetition)
+    )
 
 
 def hash_dataset(directory: Path) -> str:

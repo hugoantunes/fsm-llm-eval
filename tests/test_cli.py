@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from helpers import CannedEvalLlm, RunCanned
 from helpers import canned_llm_factory as make_canned_llm
 from sim import __version__
 from sim.__main__ import AGENTS, build_parser, main
@@ -91,9 +92,29 @@ def test_eval_parses_run_directory() -> None:
     assert args.run == "runs/exp_pilot"
 
 
-def test_eval_is_not_implemented_yet(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["eval", "--run", "runs/exp_pilot"]) == 1
-    assert "not implemented" in capsys.readouterr().err
+def test_eval_writes_metrics_into_the_run_directory(
+    run_canned: RunCanned,
+    run_dir: Path,
+    canned_eval_llm: CannedEvalLlm,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run_canned()
+
+    code = main(["eval", "--run", str(run_dir)], eval_llm=canned_eval_llm)
+
+    assert code == 0
+    assert (run_dir / "metrics.csv").exists()
+    assert (run_dir / "metrics_turn.csv").exists()
+    assert "0 failed" in capsys.readouterr().out
+
+
+def test_eval_cli_exits_1_when_the_manifest_is_missing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = main(["eval", "--run", str(tmp_path / "ghost")])
+
+    assert code == 1
+    assert "manifest" in capsys.readouterr().err
 
 
 def test_run_writes_into_the_experiment_directory(

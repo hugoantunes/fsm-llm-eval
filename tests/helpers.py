@@ -9,11 +9,13 @@ import importlib.util
 import json
 import re
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Literal, Protocol
 
+from ollama import ChatResponse, ShowResponse
+from ollama._types import Message as OllamaMessage
 from pydantic import BaseModel, ConfigDict
 
 from sim.agents import Agent
@@ -24,6 +26,7 @@ from sim.metrics import Accuracy, JudgeClaim, JudgeFacts, JudgeGlobal
 from sim.schemas import (
     DialogueLog,
     DialogueStatus,
+    Manifest,
     Scenario,
     StopReason,
     Turn,
@@ -144,6 +147,62 @@ def write_models_config(directory: Path, text: str = MINIMAL_MODELS_YAML) -> Pat
     path = directory / "models.yaml"
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def reply(
+    text: str = "hello",
+    *,
+    prompt_tokens: int | None = 100,
+    output_tokens: int = 5,
+) -> ChatResponse:
+    """Build the response the real Ollama would return for one chat call."""
+    return ChatResponse(
+        model="agent-model",
+        message=OllamaMessage(role="assistant", content=text),
+        done=True,
+        prompt_eval_count=prompt_tokens,
+        eval_count=output_tokens,
+    )
+
+
+class FakeOllama:
+    """Stand-in for ``ollama.Client``: records the calls, returns canned replies.
+
+    The replies are real ``ChatResponse`` objects, so the fake cannot drift from
+    the fields the client reads.
+    """
+
+    def __init__(
+        self,
+        replies: list[ChatResponse | Exception] | None = None,
+        *,
+        capabilities: list[str] | None = None,
+        show_errors: list[Exception] | None = None,
+    ) -> None:
+        self.replies = replies if replies is not None else [reply()]
+        self.capabilities = (
+            ["completion", "thinking"] if capabilities is None else capabilities
+        )
+        self.show_errors = list(show_errors or [])
+        self.calls: list[dict[str, Any]] = []
+        self.shown: list[str] = []
+
+    def chat(self, **kwargs: Any) -> ChatResponse:
+        """Record the call and hand back the next canned reply."""
+        self.calls.append(kwargs)
+        if not self.replies:
+            raise AssertionError("FakeOllama ran out of replies")
+        answer = self.replies.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    def show(self, model: str) -> ShowResponse:
+        """Record the capability probe and report the configured capabilities."""
+        self.shown.append(model)
+        if self.show_errors:
+            raise self.show_errors.pop(0)
+        return ShowResponse(model_info={}, capabilities=self.capabilities)
 
 
 class FakeLlm:
@@ -362,6 +421,93 @@ class HasAgent(Protocol):
 def canned_llm_factory(job: HasAgent, *, delay_s: float = 0.0) -> FakeLlm:
     """Build a one-turn fake for ``job``; the factory the runner tests inject."""
     return canned_replies_for(job.agent, delay_s=delay_s)
+
+
+RunCanned = Callable[..., Manifest]
+
+
+class CannedEvalLlm:
+    """A Chat that answers the judge and the stage labeler, and never runs out.
+
+    Re-eval of the same run does not pop a queue dry. Stage labels default to
+    one ``greeting`` per agent turn, matching the one-turn canned logs of T-14a.
+    """
+
+    def __init__(
+        self,
+        stages: Sequence[str] | None = None,
+        *,
+        needle_recovered: bool | None = False,
+    ) -> None:
+        self.stages = list(stages) if stages is not None else None
+        self.needle_recovered = needle_recovered
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: Sequence[Message],
+        *,
+        role: Role,
+        caller: str,
+        schema: type[BaseModel] | None = None,
+        seed: int | None = None,
+        num_predict: int | None = None,
+    ) -> LlmResponse:
+        """Record the call and return the canned answer for ``caller``."""
+        sent = [dict(message) for message in messages]
+        prompt_hash = hashlib.sha256(str(sent).encode("utf-8")).hexdigest()
+        self.calls.append(
+            {
+                "messages": sent,
+                "prompt_hash": prompt_hash,
+                "role": role,
+                "caller": caller,
+                "schema": schema,
+                "seed": seed,
+                "num_predict": num_predict,
+            }
+        )
+        text = self._reply(caller, sent)
+        return LlmResponse(
+            text=text,
+            parsed=None if schema is None else schema.model_validate_json(text),
+            model=f"{role}-model",
+            prompt_hash=prompt_hash,
+            prompt_tokens=len(str(sent)) // 4,
+            output_tokens=len(text) // 4,
+            latency_s=0.5,
+            cached=False,
+        )
+
+    def _reply(self, caller: str, messages: list[dict[str, str]]) -> str:
+        """Return the schema-valid payload the caller expects."""
+        if caller == "judge_facts":
+            return judge_facts_reply(needle_recovered=self.needle_recovered)
+        if caller == "judge_global":
+            return judge_global_reply()
+        if caller == "stage_labeler":
+            labels = self.stages or ["greeting"] * _n_turns(messages)
+            return stage_labels_reply(labels)
+        raise AssertionError(f"unexpected eval caller {caller!r}")
+
+
+def canned_eval_transport_replies(n_dialogues: int) -> list[ChatResponse]:
+    """One facts, global and labeler reply per dialogue, for an ``LlmClient`` fake."""
+    cycle = (
+        judge_facts_reply(needle_recovered=False),
+        judge_global_reply(),
+        stage_labels_reply(["greeting"]),
+    )
+    return [reply(text) for _ in range(n_dialogues) for text in cycle]
+
+
+def _n_turns(messages: Sequence[Mapping[str, str]]) -> int:
+    """Read the turn count the stage-labeler prompt declares."""
+    content = messages[0]["content"]
+    match = re.search(r"There are (\d+) turn", content)
+    if match is None:
+        raise AssertionError("stage labeler prompt has no turn count")
+    return int(match.group(1))
 
 
 def play_user_turns(agent: Agent, messages: Sequence[str]) -> list[TurnRecord]:
