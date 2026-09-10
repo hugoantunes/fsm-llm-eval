@@ -46,7 +46,9 @@ They do not go through the judge. The caller is
 matches, sums of the turn-record stopwatches, and flow scores on the stage
 labeler's labels. The labeler is one schema-constrained call per dialogue
 ([`data/prompts/stage_labeler.md`](../data/prompts/stage_labeler.md)); its `enum`
-is the states of `machine.yaml`. T-14b writes the columns.
+is the states of `machine.yaml`. `sim eval` (T-14b) writes the columns to
+`runs/<exp_id>/metrics.csv` and `metrics_turn.csv`. T-18 copies the audited set
+to `results/metrics.csv`.
 
 The names below are the columns of `metrics.csv` (T-14b), defined once in
 `sim.metrics.METRICS`.
@@ -188,8 +190,9 @@ are dropped from this column's tests, not scored as failures.
 
 **Unit.** Dialogue, then proportion per scenario, only over needle scenarios.
 
-**Computation.** `JudgeFacts.needle_recovered` when the scenario is a needle,
-else NA. The judge is told which fact is the needle; it does not infer it.
+**Computation.** When the scenario is a needle, `JudgeFacts.needle_recovered`
+(bool); a null there is an `EvalError`, not an NA. Else NA. The judge is told
+which fact is the needle; it does not infer it.
 
 **Hypothesis.** FSM mixed: the needle is released only in the states that carry
 its intent, so a dialogue that reaches `solution` should state it, and one that

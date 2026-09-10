@@ -162,7 +162,7 @@ Parts that do not exist yet are marked with the ticket that creates them.
 
 | Path | What it is |
 |---|---|
-| `src/sim/` | Python package (`python -m sim`): LLM client, FSM engine, agents, simulated user, judge, evaluators, runner (T-07 to T-14) |
+| `src/sim/` | Python package (`python -m sim`): LLM client, FSM engine, agents, simulated user, judge, evaluators, runner, eval (T-07 to T-14) |
 | `tests/` | pytest; anything that talks to Ollama is marked `integration` |
 | `data/kb/` | knowledge base: numbered facts (F01...), needles, unanswerable questions (T-01) |
 | `data/fsm/` | `machine.yaml` (states, events, transitions, guards) and `states/*.md` (instruction package per state) (T-02) |

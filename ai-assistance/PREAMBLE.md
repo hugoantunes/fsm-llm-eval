@@ -35,11 +35,11 @@ That folder is on iCloud: if a file is unreadable it is probably evicted, so ask
 
 | Path | Purpose |
 |---|---|
-| `src/sim/` | the package (`python -m sim`): LLM client, FSM engine, agents, simulated user, judge, evaluators, runner |
+| `src/sim/` | the package (`python -m sim`): LLM client, FSM engine, agents, simulated user, judge, evaluators, runner, eval |
 | `tests/` | pytest; `@pytest.mark.integration` on anything that talks to Ollama |
 | `data/` | KB (`kb/`), FSM (`fsm/machine.yaml`, `fsm/states/*.md`), prompts (`prompts/*.md`), scenarios (`scenarios/examples/`, `scenarios/v1/`) |
 | `configs/models.yaml` | models, digests, `num_ctx`, fixed params: the single place for these |
-| `runs/` | everything produced by `sim run` / `sim eval`: dialogue JSONL, LLM call logs, prompt cache. Git-ignored; moved between machines by rsync |
+| `runs/` | everything produced by `sim run` / `sim eval`: dialogue JSONL, LLM call logs, prompt cache, `metrics.csv`, `metrics_turn.csv`. Git-ignored; moved between machines by rsync |
 | `results/`, `notebooks/`, `docs/`, `scripts/` | analysis outputs, `analysis.ipynb`, project docs (English; the thesis translates what it lifts), utilities |
 | `ai-assistance/` | these instructions and the hook scripts |
 | `.claude/` | Claude Code config: `settings.json` (hooks, permissions), `skills/`, `rules/` |
