@@ -359,9 +359,9 @@ What still needs care:
   `--turns 8` at parallelism 1 and 2 before T-17.
 - **A per-call latency measured at parallelism 2 is not the model's latency**, it includes queueing.
   On the Pro the agent call reads 20.4 s under eviction and queueing, 6.6 s at parallelism 2 without
-  eviction, and 6.2 s alone. T-13 reports agent LLM latency as an efficiency metric, so it has to
-  come from the per-call timer inside the runner, and the comparison between agents has to hold
-  parallelism fixed. Worth settling in T-13 before the pilot.
+  eviction, and 6.2 s alone. T-13 scores `llm_latency_s` as the sum of uncached
+  `TurnRecord.llm_latency_s` (the per-call timer), at the same `--parallel` recorded in the T-14a
+  manifest.
 - **Raising `--parallel` past 2 probably buys little.** Two models serving one request each saturate
   at two requests in flight. Worth one measurement on the Air rather than an assumption.
 

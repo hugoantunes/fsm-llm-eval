@@ -169,10 +169,21 @@ Both answers, for the comparison, come from the stage labeler run on the observa
 dialogue of **both** agents. The FSM agent's true `state_after` validates the
 labeler; it is not substituted into the comparative metrics.
 
+The labeler is [`sim.evaluators.StageLabeler`](../src/sim/evaluators.py): one
+schema-constrained call per dialogue, prompt in
+[`data/prompts/stage_labeler.md`](../data/prompts/stage_labeler.md), `enum` = the states
+of this YAML. It sees the user and assistant turns, never the agent name or the true
+states.
+
 The second question is answered over the **flow edges only**, the ones with `from_any`
-false. A sequence that can be explained solely by `farewell` or by `out_of_scope_request`
-does not count as a valid path: those two leave every state, so counting them would make
-almost any sequence valid and the measure would stop telling the two agents apart. They
-are reported instead as their own outcome, an early exit and an out-of-scope exit,
-computed identically for both agents. The first question is unaffected: a scenario that
-expects `out_of_scope` is met by ending there.
+false, by `sim.evaluators.flow_scores`. Consecutive identical labels are a self-loop:
+they count in `n_self_loops` and stay a valid step. A sequence that can be explained
+solely by `farewell` or by `out_of_scope_request` does not count as a valid path: those
+two leave every state, so counting them would make almost any sequence valid and the
+measure would stop telling the two agents apart. They are reported instead as their own
+outcome, an early exit and an out-of-scope exit, computed identically for both agents.
+
+The first labelled stage must be `greeting` (the initial state) or a flow step from it.
+Without that, a one-turn `closing` or `out_of_scope` would pass for lack of a pair, which
+is exactly a `from_any` exit. The first question is unaffected: a scenario that expects
+`out_of_scope` is met by ending there.
