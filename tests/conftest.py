@@ -23,6 +23,7 @@ from helpers import (
     FSM_DIR,
     KB_DIR,
     PROMPTS_DIR,
+    V1_DIR,
     CannedEvalLlm,
     FakeLlm,
     RunCanned,
@@ -94,6 +95,13 @@ def real_fsm(real_kb: KnowledgeBase) -> FsmSpec:
 def example_scenarios(real_kb: KnowledgeBase, real_fsm: FsmSpec) -> dict[str, Scenario]:
     """The scenarios of ``data/scenarios/examples/``, by ID (T-05)."""
     scenarios = load_scenarios(EXAMPLES_DIR, kb=real_kb, fsm=real_fsm)
+    return {scenario.id: scenario for scenario in scenarios}
+
+
+@pytest.fixture(scope="session")
+def v1_scenarios(real_kb: KnowledgeBase, real_fsm: FsmSpec) -> dict[str, Scenario]:
+    """The golden dataset of ``data/scenarios/v1/``, by ID (T-06)."""
+    scenarios = load_scenarios(V1_DIR, kb=real_kb, fsm=real_fsm)
     return {scenario.id: scenario for scenario in scenarios}
 
 

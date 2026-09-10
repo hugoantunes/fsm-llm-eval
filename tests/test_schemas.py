@@ -1,6 +1,5 @@
 """Tests for the scenario schema and its validator (T-05)."""
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -11,10 +10,18 @@ from helpers import (
     GENERAL_FACT,
     TRACKING_FACT,
     make_kb,
+    write_scenarios,
 )
 from sim.fsm import FsmSpec, State
 from sim.kb import Fact, KnowledgeBase, Needle
-from sim.schemas import CATEGORIES, Scenario, ScenarioError, load_scenarios
+from sim.schemas import (
+    CATEGORIES,
+    FIRST_BLOCK_QUOTA,
+    FULL_SET_QUOTA,
+    Scenario,
+    ScenarioError,
+    load_scenarios,
+)
 
 #: The synthetic KB and machine the validator is checked against: three facts,
 #: one of them a needle, and the three states a scenario may end in.
@@ -73,17 +80,6 @@ SCENARIO: dict[str, Any] = {
 def scenario(**overrides: Any) -> dict[str, Any]:
     """Return the template scenario with ``overrides`` applied."""
     return SCENARIO | overrides
-
-
-def write_scenarios(directory: Path, **files: list[dict[str, Any]]) -> Path:
-    """Write one JSONL per keyword into ``directory`` and return it."""
-    directory.mkdir(parents=True, exist_ok=True)
-    for name, scenarios in files.items():
-        lines = [json.dumps(entry) for entry in scenarios]
-        (directory / f"{name}.jsonl").write_text(
-            "\n".join(lines) + "\n", encoding="utf-8"
-        )
-    return directory
 
 
 def test_load_scenarios_reads_every_jsonl_of_a_directory_in_name_order(
@@ -193,6 +189,24 @@ def test_fact_both_required_and_forbidden_raises(tmp_path: Path) -> None:
         load_scenarios(directory, kb=KB, fsm=FSM)
 
 
+def test_required_fact_from_another_intent_raises(tmp_path: Path) -> None:
+    kb = make_kb(
+        GENERAL_FACT,
+        TRACKING_FACT,
+        Fact(
+            id="F03",
+            intent="exchange_return",
+            text="Returns are accepted within 30 days of delivery.",
+        ),
+    )
+    directory = write_scenarios(
+        tmp_path / "scenarios", happy_path=[scenario(required_facts=["F03"])]
+    )
+
+    with pytest.raises(ScenarioError, match="F03"):
+        load_scenarios(directory, kb=kb, fsm=FSM)
+
+
 def test_expected_final_state_outside_the_accepting_states_raises(
     tmp_path: Path,
 ) -> None:
@@ -289,11 +303,6 @@ def test_max_turns_outside_the_turn_budget_raises(
 
 
 # --- the real scenarios of data/scenarios/ ----------------------------------
-
-#: Scenarios per cell of the intent x category matrix: the balanced first block
-#: and the full set with the extras. Twelve cells, so 48 and 60 (T-05, Decisões).
-FIRST_BLOCK_QUOTA = 4
-FULL_SET_QUOTA = 5
 
 
 def test_the_real_examples_cover_the_three_categories_with_one_canary(

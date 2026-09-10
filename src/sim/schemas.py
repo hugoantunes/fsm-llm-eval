@@ -15,7 +15,7 @@ from typing import Literal, get_args
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from sim.fsm import FsmSpec
-from sim.kb import KnowledgeBase
+from sim.kb import GENERAL_INTENT, KnowledgeBase
 
 #: The three kinds of test case, from the taxonomy of ``docs/taxonomy.md``.
 Category = Literal["happy_path", "edge", "adversarial"]
@@ -23,6 +23,13 @@ Category = Literal["happy_path", "edge", "adversarial"]
 #: The same three as values: the columns of the quota matrix and the strata the
 #: analysis of T-19 repeats itself over.
 CATEGORIES: tuple[Category, ...] = get_args(Category)
+
+#: Scenarios per intent x category cell: the balanced first block, then the full
+#: set with one extra per cell (T-05, T-06). Twelve cells, so 48 and 60.
+FIRST_BLOCK_QUOTA = 4
+FULL_SET_QUOTA = 5
+FIRST_BLOCK_N = 12 * FIRST_BLOCK_QUOTA
+FULL_SET_N = 12 * FULL_SET_QUOTA
 
 #: The turns a dialogue may be given. Fewer than four cannot reach a solution
 #: through greeting, identification and data collection; the machine budget of
@@ -334,6 +341,7 @@ def load_scenarios(path: Path, *, kb: KnowledgeBase, fsm: FsmSpec) -> list[Scena
             _check_unique(entry, where, seen)
             _check_intent(entry, where, kb)
             _check_facts(entry, where, kb)
+            _check_required_facts_match_intent(entry, where, kb)
             _check_final_state(entry, where, fsm)
             _check_needle(entry, where, kb)
             scenarios.append(entry)
@@ -364,6 +372,28 @@ def _check_facts(entry: Scenario, where: str, kb: KnowledgeBase) -> None:
             f"knowledge_base.md. fact_recall and claim_support are measured by ID "
             f"(T-12), so an ID nobody can state would score the scenario as failed"
         )
+
+
+def _check_required_facts_match_intent(
+    entry: Scenario, where: str, kb: KnowledgeBase
+) -> None:
+    """Fail unless every required fact is general or of this scenario's intent.
+
+    In solution and confirmation the FSM agent only sees those facts (T-02). A
+    required fact from another intent would be impossible for it to state, and
+    the metric would measure the state filter rather than the agent (T-06).
+    """
+    allowed = {
+        fact.id for fact in kb.facts if fact.intent in (GENERAL_INTENT, entry.intent)
+    }
+    extra = [fact_id for fact_id in entry.required_facts if fact_id not in allowed]
+    if not extra:
+        return
+    raise ScenarioError(
+        f"{where}: {entry.id} requires {extra}, which are not in 'general' or "
+        f"{entry.intent!r}. The FSM agent only receives those facts in solution "
+        f"and confirmation, so a required fact from another intent cannot be said"
+    )
 
 
 def _check_final_state(entry: Scenario, where: str, fsm: FsmSpec) -> None:

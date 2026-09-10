@@ -43,6 +43,8 @@ FSM_DIR = REPO_ROOT / "data" / "fsm"
 PROMPTS_DIR = REPO_ROOT / "data" / "prompts"
 SCENARIOS_DIR = REPO_ROOT / "data" / "scenarios"
 EXAMPLES_DIR = SCENARIOS_DIR / "examples"
+V1_DIR = SCENARIOS_DIR / "v1"
+PLAN_PATH = SCENARIOS_DIR / "plan.yaml"
 CONFIG = REPO_ROOT / "configs" / "models.yaml"
 DOCS_DIR = REPO_ROOT / "docs"
 LABELED_EVENTS = REPO_ROOT / "tests" / "fixtures" / "user_events.jsonl"
@@ -73,6 +75,17 @@ FORBIDDEN_NAMES = (
     "paypal",
     "pix",
 )
+
+
+def write_scenarios(directory: Path, **files: list[dict[str, Any]]) -> Path:
+    """Write one JSONL per keyword into ``directory`` and return it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, scenarios in files.items():
+        lines = [json.dumps(entry) for entry in scenarios]
+        (directory / f"{name}.jsonl").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8"
+        )
+    return directory
 
 
 def forbidden_names_in(directory: Path) -> list[str]:
