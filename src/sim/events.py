@@ -20,11 +20,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, create_model
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationError,
+    create_model,
+    model_validator,
+)
 
 from sim.fsm import FsmSpec, Transition
 from sim.kb import UserDataField
-from sim.llm import Chat
+from sim.llm import SCHEMA_RETRIES, Chat, LlmError, chat_parsed
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
 
 #: What the detector returns when no user event fired this turn.
@@ -65,6 +71,33 @@ class Detection:
 
 class EventError(RuntimeError):
     """The detector cannot classify this turn; the message says what is missing."""
+
+
+class ClassifierSchemaError(EventError):
+    """The classifier spent every attempt on a payload the schema refuses.
+
+    Raised only when the answer is the model's fault. The dialogue keeps the
+    turns already played; the payload is not coerced to another event.
+    """
+
+
+class _UserEventBase(BaseModel):
+    """Structural checks JSON Schema cannot express on the classifier payload."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def _intent_classified_names_a_request(self) -> _UserEventBase:
+        if (
+            getattr(self, "event", None) == INTENT_EVENT
+            and getattr(self, "intent", None) is None
+        ):
+            raise ValueError(
+                "event is intent_classified but intent is null: "
+                "intent_classified means the customer named one of the four "
+                "requests, so the payload must name that intent"
+            )
+        return self
 
 
 @dataclass(frozen=True)
@@ -188,7 +221,7 @@ def user_event_schema(
         shape[key] = (str | None, None)
     return create_model(
         "UserEvent",
-        __config__=ConfigDict(extra="forbid"),
+        __base__=_UserEventBase,
         **shape,
     )
 
@@ -312,34 +345,34 @@ def _classify_with_llm(
         slot_fields=_render_slot_fields(free_text),
     )
     schema = user_event_schema(allowed, intents, [item.key for item in free_text])
-    answer = llm.chat(
-        [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": transcript},
-        ],
-        role="simulator",
-        caller=CLASSIFIER,
-        schema=schema,
-        seed=seed,
-    )
-    parsed = answer.parsed
-    if parsed is None:
-        raise EventError(
-            "the classifier returned no parsed object; the client of T-07 should "
-            "have validated the schema before this"
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": transcript},
+    ]
+    try:
+        parsed = chat_parsed(
+            llm,
+            messages,
+            role="simulator",
+            caller=CLASSIFIER,
+            schema=schema,
+            seed=seed,
         )
+    except ValidationError as error:
+        raise ClassifierSchemaError(
+            f"{CLASSIFIER} did not return a valid {schema.__name__} in "
+            f"{SCHEMA_RETRIES + 1} attempts: {error}"
+        ) from error
+    except LlmError as error:
+        if not isinstance(error.__cause__, ValidationError):
+            raise
+        raise ClassifierSchemaError(
+            f"{CLASSIFIER} did not return a valid {schema.__name__} in "
+            f"{SCHEMA_RETRIES + 1} attempts: {error}"
+        ) from error
     payload = parsed.model_dump()
-    event = payload["event"]
-    classified_intent = payload["intent"]
-    if event == INTENT_EVENT and classified_intent is None:
-        raise EventError(
-            f"event intent_classified in state {state!r} with no intent "
-            f"(transcript: {transcript!r}). The classifier must name one of "
-            f"{list(intents)}; a null intent would wedge data_collection "
-            f"because required_data_collected stays false"
-        )
     return Detection(
-        event=event,
-        intent=classified_intent,
+        event=payload["event"],
+        intent=payload["intent"],
         slots=_slots_from_payload(payload, slots),
     )

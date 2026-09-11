@@ -48,6 +48,21 @@ class DialogueJob:
     repetition: int
 
 
+def select_scenarios(
+    scenarios: Sequence[Scenario], ids: Sequence[str]
+) -> list[Scenario]:
+    """Keep the named scenarios in dataset order, not the order of ``ids``."""
+    known = {scenario.id for scenario in scenarios}
+    unknown = [scenario_id for scenario_id in ids if scenario_id not in known]
+    if unknown:
+        raise RunnerError(
+            f"unknown scenario {unknown[0]!r}. Choose an id from the loaded "
+            f"dataset, or omit --scenario-id to run every scenario"
+        )
+    wanted = set(ids)
+    return [scenario for scenario in scenarios if scenario.id in wanted]
+
+
 def iter_jobs(
     scenarios: Sequence[Scenario],
     *,
@@ -287,6 +302,7 @@ def _play(
             seed=seed,
             status="failed",
             error=str(failure),
+            records=list(getattr(failure, "records", [])),
         )
     return DialogueLog(
         scenario_id=job.scenario.id,

@@ -1,4 +1,4 @@
-Version: 2
+Version: 3
 
 $shared
 
@@ -46,6 +46,10 @@ precision, recall or F1; list atomic claims and labels only.
   `fact_id` to null.
 - `unverifiable` — not a policy claim (customer data, small talk). `fact_id` null.
 
+`fact_id` names only the one fact that supports the claim. A fact the claim
+merely relates to, a fact it contradicts, or a fact you used to decide `no` is
+never `fact_id`: on a `no` or `unverifiable` claim, `fact_id` is always null.
+
 # Examples
 
 - "Standard delivery takes 5 to 8 business days after dispatch." when the
@@ -70,42 +74,64 @@ precision, recall or F1; list atomic claims and labels only.
   "properties": {
     "claims": {
       "items": {
-        "additionalProperties": false,
-        "description": "One atomic assertion the assistant made, optionally tied to a KB ID.",
-        "properties": {
-          "text": {
-            "title": "Text",
-            "type": "string"
-          },
-          "fact_id": {
-            "anyOf": [
-              {
-                "pattern": "^F\\d{2}$$",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "An atomic claim the knowledge base supports, tied to the fact for it.",
+            "properties": {
+              "text": {
+                "title": "Text",
                 "type": "string"
               },
-              {
+              "supported_by_kb": {
+                "const": "yes",
+                "title": "Supported By Kb",
+                "type": "string"
+              },
+              "fact_id": {
+                "pattern": "^F\\d{2}$$",
+                "title": "Fact Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "supported_by_kb",
+              "fact_id"
+            ],
+            "title": "SupportedClaim",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "An atomic claim the knowledge base contradicts or cannot verify.",
+            "properties": {
+              "text": {
+                "title": "Text",
+                "type": "string"
+              },
+              "supported_by_kb": {
+                "enum": [
+                  "no",
+                  "unverifiable"
+                ],
+                "title": "Supported By Kb",
+                "type": "string"
+              },
+              "fact_id": {
+                "title": "Fact Id",
                 "type": "null"
               }
+            },
+            "required": [
+              "text",
+              "supported_by_kb",
+              "fact_id"
             ],
-            "title": "Fact Id"
-          },
-          "supported_by_kb": {
-            "enum": [
-              "yes",
-              "no",
-              "unverifiable"
-            ],
-            "title": "Supported By Kb",
-            "type": "string"
+            "title": "UnsupportedClaim",
+            "type": "object"
           }
-        },
-        "required": [
-          "text",
-          "fact_id",
-          "supported_by_kb"
-        ],
-        "title": "JudgeClaim",
-        "type": "object"
+        ]
       },
       "title": "Claims",
       "type": "array"

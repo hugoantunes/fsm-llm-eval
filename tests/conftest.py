@@ -27,7 +27,10 @@ from helpers import (
     CannedEvalLlm,
     FakeLlm,
     RunCanned,
+    make_llm_call_record,
+    make_manifest,
     make_turn_record,
+    write_llm_calls,
 )
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
@@ -205,6 +208,94 @@ def run_canned(
 def canned_eval_llm() -> CannedEvalLlm:
     """Repeating judge and labeler answers, so a second eval does not run dry."""
     return CannedEvalLlm()
+
+
+@pytest.fixture
+def stats_run_dir(tmp_path: Path) -> Path:
+    """A run directory with a canned manifest and ``llm_calls.jsonl`` (T-15)."""
+    run_dir = tmp_path / "runs" / "exp"
+    run_dir.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text(
+        make_manifest().model_dump_json() + "\n", encoding="utf-8"
+    )
+    write_llm_calls(
+        run_dir,
+        [
+            make_llm_call_record(
+                caller="baseline", prompt_tokens=100, output_tokens=10, latency_s=1.0
+            ),
+            make_llm_call_record(
+                caller="baseline",
+                prompt_tokens=200,
+                output_tokens=30,
+                latency_s=3.0,
+                prompt_hash="bb",
+            ),
+            make_llm_call_record(
+                caller="fsm", prompt_tokens=80, output_tokens=10, latency_s=4.0
+            ),
+            make_llm_call_record(
+                caller="fsm",
+                prompt_tokens=80,
+                output_tokens=10,
+                latency_s=0.5,
+                cached=True,
+                prompt_hash="cc",
+            ),
+            make_llm_call_record(
+                caller="classifier",
+                role="simulator",
+                prompt_tokens=40,
+                latency_s=0.5,
+            ),
+            make_llm_call_record(
+                caller="simulated_user",
+                role="simulator",
+                prompt_tokens=60,
+                latency_s=1.0,
+            ),
+            make_llm_call_record(
+                caller="judge_facts",
+                role="judge",
+                prompt_tokens=400,
+                latency_s=10.0,
+            ),
+            make_llm_call_record(
+                caller="judge_facts",
+                role="judge",
+                prompt_tokens=400,
+                latency_s=10.0,
+                prompt_hash="dd",
+            ),
+            make_llm_call_record(
+                caller="judge_global",
+                role="judge",
+                prompt_tokens=350,
+                latency_s=20.0,
+            ),
+            make_llm_call_record(
+                caller="judge_global",
+                role="judge",
+                prompt_tokens=350,
+                latency_s=20.0,
+                prompt_hash="ee",
+            ),
+            make_llm_call_record(
+                caller="stage_labeler",
+                role="simulator",
+                prompt_tokens=200,
+                latency_s=5.0,
+            ),
+            make_llm_call_record(
+                caller="stage_labeler",
+                role="simulator",
+                prompt_tokens=200,
+                latency_s=5.0,
+                prompt_hash="ff",
+            ),
+        ],
+    )
+    return run_dir
 
 
 @pytest.fixture(scope="session")

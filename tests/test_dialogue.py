@@ -4,12 +4,13 @@ from collections.abc import Callable, Sequence
 
 import pytest
 
-from helpers import PROMPTS_DIR, FakeLlm, user_reply
+from helpers import PROMPTS_DIR, FakeLlm, make_turn_record, user_reply
 from sim.agents import BaselineAgent
 from sim.dialogue import DialogueError, DialogueResult, run_dialogue
+from sim.events import EventError
 from sim.kb import KnowledgeBase
 from sim.llm import LlmClient
-from sim.schemas import Scenario
+from sim.schemas import Scenario, Turn, TurnRecord
 from sim.user import SimulatedUser
 
 #: The ``play`` fixture below, as the tests calling it see it: the customer's
@@ -133,6 +134,40 @@ def test_a_dialogue_stops_at_the_scenarios_max_turns(
 
 def test_a_dialogue_result_does_not_store_the_transcript_twice() -> None:
     assert "transcript" not in DialogueResult.model_fields
+
+
+def test_a_failed_turn_keeps_the_turns_already_played(happy_path: Scenario) -> None:
+    user = SimulatedUser(
+        FakeLlm(
+            [
+                user_reply("Hi, where is order NL-20260145?"),
+                user_reply("Thanks, that is all.", status="goal_reached"),
+            ]
+        ),
+        scenario=happy_path,
+        prompts_dir=PROMPTS_DIR,
+    )
+
+    with pytest.raises(DialogueError) as exc_info:
+        run_dialogue(_AgentThatFailsOnTheSecondTurn(), user, max_turns=8)
+
+    assert len(exc_info.value.records) == 1
+    assert exc_info.value.records[0].user_message == "Hi, where is order NL-20260145?"
+    assert exc_info.value.records[0].agent_reply == "What is the e-mail?"
+
+
+class _AgentThatFailsOnTheSecondTurn:
+    """Speaks once, then raises the classifier contract error."""
+
+    def respond(self, history: Sequence[Turn]) -> TurnRecord:
+        n_user = sum(1 for turn in history if turn.speaker == "user")
+        if n_user > 1:
+            raise EventError("intent_classified with no intent")
+        return make_turn_record(
+            turn=1,
+            user_message=history[-1].text,
+            agent_reply="What is the e-mail?",
+        )
 
 
 def test_a_dialogue_keeps_one_turn_record_per_agent_turn(play: Play) -> None:

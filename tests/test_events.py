@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from helpers import (
     ORDER_AND_EMAIL,
@@ -13,19 +14,28 @@ from helpers import (
     FakeLlm,
     LabeledEvent,
     classifier_reply,
+    invalid_classifier_reply,
     labeled_utterance,
     load_labeled_events,
 )
 from sim.engine import NONE, FsmEngine
-from sim.events import CLASSIFIER, Detection, EventError, detect_user_event
+from sim.events import (
+    CLASSIFIER,
+    ClassifierSchemaError,
+    Detection,
+    EventError,
+    detect_user_event,
+    user_event_schema,
+)
 from sim.fsm import FsmSpec
 from sim.kb import KnowledgeBase, UserDataField
-from sim.llm import LlmClient
+from sim.llm import SCHEMA_RETRIES, LlmClient
 
 RULE_EVENTS = [row for row in load_labeled_events() if row.via == "rule"]
 
 TRACKING = "I want to track my order"
 INTENT_REPLY = '{"event": "intent_classified", "intent": "order_tracking"}'
+SEED = 42
 
 
 @dataclass
@@ -55,6 +65,14 @@ def classified(real_fsm: FsmSpec, real_kb: KnowledgeBase) -> Classified:
     engine.park("intent_classification")
     engine.step(TRACKING, turn=1)
     return Classified(engine=engine, llm=llm)
+
+
+@pytest.fixture
+def intent_schema(real_fsm: FsmSpec, real_kb: KnowledgeBase) -> type:
+    """The classifier schema for ``intent_classification``, including ``none``."""
+    return user_event_schema(
+        real_fsm.events_for("intent_classification"), real_kb.intents()
+    )
 
 
 @pytest.fixture(scope="session")
@@ -111,18 +129,57 @@ def test_intent_classified_stores_the_intent_on_the_engine(
     assert classified.engine.history[-1].event == "intent_classified"
 
 
-def test_intent_classified_without_intent_raises(
+def test_intent_classified_without_intent_is_rejected_by_the_schema(
+    intent_schema: type,
+) -> None:
+    with pytest.raises(ValidationError, match="intent_classified"):
+        intent_schema.model_validate_json(invalid_classifier_reply())
+
+    parsed = intent_schema.model_validate_json(INTENT_REPLY)
+
+    assert parsed.event == "intent_classified"
+    assert parsed.intent == "order_tracking"
+
+
+def test_schema_invalid_classifier_call_is_retried(
     real_fsm: FsmSpec, real_kb: KnowledgeBase
 ) -> None:
-    llm = FakeLlm(['{"event": "intent_classified", "intent": null}'])
-    engine = _engine(real_fsm, real_kb, llm)
+    llm = FakeLlm([invalid_classifier_reply(), INTENT_REPLY])
+    engine = _engine(real_fsm, real_kb, llm, seed=SEED)
     engine.park("intent_classification")
 
-    with pytest.raises(EventError, match="intent_classification"):
+    engine.step(TRACKING, turn=1)
+
+    assert engine.intent == "order_tracking"
+    assert [call["caller"] for call in llm.calls] == [CLASSIFIER, CLASSIFIER]
+    assert [call["seed"] for call in llm.calls] == [SEED, SEED + 1]
+
+
+def test_classifier_that_never_validates_raises_typed_error(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm([invalid_classifier_reply()] * (SCHEMA_RETRIES + 1))
+    engine = _engine(real_fsm, real_kb, llm, seed=SEED)
+    engine.park("intent_classification")
+
+    with pytest.raises(ClassifierSchemaError):
         engine.step(TRACKING, turn=1)
 
     assert engine.state == "intent_classification"
     assert engine.intent is None
+    assert len(llm.calls) == SCHEMA_RETRIES + 1
+    assert all(call["caller"] == CLASSIFIER for call in llm.calls)
+
+
+def test_classifier_prompt_says_an_acknowledgement_alone_does_not_introduce_intent(
+    classified: Classified,
+) -> None:
+    prompt = "\n".join(
+        message["content"] for message in classified.llm.calls[0]["messages"]
+    ).lower()
+
+    assert "acknowledgement or confirmation alone" in prompt
+    assert "must not introduce a new intent" in prompt
 
 
 @pytest.mark.parametrize(

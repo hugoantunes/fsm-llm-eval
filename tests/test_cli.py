@@ -90,6 +90,31 @@ def test_eval_parses_run_directory() -> None:
 
     assert args.command == "eval"
     assert args.run == "runs/exp_pilot"
+    assert args.parallel == 1
+
+
+def test_eval_parses_parallel() -> None:
+    args = build_parser().parse_args(
+        ["eval", "--run", "runs/exp_pilot", "--parallel", "2"]
+    )
+
+    assert args.parallel == 2
+
+
+def test_eval_cli_exits_1_on_a_parallel_below_one(
+    run_canned: RunCanned,
+    run_dir: Path,
+    canned_eval_llm: CannedEvalLlm,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run_canned()
+
+    code = main(
+        ["eval", "--run", str(run_dir), "--parallel", "0"], eval_llm=canned_eval_llm
+    )
+
+    assert code == 1
+    assert "--parallel must be at least 1" in capsys.readouterr().err
 
 
 def test_eval_writes_metrics_into_the_run_directory(
@@ -105,7 +130,25 @@ def test_eval_writes_metrics_into_the_run_directory(
     assert code == 0
     assert (run_dir / "metrics.csv").exists()
     assert (run_dir / "metrics_turn.csv").exists()
-    assert "0 failed" in capsys.readouterr().out
+    assert (run_dir / "sim.log").exists()
+    out = capsys.readouterr().out
+    assert "0 failed" in out
+    assert "0 unscored" in out
+
+
+def test_eval_cli_reports_the_dialogues_the_judge_could_not_grade(
+    run_canned: RunCanned,
+    run_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run_canned()
+    llm = CannedEvalLlm(invalid_facts_marker="Hello from support.")
+
+    code = main(["eval", "--run", str(run_dir)], eval_llm=llm)
+
+    assert code == 1
+    assert "4 unscored" in capsys.readouterr().out
+    assert "unscored" in (run_dir / "sim.log").read_text(encoding="utf-8")
 
 
 def test_eval_cli_exits_1_when_the_manifest_is_missing(
@@ -146,6 +189,46 @@ def test_run_writes_into_the_experiment_directory(
     )
     assert manifest.n_ok == 4
     assert len(list((exp / "dialogues").glob("*.jsonl"))) == 4
+
+
+def test_run_with_scenario_id_plays_only_the_named_scenarios(
+    tmp_path: Path, two_scenario_dir: Path
+) -> None:
+    runs_dir = tmp_path / "runs"
+
+    code = main(
+        [
+            "run",
+            "--scenarios",
+            str(two_scenario_dir),
+            "--exp-id",
+            "exp",
+            "--runs-dir",
+            str(runs_dir),
+            "--reps",
+            "1",
+            "--parallel",
+            "1",
+            "--scenario-id",
+            "happy_path_01",
+        ],
+        llm_factory=make_canned_llm,
+    )
+
+    assert code == 0
+    exp = runs_dir / "exp"
+    manifest = Manifest.model_validate_json(
+        (exp / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert [(job.scenario_id, job.agent) for job in manifest.jobs] == [
+        ("happy_path_01", "baseline"),
+        ("happy_path_01", "fsm"),
+    ]
+    names = sorted(path.name for path in (exp / "dialogues").glob("*.jsonl"))
+    assert names == [
+        "happy_path_01__baseline__rep01.jsonl",
+        "happy_path_01__fsm__rep01.jsonl",
+    ]
 
 
 def test_run_with_zero_reps_does_not_create_the_experiment_directory(

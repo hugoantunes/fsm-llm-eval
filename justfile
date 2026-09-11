@@ -62,9 +62,13 @@ generate-scenarios *args:
 run exp_id="exp" scenarios="data/scenarios/examples" reps="1" parallel="2" *args:
     uv run python -m sim run --exp-id {{exp_id}} --scenarios {{scenarios}} --reps {{reps}} --parallel {{parallel}} {{args}}
 
-# python -m sim eval (T-14b). Example: just eval runs/exp_pilot
-eval run_dir:
-    uv run python -m sim eval --run {{run_dir}}
+# python -m sim eval (T-14b). Example: just eval runs/exp_pilot 2
+eval run_dir parallel="2":
+    uv run python -m sim eval --run {{run_dir}} --parallel {{parallel}}
+
+# Per-caller token and latency averages plus seconds per dialogue (T-15)
+stats run_dir:
+    uv run python scripts/run_stats.py {{run_dir}}
 
 # Remove caches and coverage output
 clean:

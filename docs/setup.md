@@ -37,15 +37,22 @@ Transfer path, state on 2026-09-08:
   Administrators. `systemsetup -setremotelogin on` fails from a terminal without Full Disk Access;
   the System Settings toggle under General, Sharing does not need it. The machine's own name and
   address are deliberately not recorded here: read them off that Sharing pane when you need them.
-- **Key auth is not set up yet.** The Pro has no `~/.ssh/authorized_keys`, so `rsync` will prompt
-  for a password on every block. Run `ssh-copy-id <user>@<pro-host>` from the Air once. Needed for
-  anything unattended.
+- **Key auth on the Pro is still not set up.** The Pro has no `~/.ssh/authorized_keys`, so `rsync`
+  will prompt for a password on every block. Run `ssh-copy-id <user>@<pro-host>` from the Air once.
+  Needed for anything unattended.
+- **The transfer path itself was exercised on 2026-09-11 (T-15), against `localhost` on the Air.**
+  The Air's own key was added to its `~/.ssh/authorized_keys` and
+  `rsync -az --partial -e ssh runs/exp_pilot localhost:<dest>/` moved all 258 files of the pilot
+  directory with identical checksums. `sim eval --run <dest>/exp_pilot` then scored the 20 dialogues
+  with **no LLM call**: `cache/` travels with the run, so re-evaluating on the second machine is
+  free for anything already judged. What remains untested is the network hop and the Pro's own
+  `authorized_keys`, not the command or the payload.
 - **"Allow full disk access for remote users" is on and is not needed here.** `rsync` writes into
   `~/projects/fsm-llm-eval/runs/`, which is not a TCC-protected path. Turning it off keeps SSH
   sessions away from Mail, Messages, Photos, Safari data and Time Machine without affecting the
   transfer.
-- Still untested end to end, because it needs both machines awake. Do that during the pilot (T-15),
-  not on the day of the full run.
+- Still untested end to end (Air → Pro), because it needs both machines awake. Do that before
+  T-17, not on the day of the full run.
 
 The transfer is an optimization worth about 4 h, not a dependency: if it fails, run and eval both
 happen on the Air in sequence, 12.3 h instead of 8.3 h, with nothing lost, because the two phases

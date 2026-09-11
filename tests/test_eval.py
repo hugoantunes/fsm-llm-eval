@@ -53,6 +53,7 @@ def _eval(
     llm: CannedEvalLlm,
     kb: KnowledgeBase,
     fsm: FsmSpec,
+    parallel: int = 1,
 ) -> None:
     """Score ``run_dir`` with the canned eval client and the real config."""
     evaluate_run(
@@ -61,6 +62,7 @@ def _eval(
         kb=kb,
         fsm=fsm,
         config=load_models_config(CONFIG),
+        parallel=parallel,
     )
 
 
@@ -181,6 +183,61 @@ def test_eval_skips_failed_dialogues(
     assert len(judged) == 3
 
 
+def test_eval_skips_the_dialogue_whose_judge_reply_never_validates(
+    run_canned: RunCanned,
+    run_dir: Path,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+    two_example_scenarios: tuple[Scenario, Scenario],
+) -> None:
+    run_canned()
+    _mark_replies(run_dir, two_example_scenarios)
+    happy, _ = two_example_scenarios
+    llm = CannedEvalLlm(invalid_facts_marker=f"{happy.id}:baseline")
+
+    result = evaluate_run(
+        run_dir,
+        llm=llm,
+        kb=real_kb,
+        fsm=real_fsm,
+        config=load_models_config(CONFIG),
+    )
+
+    _, rows = _read_csv(run_dir / "metrics.csv")
+    _, turn_rows = _read_csv(run_dir / "metrics_turn.csv")
+    unscored_fields, unscored = _read_csv(run_dir / "unscored.csv")
+
+    assert result.n_scored == 3
+    assert result.n_unscored == 1
+    assert len(rows) == 3
+    assert (happy.id, "baseline") not in {
+        (row["scenario_id"], row["agent"]) for row in rows
+    }
+    assert len(turn_rows) == 3
+    assert unscored_fields == [*IDENTITY, "reason"]
+    assert [
+        (row["scenario_id"], row["agent"], int(row["repetition"])) for row in unscored
+    ] == [(happy.id, "baseline", 1)]
+    assert "fact_id" in unscored[0]["reason"]
+
+
+def test_eval_writes_a_header_only_unscored_csv_when_every_dialogue_scores(
+    run_canned: RunCanned,
+    run_dir: Path,
+    canned_eval_llm: CannedEvalLlm,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+) -> None:
+    run_canned()
+
+    _eval(run_dir, canned_eval_llm, real_kb, real_fsm)
+
+    fieldnames, rows = _read_csv(run_dir / "unscored.csv")
+
+    assert fieldnames == [*IDENTITY, "reason"]
+    assert rows == []
+
+
 def _mark_replies(run_dir: Path, scenarios: tuple[Scenario, Scenario]) -> None:
     """Give each dialogue a unique agent reply so call order is observable."""
     for scenario in scenarios:
@@ -244,6 +301,49 @@ def test_eval_calls_the_judge_in_shuffled_order(
         _dialogue_of(call) for call in second.calls if call["caller"] == "judge_facts"
     ] == order
     assert csv_order == jobs_order
+
+
+def test_eval_in_parallel_writes_the_same_csvs_as_a_sequential_eval(
+    run_canned: RunCanned,
+    run_dir: Path,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+    two_example_scenarios: tuple[Scenario, Scenario],
+) -> None:
+    """Concurrency is a machine choice, never a measurement one."""
+    run_canned()
+    _mark_replies(run_dir, two_example_scenarios)
+    sequential = CannedEvalLlm()
+    _eval(run_dir, sequential, real_kb, real_fsm)
+    metrics = (run_dir / "metrics.csv").read_bytes()
+    turns = (run_dir / "metrics_turn.csv").read_bytes()
+    unscored = (run_dir / "unscored.csv").read_bytes()
+
+    concurrent = CannedEvalLlm()
+    _eval(run_dir, concurrent, real_kb, real_fsm, parallel=2)
+
+    assert (run_dir / "metrics.csv").read_bytes() == metrics
+    assert (run_dir / "metrics_turn.csv").read_bytes() == turns
+    assert (run_dir / "unscored.csv").read_bytes() == unscored
+    assert sorted(call["prompt_hash"] for call in concurrent.calls) == sorted(
+        call["prompt_hash"] for call in sequential.calls
+    )
+    assert sorted(call["seed"] or 0 for call in concurrent.calls) == sorted(
+        call["seed"] or 0 for call in sequential.calls
+    )
+
+
+def test_eval_rejects_a_parallel_below_one(
+    run_canned: RunCanned,
+    run_dir: Path,
+    canned_eval_llm: CannedEvalLlm,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+) -> None:
+    run_canned()
+
+    with pytest.raises(EvalError, match="--parallel must be at least 1"):
+        _eval(run_dir, canned_eval_llm, real_kb, real_fsm, parallel=0)
 
 
 def test_reeval_of_the_same_run_hits_the_prompt_hash_cache(
@@ -350,6 +450,8 @@ def test_eval_rejects_a_null_needle_recovered_on_a_needle_scenario(
 
     with pytest.raises(EvalError, match="needle_recovered"):
         _eval(run_dir, CannedEvalLlm(needle_recovered=None), real_kb, real_fsm)
+
+    assert not (run_dir / "unscored.csv").exists()
 
 
 def test_eval_rejects_a_log_whose_scenario_is_missing(

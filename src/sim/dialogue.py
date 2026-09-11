@@ -10,15 +10,30 @@ The runner of T-14a wraps this with the CLI, the JSONL per dialogue, the
 manifest, ``--resume`` and the thread pool. None of that belongs here.
 """
 
+from collections.abc import Sequence
+
 from pydantic import BaseModel, ConfigDict
 
-from sim.agents import Agent
+from sim.agents import Agent, AgentError
+from sim.events import EventError
+from sim.fsm import FsmError
+from sim.llm import LlmError
 from sim.schemas import StopReason, Turn, TurnRecord, transcript_from_records
-from sim.user import SimulatedUser
+from sim.user import SimulatedUser, UserError
+
+_OPERATIONAL = (LlmError, AgentError, UserError, EventError, FsmError)
 
 
 class DialogueError(RuntimeError):
-    """The dialogue cannot continue; the message says why."""
+    """The dialogue cannot continue; the message says why.
+
+    ``records`` are the completed agent turns. A turn that died before the
+    agent answered is not stored as a fake reply.
+    """
+
+    def __init__(self, message: str, *, records: Sequence[TurnRecord] = ()) -> None:
+        super().__init__(message)
+        self.records = list(records)
 
 
 class DialogueResult(BaseModel):
@@ -56,30 +71,37 @@ def run_dialogue(
 
     Raises:
         DialogueError: when the user declares the agent closed the conversation
-            before the agent has spoken. ``agent_closed`` on an empty transcript
-            would flatter that agent in the stop-reason distribution of T-15.
+            before the agent has spoken, or when an operational failure stops a
+            later turn. ``records`` on the error are the turns already played.
     """
     transcript: list[Turn] = []
     records: list[TurnRecord] = []
     stop: StopReason | None = None
-    while stop is None:
-        reply = user.speak(transcript)
-        if reply.status == "agent_ended":
-            if not transcript:
-                raise DialogueError(
-                    "the simulated user declared agent_ended on an empty "
-                    "transcript. The agent never spoke, so it cannot have closed "
-                    "the dialogue; agent_closed on an empty transcript would "
-                    "flatter that agent in the stop-reason distribution of T-15"
+    try:
+        while stop is None:
+            reply = user.speak(transcript)
+            if reply.status == "agent_ended":
+                if not transcript:
+                    raise DialogueError(
+                        "the simulated user declared agent_ended on an empty "
+                        "transcript. The agent never spoke, so it cannot have closed "
+                        "the dialogue; agent_closed on an empty transcript would "
+                        "flatter that agent in the stop-reason distribution of T-15"
+                    )
+                stop = "agent_closed"
+                break
+            transcript.append(Turn(speaker="user", text=reply.message))
+            record = agent.respond(transcript)
+            records.append(record)
+            transcript.append(Turn(speaker="agent", text=record.agent_reply))
+            if reply.status != "continue":
+                stop = (
+                    "goal_reached" if reply.status == "goal_reached" else "user_gave_up"
                 )
-            stop = "agent_closed"
-            break
-        transcript.append(Turn(speaker="user", text=reply.message))
-        record = agent.respond(transcript)
-        records.append(record)
-        transcript.append(Turn(speaker="agent", text=record.agent_reply))
-        if reply.status != "continue":
-            stop = "goal_reached" if reply.status == "goal_reached" else "user_gave_up"
-        elif len(records) >= max_turns:
-            stop = "max_turns"
+            elif len(records) >= max_turns:
+                stop = "max_turns"
+    except DialogueError:
+        raise
+    except _OPERATIONAL as failure:
+        raise DialogueError(str(failure), records=records) from failure
     return DialogueResult(records=records, stop_reason=stop)

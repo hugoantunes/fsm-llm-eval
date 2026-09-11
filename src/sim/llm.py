@@ -32,6 +32,11 @@ Message = Mapping[str, str]
 #: Audit log of every call, including cache hits, under ``runs/<exp_id>/``.
 LLM_CALLS_LOG = "llm_calls.jsonl"
 
+#: Extra attempts when pydantic refuses a payload JSON Schema cannot express
+#: (``fact_id`` only on ``yes``; ``intent`` on ``intent_classified``). Transport
+#: retries stay in :meth:`LlmClient.chat`.
+SCHEMA_RETRIES = 2
+
 
 class LlmError(RuntimeError):
     """Something went wrong in a call to the model."""
@@ -141,6 +146,51 @@ class Chat(Protocol):
     ) -> "LlmResponse":
         """Send ``messages`` to the model configured for ``role``."""
         ...
+
+
+def chat_parsed[Parsed: BaseModel](
+    llm: Chat,
+    messages: Sequence[Message],
+    *,
+    role: Role,
+    caller: str,
+    schema: type[Parsed],
+    seed: int | None = None,
+) -> Parsed:
+    """Call ``llm`` until the answer matches ``schema``, or the retries run out.
+
+    JSON Schema cannot express every pydantic check. A ``ValidationError`` is
+    retried with a bumped seed; transport failures raise immediately.
+    """
+    last_error: BaseException | None = None
+    for attempt in range(SCHEMA_RETRIES + 1):
+        call_seed = None if seed is None else seed + attempt
+        try:
+            answer = llm.chat(
+                messages,
+                role=role,
+                caller=caller,
+                schema=schema,
+                seed=call_seed,
+            )
+        except ValidationError as error:
+            last_error = error
+            continue
+        except LlmError as error:
+            if not isinstance(error.__cause__, ValidationError):
+                raise
+            last_error = error
+            continue
+        parsed = answer.parsed
+        if isinstance(parsed, schema):
+            return parsed
+        last_error = LlmError(
+            f"{caller} returned no parsed {schema.__name__}. The client of "
+            "T-07 validates against the schema; an unparsed payload would let "
+            "a contract-invalid answer through"
+        )
+    assert last_error is not None
+    raise last_error
 
 
 class ChatTransport(Protocol):

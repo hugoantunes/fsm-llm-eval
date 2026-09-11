@@ -14,7 +14,8 @@ everything the models read or write are in English; the thesis glosses names in 
 
 > Status: `sim run` (T-14a) and `sim eval` (T-14b) are in place. The golden dataset
 > (`data/scenarios/v1/`, T-06) is frozen; `just check` fails if those files move.
-> Next: T-15 (pilot). Metrics and rubrics: T-04, `docs/metrics.md`.
+> Pilot (T-15) is done: [`docs/pilot.md`](docs/pilot.md). Next: T-16 (parity + judge
+> validation → tag `v1`). Metrics and rubrics: T-04, `docs/metrics.md`.
 
 ## Requirements
 
@@ -177,7 +178,7 @@ Parts that do not exist yet are marked with the ticket that creates them.
 | `results/` | `metrics.csv` (T-18, audited copy), `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-19, T-20; CSVs git-ignored, regenerated from `runs/`) |
 | `notebooks/` | `analysis.ipynb`: regenerates tables and figures from `metrics.csv` (T-20) |
 | `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`; `generate_scenarios.py` (T-06; default out is the next unused `vN`, never overwrite `v1`) |
-| `docs/` | `setup.md`; `metrics.md`, `taxonomy.md`, `fsm.md`, `decisions_and_limitations.md`; later `pilot.md`, `parity.md`, `judge_validation.md` and the appendices (T-02 to T-22) |
+| `docs/` | `setup.md`, `metrics.md`, `taxonomy.md`, `fsm.md`, `decisions_and_limitations.md`, `pilot.md`; later `parity.md`, `judge_validation.md` and the appendices (T-16 to T-22) |
 | `ai-assistance/` | instructions for AI assistants (`PREAMBLE.md`, `DEVELOPMENT.md`) and the hook scripts |
 | `.claude/` | Claude Code config: hooks and permissions (`settings.json`), the `/ticket` skill, path-scoped rules |
 

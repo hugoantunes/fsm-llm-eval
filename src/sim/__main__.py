@@ -19,7 +19,8 @@ from sim.eval import EvalError, evaluate_run
 from sim.fsm import load_fsm
 from sim.kb import load_kb
 from sim.llm import LLM_CALLS_LOG, Chat, LlmClient
-from sim.runner import AGENTS, LlmFactory, RunnerError, run_experiment
+from sim.logs import configure_run_log
+from sim.runner import AGENTS, LlmFactory, RunnerError, run_experiment, select_scenarios
 from sim.schemas import load_scenarios
 
 __all__ = ["AGENTS", "build_parser", "main"]
@@ -67,12 +68,25 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--resume", action="store_true", help="skip dialogues already written"
     )
+    run.add_argument(
+        "--scenario-id",
+        action="append",
+        dest="scenario_ids",
+        metavar="ID",
+        help="play only this scenario; repeat to name several. Omit to play all",
+    )
 
     ev = subparsers.add_parser(
         "eval",
         help="read runs/<exp_id>/, run the evaluators and write metrics.csv",
     )
     ev.add_argument("--run", required=True, help="experiment directory (runs/<exp_id>)")
+    ev.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="dialogues scored in parallel (match OLLAMA_NUM_PARALLEL)",
+    )
     return parser
 
 
@@ -120,6 +134,8 @@ def _run(args: argparse.Namespace, *, llm_factory: LlmFactory | None) -> int:
         bar.refresh()
 
     try:
+        if args.scenario_ids:
+            scenarios = select_scenarios(scenarios, args.scenario_ids)
         manifest = run_experiment(
             scenarios=scenarios,
             agents=agents,
@@ -140,6 +156,14 @@ def _run(args: argparse.Namespace, *, llm_factory: LlmFactory | None) -> int:
         return 1
     finally:
         bar.close()
+    configure_run_log(run_dir, phase="run").info(
+        "wrote %d dialogue(s) (%d failed, %d skipped, %d/%d llm cache hits)",
+        manifest.n_ok,
+        manifest.n_failed,
+        manifest.n_skipped,
+        manifest.n_llm_cached,
+        manifest.n_llm_calls,
+    )
     print(
         f"sim: wrote {manifest.n_ok} dialogue(s) to {run_dir} "
         f"({manifest.n_failed} failed, {manifest.n_skipped} skipped, "
@@ -157,6 +181,7 @@ def _eval(args: argparse.Namespace, *, llm: Chat | None) -> int:
     kb = load_kb()
     fsm = load_fsm()
     client = llm or _client(config, run_dir)
+    log = configure_run_log(run_dir, phase="eval")
     bar = tqdm(
         total=0,
         unit="dlg",
@@ -177,6 +202,7 @@ def _eval(args: argparse.Namespace, *, llm: Chat | None) -> int:
             kb=kb,
             fsm=fsm,
             config=config,
+            parallel=args.parallel,
             on_progress=on_progress,
         )
     except EvalError as failure:
@@ -184,12 +210,19 @@ def _eval(args: argparse.Namespace, *, llm: Chat | None) -> int:
         return 1
     finally:
         bar.close()
+    log.info(
+        "scored %d dialogue(s) (%d failed, %d unscored)",
+        result.n_scored,
+        result.n_failed,
+        result.n_unscored,
+    )
     print(
         f"sim: scored {result.n_scored} dialogue(s) in {run_dir} "
-        f"({result.n_failed} failed, metrics.csv, metrics_turn.csv)",
+        f"({result.n_failed} failed, {result.n_unscored} unscored, "
+        f"metrics.csv, metrics_turn.csv)",
         file=sys.stdout,
     )
-    return 0
+    return 1 if result.n_unscored else 0
 
 
 def _client(config: ModelsConfig, run_dir: Path) -> LlmClient:

@@ -11,7 +11,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter
 
 from sim.kb import FACT_ID_SCHEMA_PATTERN
 
@@ -64,32 +64,49 @@ ACCURACY_SCORE: dict[Accuracy, float] = {
 }
 
 
-class JudgeClaim(BaseModel):
-    """One atomic assertion the assistant made, optionally tied to a KB ID."""
+class SupportedClaim(BaseModel):
+    """An atomic claim the knowledge base supports, tied to the fact for it."""
 
     model_config = ConfigDict(extra="forbid")
 
     text: str
-    fact_id: FactId | None
-    supported_by_kb: ClaimSupport
+    supported_by_kb: Literal["yes"]
+    fact_id: FactId
 
-    @model_validator(mode="after")
-    def _fact_id_matches_support(self) -> "JudgeClaim":
-        """A supported claim names its KB ID; a non-supported claim has none."""
-        if self.supported_by_kb == "yes":
-            if self.fact_id is not None:
-                return self
-            raise ValueError(
-                "supported_by_kb is yes but fact_id is null: a claim the knowledge "
-                "base supports must name that fact, or fact_precision cannot tell a "
-                "required ID from an unmatched leftover"
-            )
-        if self.fact_id is None:
-            return self
-        raise ValueError(
-            f"supported_by_kb is {self.supported_by_kb!r} but fact_id is "
-            f"{self.fact_id}: only a yes claim is associated with a knowledge-base ID"
-        )
+
+class UnsupportedClaim(BaseModel):
+    """An atomic claim the knowledge base contradicts or cannot verify."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    supported_by_kb: Literal["no", "unverifiable"]
+    fact_id: None
+
+
+#: A KB id on a non-``yes`` claim is a type error here, not a rule
+#: :class:`~sim.judge.Judge` checks after parsing: ``fact_id`` is ``None`` on
+#: this branch, not ``FactId | None``, so ``format=`` rules it out for Ollama
+#: the same way pydantic does for a cached or hand-built payload.
+JudgeClaim = Annotated[
+    SupportedClaim | UnsupportedClaim, Field(discriminator="supported_by_kb")
+]
+
+_JudgeClaimAdapter = TypeAdapter(JudgeClaim)
+
+
+def judge_claim(
+    *, text: str, fact_id: str | None, supported_by_kb: ClaimSupport
+) -> SupportedClaim | UnsupportedClaim:
+    """Build the claim variant ``supported_by_kb`` selects, or raise.
+
+    The one constructor test code needs: :class:`JudgeClaim` is a type alias,
+    not a class, so it takes the discriminator dispatch pydantic would do for
+    a field of this type and does it for a bare value too.
+    """
+    return _JudgeClaimAdapter.validate_python(
+        {"text": text, "fact_id": fact_id, "supported_by_kb": supported_by_kb}
+    )
 
 
 class JudgeFacts(BaseModel):
@@ -201,7 +218,11 @@ def inlined_json_schema(model: type[BaseModel]) -> dict[str, Any]:
 
 
 def _inline(node: Any, defs: dict[str, Any]) -> Any:
-    """Replace every ``$ref`` into ``defs``, keeping sibling keys of the ref."""
+    """Replace every ``$ref`` into ``defs``, keeping sibling keys of the ref.
+
+    Drops ``discriminator``: its ``mapping`` names ``$defs`` paths that stop
+    existing once every ``$ref`` beside it has been inlined away.
+    """
     if isinstance(node, dict):
         ref = node.get("$ref")
         if isinstance(ref, str) and ref.startswith("#/$defs/"):
@@ -212,7 +233,11 @@ def _inline(node: Any, defs: dict[str, Any]) -> Any:
                 if key != "$ref"
             }
             return {**target, **rest}
-        return {key: _inline(value, defs) for key, value in node.items()}
+        return {
+            key: _inline(value, defs)
+            for key, value in node.items()
+            if key != "discriminator"
+        }
     if isinstance(node, list):
         return [_inline(value, defs) for value in node]
     return node

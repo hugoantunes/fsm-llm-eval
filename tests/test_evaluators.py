@@ -10,6 +10,7 @@ from helpers import (
 )
 from sim.evaluators import (
     LABELER,
+    MAX_FLOW_EDGES_PER_TURN,
     StageLabeler,
     flow_scores,
     injection_succeeded,
@@ -20,6 +21,7 @@ from sim.evaluators import (
     stage_label_accuracy,
     turn_latency_s,
 )
+from sim.events import machine_rules
 from sim.fsm import FsmSpec
 from sim.kb import KnowledgeBase
 from sim.schemas import Scenario, TurnRecord
@@ -120,18 +122,78 @@ def test_stage_transitions_self_loops_and_flow_adherence_are_computed_from_label
     assert stalled.valid_flow_path is True
     assert stalled.flow_adherence is True
     assert early_farewell.ended_in_expected_state is True
-    assert early_farewell.valid_flow_path is False
-    assert early_farewell.flow_adherence is False
+    assert early_farewell.valid_flow_path is True
+    assert early_farewell.flow_adherence is True
     assert out_of_scope.ended_in_expected_state is True
-    assert out_of_scope.valid_flow_path is False
-    assert out_of_scope.flow_adherence is False
-    assert lone_closing.valid_flow_path is False
-    assert lone_closing.flow_adherence is False
-    assert lone_out_of_scope.valid_flow_path is False
-    assert lone_out_of_scope.flow_adherence is False
+    assert out_of_scope.valid_flow_path is True
+    assert out_of_scope.flow_adherence is True
+    assert lone_closing.valid_flow_path is True
+    assert lone_closing.flow_adherence is True
+    assert lone_out_of_scope.valid_flow_path is True
+    assert lone_out_of_scope.flow_adherence is True
     assert opening.valid_flow_path is True
     assert opening.ended_in_expected_state is False
     assert opening.flow_adherence is False
+
+
+def test_valid_flow_path_bounds_a_turn_to_two_edges_and_allows_universal_exits(
+    real_fsm: FsmSpec,
+) -> None:
+    """One label is one turn, and the engine walks up to two edges in a turn."""
+    expected = "closing"
+    auto_advanced = flow_scores(
+        ["greeting", "intent_classification", "solution", "confirmation", "closing"],
+        expected,
+        real_fsm,
+    )
+    three_edges = flow_scores(["greeting", "data_collection"], expected, real_fsm)
+    skipped_middle = flow_scores(
+        ["greeting", "identification", "solution", "closing"], expected, real_fsm
+    )
+    escape_and_return = flow_scores(
+        ["greeting", "out_of_scope", "identification", "intent_classification"],
+        "intent_classification",
+        real_fsm,
+    )
+    escalated = flow_scores(["out_of_scope", "closing"], expected, real_fsm)
+
+    assert auto_advanced.valid_flow_path is True
+    assert auto_advanced.flow_adherence is True
+    assert three_edges.valid_flow_path is False
+    assert skipped_middle.valid_flow_path is False
+    assert escape_and_return.valid_flow_path is True
+    assert escalated.valid_flow_path is True
+
+
+def test_max_flow_edges_per_turn_is_the_ceiling_the_engine_can_reach(
+    real_fsm: FsmSpec,
+    real_kb: KnowledgeBase,
+) -> None:
+    """The bound is derived from the machine, not chosen to fit an observation.
+
+    ``FsmEngine.step`` fires one user event and then offers exactly two
+    auto-advance events, in a fixed order and each at most once. Assume every
+    guard passes and try every state against every event: the longest chain the
+    machine admits is the constant the metric uses.
+    """
+    rules = machine_rules(real_fsm, real_kb.user_data_fields, real_kb.intents())
+    edges = {(edge.source, edge.event): edge.dest for edge in real_fsm.transitions}
+
+    def chain(start: str, user_event: str) -> int:
+        state, walked = start, 0
+        for event in (user_event, rules.identify_event, rules.collect_event):
+            dest = edges.get((state, event))
+            if dest is not None:
+                state, walked = dest, walked + 1
+        return walked
+
+    longest = max(
+        chain(state, edge.event)
+        for state in real_fsm.states
+        for edge in real_fsm.transitions
+    )
+
+    assert longest == MAX_FLOW_EDGES_PER_TURN
 
 
 def _gold_stages(records: list[TurnRecord]) -> list[str]:

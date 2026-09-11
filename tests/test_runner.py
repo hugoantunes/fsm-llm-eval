@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from helpers import CONFIG, EXAMPLES_DIR, FSM_DIR, RunCanned
+from helpers import CONFIG, EXAMPLES_DIR, FSM_DIR, RunCanned, make_llm_call_record
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
 from sim.events import EventError
 from sim.fsm import FsmError, FsmSpec
 from sim.io import atomic_write
 from sim.kb import KnowledgeBase
-from sim.llm import LLM_CALLS_LOG, Chat, LlmCallRecord, LlmClient, LlmError
+from sim.llm import LLM_CALLS_LOG, Chat, LlmClient, LlmError
 from sim.runner import (
     AGENTS,
     DialogueJob,
@@ -22,6 +22,7 @@ from sim.runner import (
     hash_fsm,
     iter_jobs,
     run_experiment,
+    select_scenarios,
 )
 from sim.schemas import DialogueLog, Manifest, Scenario
 
@@ -302,19 +303,14 @@ def test_manifest_counts_cached_calls_from_the_llm_log(
 
 def _llm_log_line(*, cached: bool, prompt_hash: str) -> str:
     """One valid ``llm_calls.jsonl`` row for the manifest counter."""
-    return LlmCallRecord(
-        timestamp="2026-09-09T00:00:00+00:00",
+    return make_llm_call_record(
         caller="simulated_user",
         role="simulator",
-        model="small-model",
-        prompt_hash=prompt_hash,
-        messages=[],
-        text="{}",
         prompt_tokens=1,
         output_tokens=1,
         latency_s=0.1,
         cached=cached,
-        attempts=0 if cached else 1,
+        prompt_hash=prompt_hash,
     ).model_dump_json()
 
 
@@ -333,6 +329,29 @@ def test_unknown_agent_is_rejected(
 ) -> None:
     with pytest.raises(RunnerError, match="nonsense"):
         iter_jobs(two_example_scenarios, agents=("nonsense",), reps=1)
+
+
+def test_selected_scenario_ids_keep_dataset_order(
+    example_scenarios: dict[str, Scenario],
+) -> None:
+    dataset = list(example_scenarios.values())
+    ids = ("happy_path_01", "adversarial_01")
+
+    selected = select_scenarios(dataset, ids)
+
+    assert [scenario.id for scenario in selected] == [
+        "adversarial_01",
+        "happy_path_01",
+    ]
+
+
+def test_an_unknown_scenario_id_is_refused(
+    example_scenarios: dict[str, Scenario],
+) -> None:
+    dataset = list(example_scenarios.values())
+
+    with pytest.raises(RunnerError, match="ghost_99"):
+        select_scenarios(dataset, ("happy_path_01", "ghost_99"))
 
 
 # --- Integration: a real Ollama with the models of configs/models.yaml -------

@@ -1,6 +1,5 @@
 """Tests for the blind two-call judge (T-12)."""
 
-import json
 import re
 from collections.abc import Sequence
 
@@ -13,15 +12,22 @@ from helpers import (
     TRACKING_FACT,
     FakeLlm,
     SanityDialogue,
+    invalid_judge_facts_reply,
     judge_facts_reply,
     judge_global_reply,
     load_judge_sanity,
     make_kb,
 )
-from sim.judge import SCHEMA_RETRIES, Judge, JudgeError, JudgeResult
+from sim.judge import (
+    SCHEMA_RETRIES,
+    Judge,
+    JudgeError,
+    JudgeResult,
+    JudgeSchemaError,
+)
 from sim.kb import Fact, KnowledgeBase, Needle, render_facts
 from sim.llm import LlmClient
-from sim.metrics import JudgeClaim, JudgeFacts, JudgeGlobal
+from sim.metrics import JudgeFacts, JudgeGlobal, judge_claim
 from sim.prompts import Prompt
 from sim.schemas import Scenario, Turn, render_script, render_transcript
 
@@ -121,28 +127,12 @@ def _scenario(**overrides: object) -> Scenario:
     return Scenario.model_validate(fields)
 
 
-def _invalid_facts_json() -> str:
-    """A call-1 payload the JSON Schema allows and pydantic refuses."""
-    return json.dumps(
-        {
-            "claims": [
-                {
-                    "text": "Shipping is always free.",
-                    "fact_id": "F10",
-                    "supported_by_kb": "no",
-                }
-            ],
-            "needle_recovered": None,
-        }
-    )
-
-
 def _llm_for_sanity(case: SanityDialogue) -> FakeLlm:
     """Canned judge replies that match the fixture's expected labels."""
     claims = None
     if case.planted_unsupported is not None:
         claims = [
-            JudgeClaim(
+            judge_claim(
                 text=case.planted_unsupported,
                 fact_id=None,
                 supported_by_kb="no",
@@ -258,16 +248,35 @@ def test_unsupported_claim_with_fact_id_fails_the_call(
     transcript: Sequence[Turn],
     judge_scenario: Scenario,
 ) -> None:
-    llm = FakeLlm([_invalid_facts_json()] * (SCHEMA_RETRIES + 1))
+    llm = FakeLlm([invalid_judge_facts_reply()] * (SCHEMA_RETRIES + 1))
     judge = Judge(llm, kb=judge_kb, prompts_dir=PROMPTS_DIR, seed=SEED)
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(JudgeSchemaError) as exc_info:
         judge.evaluate(transcript, judge_scenario)
 
     assert len(llm.calls) == SCHEMA_RETRIES + 1
     assert [call["seed"] for call in llm.calls] == [
         SEED + attempt for attempt in range(SCHEMA_RETRIES + 1)
     ]
+    assert "judge_facts" in str(exc_info.value)
+    assert isinstance(exc_info.value.__cause__, ValidationError)
+
+
+def test_a_judge_that_never_validates_is_not_an_ordinary_judge_error(
+    judge_kb: KnowledgeBase,
+    transcript: Sequence[Turn],
+    judge_scenario: Scenario,
+) -> None:
+    llm = FakeLlm([invalid_judge_facts_reply()] * (SCHEMA_RETRIES + 1))
+    judge = Judge(llm, kb=judge_kb, prompts_dir=PROMPTS_DIR, seed=SEED)
+
+    with pytest.raises(JudgeError):
+        judge.evaluate(transcript, judge_scenario)
+
+    with pytest.raises(JudgeError) as empty:
+        judge.evaluate([], judge_scenario)
+
+    assert not isinstance(empty.value, JudgeSchemaError)
 
 
 def test_schema_invalid_facts_call_is_retried(
@@ -275,7 +284,9 @@ def test_schema_invalid_facts_call_is_retried(
     transcript: Sequence[Turn],
     judge_scenario: Scenario,
 ) -> None:
-    llm = FakeLlm([_invalid_facts_json(), judge_facts_reply(), judge_global_reply()])
+    llm = FakeLlm(
+        [invalid_judge_facts_reply(), judge_facts_reply(), judge_global_reply()]
+    )
     result = Judge(llm, kb=judge_kb, prompts_dir=PROMPTS_DIR, seed=SEED).evaluate(
         transcript, judge_scenario
     )

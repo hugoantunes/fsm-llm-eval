@@ -96,10 +96,10 @@ def flow_scores(
     """Score flow adherence from the labelled stage sequence.
 
     Consecutive identical labels are a self-loop: they count in
-    ``n_self_loops`` and stay a valid path. Only non-``from_any`` edges of
-    ``machine.yaml`` count as a valid step between distinct stages. The first
-    label must be the initial state or a flow step from it, so a one-turn
-    ``farewell`` or ``out_of_scope_request`` does not pass as a valid path.
+    ``n_self_loops`` and stay a valid path. Two distinct labels are a valid
+    step when the flow edges of ``machine.yaml`` join them in at most
+    :data:`MAX_FLOW_EDGES_PER_TURN`, or when the step takes a ``from: "*"``
+    edge. The first label is checked the same way against the initial state.
 
     """
     if not stages:
@@ -121,20 +121,60 @@ def flow_scores(
     )
 
 
-def _is_valid_flow_path(stages: Sequence[str], spec: FsmSpec) -> bool:
-    """Return whether the labelled stages are a flow path from the initial state.
+#: How many flow edges one agent turn may cover, which is the ceiling
+#: :meth:`sim.engine.FsmEngine.step` can reach and not a threshold fitted to an
+#: observation. ``step`` fires one classified user event, then offers exactly two
+#: auto-advance events in a fixed order, each at most once and with no loop:
+#: ``order_identified`` and ``data_provided``. Three can never fire, because
+#: ``order_identified`` lands on ``intent_classification`` while ``data_provided``
+#: is declared only out of ``data_collection``, and the one edge between them is
+#: ``intent_classified``, which ``_advance_when_ready`` deliberately excludes. So
+#: even with every guard passing the longest chain is two, and consecutive labels
+#: are consecutive turns' ``state_after``: a wider jump is a skipped stage, which
+#: is the failure this metric exists to detect.
+#: ``test_max_flow_edges_per_turn_is_the_ceiling_the_engine_can_reach`` rederives
+#: this from ``machine.yaml`` so the constant cannot drift from the machine.
+MAX_FLOW_EDGES_PER_TURN = 2
 
-    Adjacent identical labels are allowed. A sequence that does not start at
-    ``spec.initial`` is checked as a step from there, so one-turn ``from_any``
-    exits cannot pass for lack of a pair.
+
+def _is_valid_flow_path(stages: Sequence[str], spec: FsmSpec) -> bool:
+    """Return whether the labelled stages are a legal traversal of the machine.
+
+    Adjacent identical labels are allowed. The destination of a ``from: "*"``
+    edge is reachable from anywhere: asking for something out of scope and
+    saying goodbye are moves of the *user*, which every state answers, so a
+    dialogue that ends early because the user was satisfied is a legal path and
+    not a skipped stage. A sequence that does not start at ``spec.initial`` is
+    checked as a walk from there.
     """
-    allowed = {
-        (edge.source, edge.dest) for edge in spec.transitions if not edge.from_any
-    }
+    walks = _walks_within(spec, MAX_FLOW_EDGES_PER_TURN)
+    universal = {edge.dest for edge in spec.transitions if edge.from_any}
     path = stages if stages[0] == spec.initial else (spec.initial, *stages)
     return all(
-        source == dest or (source, dest) in allowed for source, dest in pairwise(path)
+        source == dest or dest in universal or (source, dest) in walks
+        for source, dest in pairwise(path)
     )
+
+
+def _walks_within(spec: FsmSpec, limit: int) -> set[tuple[str, str]]:
+    """Return the pairs that ``limit`` or fewer flow edges join, source first.
+
+    ``from_any`` edges are not a step of the flow and never widen this set:
+    every state declares them, so counting them would make every state reachable
+    from every other and leave the metric unable to see a skipped stage.
+    """
+    edges = [(edge.source, edge.dest) for edge in spec.transitions if not edge.from_any]
+    walks = set(edges)
+    frontier = set(edges)
+    for _ in range(limit - 1):
+        frontier = {
+            (source, onward)
+            for source, dest in frontier
+            for via, onward in edges
+            if via == dest
+        }
+        walks |= frontier
+    return walks
 
 
 PROMPT = "stage_labeler"

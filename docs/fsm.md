@@ -157,15 +157,35 @@ schema-constrained call per dialogue, prompt in
 of this YAML. It sees the user and assistant turns, never the agent name or the true
 states.
 
-The second question is answered over the **flow edges only**, the ones with `from_any`
-false, by `sim.evaluators.flow_scores`. Consecutive identical labels are a self-loop:
-they count in `n_self_loops` and stay a valid step. A sequence that can be explained
-solely by `farewell` or by `out_of_scope_request` does not count as a valid path: those
-two leave every state, so counting them would make almost any sequence valid and the
-measure would stop telling the two agents apart. They are reported instead as their own
-outcome, an early exit and an out-of-scope exit, computed identically for both agents.
+The second question is answered by `sim.evaluators.flow_scores`, which walks the
+**flow edges** — the ones with `from_any` false — and treats the destination of a
+`from: "*"` edge as reachable from anywhere. Consecutive identical labels are a
+self-loop: they count in `n_self_loops` and stay a valid step. A sequence that does not
+start at `greeting` is checked as a walk from there, so the first label is tested like
+any other step rather than passing for lack of a pair.
 
-The first labelled stage must be `greeting` (the initial state) or a flow step from it.
-Without that, a one-turn `closing` or `out_of_scope` would pass for lack of a pair, which
-is exactly a `from_any` exit. The first question is unaffected: a scenario that expects
-`out_of_scope` is met by ending there.
+Two distinct consecutive labels are a valid step when at most
+`MAX_FLOW_EDGES_PER_TURN` = 2 flow edges join them. **Two is the ceiling
+`FsmEngine.step` can reach**, derived from the engine and this YAML rather than fitted
+to an observation: a turn fires exactly one classified user event, then
+`_advance_when_ready` offers exactly two auto-advance events in a fixed order, each at
+most once and with no loop — `order_identified` and `data_provided`. All three can never
+fire, because `order_identified` lands on `intent_classification` while `data_provided`
+is declared only out of `data_collection`, and the single edge between them is
+`intent_classified`, which `_advance_when_ready` deliberately excludes (see *Events and
+guards*). Assume every guard passes and try every state against every event: the longest
+chain the machine admits is `greeting --request_received--> identification
+--order_identified--> intent_classification`. One label is one turn and consecutive
+labels are consecutive turns' `state_after`, so two is exactly the gap a turn can
+produce, and a wider one is a skipped stage.
+`test_max_flow_edges_per_turn_is_the_ceiling_the_engine_can_reach` rederives this from
+the loaded spec, so the constant fails the suite if this file changes under it.
+
+**Both universal edges count** (decision of 2026-09-11, superseding the rule that
+excluded them). Asking for something out of scope and saying goodbye are moves of the
+*user*, which every state answers, so a dialogue that ends early because the user was
+satisfied is a legal path and not a skipped stage. Excluding them made the column
+constant `False` across the whole pilot and marked 8 of the FSM's own 10 recorded paths
+invalid. What keeps the column from degenerating into "any legal path" is the two-edge
+bound, not the exclusion of these edges. The first question is unaffected: a scenario
+that expects `out_of_scope` is met by ending there.

@@ -8,12 +8,11 @@ of the model.
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from sim.kb import KnowledgeBase, render_facts
-from sim.llm import Chat, LlmError
+from sim.llm import SCHEMA_RETRIES, Chat, LlmError, chat_parsed
 from sim.metrics import JudgeFacts, JudgeGlobal
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
 from sim.schemas import Scenario, Turn, render_script, render_transcript
@@ -22,15 +21,18 @@ FACTS_PROMPT = "judge_facts"
 GLOBAL_PROMPT = "judge_global"
 SHARED_PROMPT = "judge_shared"
 
-#: Extra attempts when pydantic refuses a payload JSON Schema cannot express
-#: (`fact_id` only on ``yes``). Transport retries stay in T-07.
-SCHEMA_RETRIES = 2
-
-_Parsed = TypeVar("_Parsed", bound=BaseModel)
-
 
 class JudgeError(RuntimeError):
     """The judge cannot grade this dialogue; the message says why."""
+
+
+class JudgeSchemaError(JudgeError):
+    """The model spent every attempt on a payload the schema refuses.
+
+    Raised only when the answer is the model's fault, so T-14b can drop that one
+    dialogue and keep the rest. Every other :class:`JudgeError` is a fault in the
+    data or in the code and still stops the eval.
+    """
 
 
 class JudgeResult(BaseModel):
@@ -93,42 +95,36 @@ class Judge:
         )
         return JudgeResult(facts=facts, global_judgement=global_judgement)
 
-    def _chat(self, prompt: str, *, caller: str, schema: type[_Parsed]) -> _Parsed:
+    def _chat[Parsed: BaseModel](
+        self, prompt: str, *, caller: str, schema: type[Parsed]
+    ) -> Parsed:
         """Send one judge call and return the parsed object, never raw JSON.
 
         A ``fact_id`` on a ``no`` claim is valid JSON Schema (Ollama will emit
-        it) and invalid pydantic. Retry with a bumped seed; do not score the
-        raw text. Transport failures are retried inside the client instead.
+        it) and invalid pydantic. :func:`chat_parsed` retries with a bumped
+        seed. Attempts spent, the refusal becomes a :class:`JudgeSchemaError`.
         """
-        last_error: BaseException | None = None
-        for attempt in range(SCHEMA_RETRIES + 1):
-            seed = None if self._seed is None else self._seed + attempt
-            try:
-                answer = self._llm.chat(
-                    [{"role": "system", "content": prompt}],
-                    role="judge",
-                    caller=caller,
-                    schema=schema,
-                    seed=seed,
-                )
-            except ValidationError as error:
-                last_error = error
-                continue
-            except LlmError as error:
-                if not isinstance(error.__cause__, ValidationError):
-                    raise
-                last_error = error
-                continue
-            parsed = answer.parsed
-            if isinstance(parsed, schema):
-                return parsed
-            last_error = JudgeError(
-                f"{caller} returned no parsed {schema.__name__}. The client of "
-                "T-07 validates against the schema; scoring the raw JSON would "
-                "let a fact_id on a no claim into fact_scores"
+        try:
+            return chat_parsed(
+                self._llm,
+                [{"role": "system", "content": prompt}],
+                role="judge",
+                caller=caller,
+                schema=schema,
+                seed=self._seed,
             )
-        assert last_error is not None
-        raise last_error
+        except ValidationError as error:
+            raise JudgeSchemaError(
+                f"{caller} did not return a valid {schema.__name__} in "
+                f"{SCHEMA_RETRIES + 1} attempts: {error}"
+            ) from error
+        except LlmError as error:
+            if not isinstance(error.__cause__, ValidationError):
+                raise
+            raise JudgeSchemaError(
+                f"{caller} did not return a valid {schema.__name__} in "
+                f"{SCHEMA_RETRIES + 1} attempts: {error}"
+            ) from error
 
 
 def _redact(text: str, canary: str | None) -> str:

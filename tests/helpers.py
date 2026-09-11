@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import json
 import re
+import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -21,8 +22,8 @@ from pydantic import BaseModel, ConfigDict
 from sim.agents import Agent
 from sim.config import Role
 from sim.kb import Fact, KnowledgeBase, Needle, UserDataField
-from sim.llm import LlmResponse, Message
-from sim.metrics import Accuracy, JudgeClaim, JudgeFacts, JudgeGlobal
+from sim.llm import LlmCallRecord, LlmResponse, Message
+from sim.metrics import Accuracy, JudgeClaim, JudgeFacts, JudgeGlobal, judge_claim
 from sim.schemas import (
     DialogueLog,
     DialogueStatus,
@@ -297,6 +298,14 @@ def classifier_reply(event: str, intent: str | None = None) -> str:
     return json.dumps({"event": event, "intent": intent})
 
 
+def invalid_classifier_reply() -> str:
+    """Render ``intent_classified`` with no intent.
+
+    JSON Schema allows the null; pydantic refuses it.
+    """
+    return classifier_reply("intent_classified")
+
+
 def make_turn_record(
     turn: int = 1,
     *,
@@ -377,7 +386,7 @@ def judge_facts_reply(
     """Render one schema-valid answer from the facts-and-claims judge call."""
     if claims is None:
         claims = [
-            JudgeClaim(
+            judge_claim(
                 text="Standard delivery takes 5 business days.",
                 fact_id="F02",
                 supported_by_kb="yes",
@@ -386,6 +395,28 @@ def judge_facts_reply(
     return JudgeFacts(
         claims=list(claims), needle_recovered=needle_recovered
     ).model_dump_json()
+
+
+def invalid_judge_facts_reply() -> str:
+    """Render a hand-built call-1 payload pydantic refuses, bypassing ``format=``.
+
+    ``format=<schema>`` now forbids a ``fact_id`` on a ``no`` claim structurally
+    (the ``oneOf`` on :class:`~sim.metrics.JudgeClaim`), so no real judge call can
+    produce this. It stands in for one anyway, to exercise the ``chat_parsed``
+    retry path a defective client or a stale cache entry could still hit.
+    """
+    return json.dumps(
+        {
+            "claims": [
+                {
+                    "text": "Shipping is always free.",
+                    "fact_id": "F10",
+                    "supported_by_kb": "no",
+                }
+            ],
+            "needle_recovered": None,
+        }
+    )
 
 
 def judge_global_reply(
@@ -454,9 +485,11 @@ class CannedEvalLlm:
         stages: Sequence[str] | None = None,
         *,
         needle_recovered: bool | None = False,
+        invalid_facts_marker: str | None = None,
     ) -> None:
         self.stages = list(stages) if stages is not None else None
         self.needle_recovered = needle_recovered
+        self.invalid_facts_marker = invalid_facts_marker
         self.calls: list[dict[str, Any]] = []
 
     def chat(
@@ -496,8 +529,17 @@ class CannedEvalLlm:
         )
 
     def _reply(self, caller: str, messages: list[dict[str, str]]) -> str:
-        """Return the schema-valid payload the caller expects."""
+        """Return the schema-valid payload the caller expects.
+
+        The facts call answers with the payload pydantic refuses when the
+        dialogue under the marker is the one being graded, so a test can single
+        out one dialogue the judge never gets right.
+        """
         if caller == "judge_facts":
+            if self.invalid_facts_marker is not None and any(
+                self.invalid_facts_marker in message["content"] for message in messages
+            ):
+                return invalid_judge_facts_reply()
             return judge_facts_reply(needle_recovered=self.needle_recovered)
         if caller == "judge_global":
             return judge_global_reply()
@@ -505,6 +547,73 @@ class CannedEvalLlm:
             labels = self.stages or ["greeting"] * _n_turns(messages)
             return stage_labels_reply(labels)
         raise AssertionError(f"unexpected eval caller {caller!r}")
+
+
+def make_llm_call_record(
+    *,
+    caller: str = "baseline",
+    role: str = "agent",
+    prompt_tokens: int = 100,
+    output_tokens: int = 10,
+    latency_s: float = 1.0,
+    cached: bool = False,
+    prompt_hash: str = "aa",
+) -> LlmCallRecord:
+    """Build one ``llm_calls.jsonl`` row; only fields a test cares about need saying."""
+    return LlmCallRecord(
+        timestamp="2026-09-10T00:00:00+00:00",
+        caller=caller,
+        role=role,
+        model=f"{role}-model",
+        prompt_hash=prompt_hash,
+        messages=[],
+        text="{}",
+        prompt_tokens=prompt_tokens,
+        output_tokens=output_tokens,
+        latency_s=latency_s,
+        cached=cached,
+        attempts=0 if cached else 1,
+    )
+
+
+def write_llm_calls(run_dir: Path, records: Sequence[LlmCallRecord]) -> Path:
+    """Write ``records`` as ``llm_calls.jsonl`` under ``run_dir`` and return it."""
+    path = run_dir / "llm_calls.jsonl"
+    path.write_text(
+        "".join(record.model_dump_json() + "\n" for record in records),
+        encoding="utf-8",
+    )
+    return path
+
+
+def make_manifest(**fields: Any) -> Manifest:
+    """Build a run manifest; only the fields a test cares about need saying."""
+    values: dict[str, Any] = {
+        "exp_id": "exp",
+        "package_version": "0.1.0",
+        "ollama_version": "0.33.3",
+        "num_ctx": 8192,
+        "dataset_hash": "a" * 64,
+        "fsm_hash": "b" * 64,
+        "scenarios_dir": "data/scenarios/v1",
+        "prompt_versions": {"baseline": 2},
+        "model_names": {"agent": "agent-model"},
+        "model_digests": {"agent": None},
+        "agents": ["baseline", "fsm"],
+        "reps": 2,
+        "parallel": 2,
+        "seed_base": 42,
+        "jobs": [],
+        "elapsed_s": 20.0,
+        "dialogues_per_hour": 360.0,
+        "n_ok": 2,
+        "n_failed": 0,
+        "n_skipped": 0,
+        "n_llm_calls": 0,
+        "n_llm_cached": 0,
+    }
+    values.update(fields)
+    return Manifest(**values)
 
 
 def canned_eval_transport_replies(n_dialogues: int) -> list[ChatResponse]:
@@ -618,5 +727,6 @@ def load_script(relative_path: str) -> ModuleType:
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module

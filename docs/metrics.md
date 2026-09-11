@@ -35,7 +35,8 @@ transcript and the script before either call, so injection scoring stays the
 T-13 literal match. Two calls per dialogue:
 
 1. **Facts and claims** ([`data/prompts/judge_facts.md`](../data/prompts/judge_facts.md))
-   → atomic `claims[]` with optional `fact_id` and `supported_by_kb`, plus
+   → atomic `claims[]` with `supported_by_kb` and `fact_id` (a KB id on `yes`,
+   `null` on `no`/`unverifiable`), plus
    `needle_recovered`. Fact precision, recall, F1 and claim-support are
    **derived in code** from those fields (`sim.metrics.fact_scores`). The model never
    returns a 0–1 score. Required IDs present are the `fact_id`s of `yes` claims;
@@ -515,10 +516,8 @@ referential, so secondary and diagnostic rather than confirmatory.
 
 ### `valid_flow_path`
 
-**Definition.** Whether the sequence of labelled stages is a path of the FSM
-along flow edges only. An early `farewell` or an `out_of_scope_request` is its
-own outcome, not a valid path: those two leave every state, so counting them
-would make almost any sequence valid.
+**Definition.** Whether the sequence of labelled stages is a legal traversal of
+the FSM, given that one agent turn may walk more than one edge.
 
 **Scale.** Boolean.
 
@@ -526,15 +525,51 @@ would make almost any sequence valid.
 
 **Computation.** `sim.evaluators.flow_scores` on the labelled stages, identically
 for both agents. Consecutive identical labels are a self-loop and stay valid.
-Distinct consecutive labels must be a flow edge (`from_any` false). The first
-label must be the initial state or a flow step from it, so a one-turn
-`farewell` or `out_of_scope_request` is not a valid path. The edges themselves
-live in [`docs/fsm.md`](fsm.md#flow-adherence).
+Two distinct consecutive labels are a valid step when at most
+`MAX_FLOW_EDGES_PER_TURN` = 2 flow edges join them, or when the destination is
+that of a `from: "*"` edge. The first label is checked the same way against the
+initial state. The edges themselves live in
+[`docs/fsm.md`](fsm.md#flow-adherence).
+
+Both universal edges count, `out_of_scope_request` and `farewell`: asking for
+something out of scope and saying goodbye are moves of the *user*, which every
+state answers, so a dialogue that ends early because the user was satisfied is a
+legal path and not a skipped stage. The bound is what keeps the column from
+degenerating into "any legal path" — it still rejects a labelled sequence that
+crosses three or more stages in one turn. The rule before 2026-09-11 counted
+neither, and scored 8 of the FSM's own 10 recorded pilot paths invalid; see
+[`docs/pilot.md`](pilot.md).
+
+**Why 2, and not a number fitted to the pilot.** Two is the ceiling
+`FsmEngine.step` can reach, derived from the engine and `machine.yaml` alone. One
+turn fires exactly one classified user event, and then `_advance_when_ready`
+offers exactly two auto-advance events in a fixed order, each at most once, with
+no loop: `order_identified` and `data_provided`. All three can never fire, because
+`order_identified` lands on `intent_classification` while `data_provided` is
+declared only out of `data_collection`, and the single edge between those two is
+`intent_classified` — which `_advance_when_ready` deliberately excludes, so that a
+request the classifier read wrong is not made final without the state built to
+settle it ever speaking. Assuming every guard passes and trying every state
+against every event, the longest chain the machine admits is
+`greeting --request_received--> identification --order_identified-->
+intent_classification`: **two edges**. Since one label is one turn and consecutive
+labels are consecutive turns' `state_after`, two is exactly the right bound. A
+wider gap cannot be the engine advancing; it is a skipped stage.
+`test_max_flow_edges_per_turn_is_the_ceiling_the_engine_can_reach` rederives this
+from the loaded spec, so the constant fails the suite if `machine.yaml` changes
+under it. The pilot's two-edge turns confirm the derivation; they are not its
+justification.
 
 **Hypothesis.** FSM higher, because this column measures adherence to the
 conversational structure the FSM encodes and the baseline is not given that
 structure. Reported as a secondary diagnostic outcome, not as primary evidence
 of treatment superiority.
+
+**Caveat, measured in the pilot.** This column inherits the stage labeler's
+error. On the pilot's FSM dialogues the labeller's path agreed with the FSM's
+true path on this column in only 5 of 10 dialogues, and all five disagreements
+ran the same way — true `True`, labelled `False`. Treat it as biased downward
+for both agents until T-16 quantifies it.
 
 ### `flow_adherence`
 
