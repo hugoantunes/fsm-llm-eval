@@ -52,7 +52,7 @@ Everything lives in `results/judge_validation/`.
 | File | What it is |
 |---|---|
 | `sample.json` | the metadata, the 30 selected responses with full identity, and the blind dialogue IDs |
-| `packet.md` | the evidence, in annotation order: the fact catalogue, each scenario's answer key and the transcript with the response to annotate marked |
+| `packet.md` | the evidence: the fact catalogue, then one section per dialogue in `D` ID order, then one compact section per sampled response in `A` ID order. Each transcript is printed once |
 | `response_annotations.csv` | 30 rows to fill: `annotation_id,fact_ids_stated,claim_support,notes` |
 | `dialogue_annotations.csv` | one row per distinct dialogue the 30 responses touch: `dialogue_annotation_id,accuracy,task_completed,notes` |
 
@@ -126,13 +126,14 @@ can meet the criterion while stating the reference answer only partly.
 
 ## Procedure
 
-1. Read this file once, then fill the sheets in `A01`–`A30` and `D` ID order.
-2. Two responses of the same dialogue share a `D` ID. Fill that row once; the second time, leave it.
-3. **Do not open the run's `metrics.csv`, `metrics_turn.csv` or `llm_calls.jsonl`, and do not
+1. Read this file once.
+2. Fill `dialogue_annotations.csv` in `D01`–`D20` order from the `D` sections of the packet.
+3. Fill `response_annotations.csv` in `A01`–`A30` order from the `A` sections (the marked turn only). Two responses of the same dialogue share a `D` ID; that row is already filled.
+4. **Do not open the run's `metrics.csv`, `metrics_turn.csv` or `llm_calls.jsonl`, and do not
    open `sample.json` to see which agent wrote a response, until both sheets are complete.** An
    annotation made after seeing either is not an independent label, and the agreement it produces
    means nothing.
-4. Use `notes` whenever a call was close. The disagreements are what the write-up explains.
+5. Use `notes` whenever a call was close. The disagreements are what the write-up explains.
 
 ## Agreement
 

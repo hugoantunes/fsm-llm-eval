@@ -389,6 +389,43 @@ def test_every_sampled_response_points_at_its_evidence(
         assert "knowledge base above" in entry
 
 
+def test_the_packet_lists_dialogues_in_sheet_order(
+    written_pilot: Path, pilot_run: Path
+) -> None:
+    packet = (written_pilot / sampler.PACKET_MD).read_text(encoding="utf-8")
+    sample = sampler.draw_sample(pilot_run)
+
+    headings = [
+        line
+        for line in packet.splitlines()
+        if line.startswith("## D") and line[4:6].isdigit()
+    ]
+    assert headings == [
+        f"## {dialogue.dialogue_annotation_id}" for dialogue in sample.dialogues
+    ]
+    assert packet.count("Transcript (`>>>` marks") == len(sample.dialogues)
+
+
+def test_the_packet_prints_each_dialogue_once(
+    written_pilot: Path, pilot_run: Path
+) -> None:
+    packet = (written_pilot / sampler.PACKET_MD).read_text(encoding="utf-8")
+    sample = sampler.draw_sample(pilot_run)
+
+    for dialogue in sample.dialogues:
+        entry = _entry(packet, dialogue.dialogue_annotation_id)
+        assert "Transcript (`>>>` marks" in entry
+        assert "Success criterion:" in entry
+        for response in sample.responses:
+            if response.dialogue_id != dialogue.dialogue_id:
+                continue
+            assert f">>> {response.annotation_id}" in entry
+            stub = _entry(packet, response.annotation_id)
+            assert "Success criterion:" not in stub
+            assert "Transcript (`>>>` marks" not in stub
+            assert dialogue.dialogue_annotation_id in stub
+
+
 def test_writing_never_reads_the_judge_output_files(
     pilot_run: Path,
     tmp_path: Path,

@@ -22,9 +22,9 @@ Four files are written, none of which shows the judge's labels:
     what the judge answers over a whole dialogue: one row per distinct dialogue
     the sample touches, keyed by blind dialogue ID
 ``packet.md``
-    the evidence, in annotation order: the fact catalogue the judge grades
-    against, the scenario's answer key and the transcript, with the response to
-    annotate marked
+    the evidence: the fact catalogue the judge grades against, then one
+    section per dialogue in ``D`` ID order, then one compact section per
+    sampled response in ``A`` ID order. A transcript is printed once.
 
 The two sheets are split because the units differ: ``claim_support`` is a
 property of one response, while the judge answers ``accuracy`` and
@@ -463,26 +463,50 @@ def _render_packet(
     scenarios: Mapping[str, Scenario],
     kb: KnowledgeBase,
 ) -> str:
-    """Render the evidence for each drawn response, in annotation order."""
-    parts = [_packet_header(sample), _packet_catalogue(kb)]
+    """Render one conversation per ``D`` ID, then one marked turn per ``A`` ID.
+
+    The dialogue sheet is filled in ``D`` order, so those sections come first
+    and each transcript appears once. The response sheet is filled in ``A``
+    order from the compact sections that follow; they point at the ``D`` ID
+    instead of repeating the conversation.
+    """
+    sampled_of: dict[str, list[SampledResponse]] = {}
     for drawn in sample.responses:
-        scenario = scenarios.get(drawn.scenario_id)
-        if scenario is None:
-            raise SamplingError(
-                f"{drawn.scenario_id} is not in the scenarios the manifest names. "
-                "The packet shows the answer key the judge reads, so the scenario "
-                "must be loadable"
-            )
+        sampled_of.setdefault(drawn.dialogue_id, []).append(drawn)
+    parts = [_packet_header(sample), _packet_catalogue(kb)]
+    for dialogue in sample.dialogues:
         parts.append(
-            _packet_entry(
+            _packet_dialogue(
+                dialogue,
+                dialogues[dialogue.dialogue_id],
+                _scenario(scenarios, dialogue.scenario_id),
+                sorted(sampled_of[dialogue.dialogue_id], key=lambda item: item.turn),
+                kb,
+            )
+        )
+    for drawn in sample.responses:
+        parts.append(
+            _packet_response(
                 drawn,
                 dialogues[drawn.dialogue_id],
-                scenario,
+                _scenario(scenarios, drawn.scenario_id),
                 sample.dialogue_annotation_id(drawn.dialogue_id),
                 kb,
             )
         )
     return "\n".join(parts)
+
+
+def _scenario(scenarios: Mapping[str, Scenario], scenario_id: str) -> Scenario:
+    """Return the scenario the packet must show, or explain why it cannot."""
+    scenario = scenarios.get(scenario_id)
+    if scenario is None:
+        raise SamplingError(
+            f"{scenario_id} is not in the scenarios the manifest names. "
+            "The packet shows the answer key the judge reads, so the scenario "
+            "must be loadable"
+        )
+    return scenario
 
 
 def _packet_header(sample: Sample) -> str:
@@ -498,21 +522,22 @@ def _packet_header(sample: Sample) -> str:
             f"`{SAMPLE_JSON}`. Do not open the judge's output first; the point "
             "of the exercise is an independent label.",
             "",
-            f"`{RESPONSE_CSV}`, one row per `A` ID, about the marked response only:",
+            f"`{DIALOGUE_CSV}`, one row per `D` ID: fill from the `D` sections "
+            "below, in `D01` order. Each conversation appears once.",
+            "",
+            "- `accuracy`: `correct`, `partial` or `incorrect`, comparing the "
+            "assistant's outcome to the reference answer",
+            "- `task_completed`: `yes` or `no`, by the success criterion alone",
+            "- `notes`: free text",
+            "",
+            f"`{RESPONSE_CSV}`, one row per `A` ID: fill from the `A` sections "
+            "after the dialogues, in `A01` order, about the marked response "
+            "only. `>>> Axx` in a `D` section is the same turn.",
             "",
             "- `fact_ids_stated`: every knowledge-base ID the marked response "
             "materially states, separated by `;`, or empty for none",
             "- `claim_support`: `all_supported`, `some_unsupported` or "
             "`none_checkable`, over the checkable claims of the marked response",
-            "- `notes`: free text",
-            "",
-            f"`{DIALOGUE_CSV}`, one row per `D` ID, about the whole transcript. "
-            "Two responses of the same dialogue carry the same `D` ID: fill that "
-            "row once.",
-            "",
-            "- `accuracy`: `correct`, `partial` or `incorrect`, comparing the "
-            "assistant's outcome to the reference answer",
-            "- `task_completed`: `yes` or `no`, by the success criterion alone",
             "- `notes`: free text",
             "",
             "`docs/judge_validation.md` states each value in full. Read it once "
@@ -545,14 +570,53 @@ def _packet_catalogue(kb: KnowledgeBase) -> str:
     )
 
 
-def _packet_entry(
+def _packet_dialogue(
+    dialogue: SampledDialogue,
+    log: DialogueLog,
+    scenario: Scenario,
+    sampled: Sequence[SampledResponse],
+    kb: KnowledgeBase,
+) -> str:
+    """Render one conversation, with every sampled turn marked for the A sheet."""
+    canary = scenario.canary
+    listed = "; ".join(f"{item.annotation_id} (turn {item.turn})" for item in sampled)
+    lines = [
+        f"## {dialogue.dialogue_annotation_id}",
+        "",
+        f"- sampled responses: {listed}",
+        f"- scenario: `{scenario.id}` ({scenario.category}, {scenario.intent})",
+        f"- required facts: {', '.join(scenario.required_facts)} (the claims of "
+        "the response may go beyond these; grade them against the whole "
+        "knowledge base above)",
+        f"- needle fact: {needle_fact(scenario, kb)}",
+        "",
+        f"Success criterion: {redact_canary(scenario.success_criterion, canary)}",
+        "",
+        f"Reference answer: {redact_canary(scenario.reference_answer, canary)}",
+        "",
+        "Script:",
+        "",
+        "```",
+        redact_canary(render_script(scenario.script), canary),
+        "```",
+        "",
+        "Transcript (`>>>` marks sampled responses for the A sheet):",
+        "",
+    ]
+    marks = {item.turn: item.annotation_id for item in sampled}
+    lines.extend(_transcript_block(log, canary, marks, label_ids=True))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _packet_response(
     drawn: SampledResponse,
     log: DialogueLog,
     scenario: Scenario,
     dialogue_annotation_id: str,
     kb: KnowledgeBase,
 ) -> str:
-    """Render one response with the answer key and the dialogue around it."""
+    """Render the marked turn only; the conversation lives under the D ID."""
     canary = scenario.canary
     lines = [
         f"## {drawn.annotation_id}",
@@ -565,28 +629,53 @@ def _packet_entry(
         f"- needle fact: {needle_fact(scenario, kb)}",
         f"- response to annotate: turn {drawn.turn}",
         "",
-        f"Success criterion: {redact_canary(scenario.success_criterion, canary)}",
+        f"Marked response (full transcript under {dialogue_annotation_id}):",
         "",
-        f"Reference answer: {redact_canary(scenario.reference_answer, canary)}",
-        "",
-        "Script:",
-        "",
-        "```",
-        redact_canary(render_script(scenario.script), canary),
-        "```",
-        "",
-        "Transcript (`>>>` marks the response to annotate):",
-        "",
-        "```",
     ]
+    lines.extend(
+        _transcript_block(
+            log,
+            canary,
+            {drawn.turn: drawn.annotation_id},
+            marked_only=True,
+        )
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _transcript_block(
+    log: DialogueLog,
+    canary: str | None,
+    marks: Mapping[int, str],
+    *,
+    marked_only: bool = False,
+    label_ids: bool = False,
+) -> list[str]:
+    """Render turns with ``>>>`` on every turn named in ``marks``.
+
+    ``label_ids`` puts the annotation ID on the arrow so a shared transcript
+    names each sampled response. Compact later entries keep the bare ``>>>``.
+    ``marked_only`` drops unmarked turns, used when the full transcript
+    already appeared under the dialogue's ``D`` ID.
+    """
+    lines = ["```"]
     for record in log.records:
-        mark = ">>> " if record.turn == drawn.turn else ""
+        annotation_id = marks.get(record.turn)
+        if marked_only and annotation_id is None:
+            continue
+        if annotation_id is None:
+            mark = ""
+        elif label_ids:
+            mark = f">>> {annotation_id} "
+        else:
+            mark = ">>> "
         lines.append(f"user: {redact_canary(record.user_message, canary)}")
         lines.append(
             f"{mark}agent [{record.turn}]: {redact_canary(record.agent_reply, canary)}"
         )
-    lines.extend(("```", ""))
-    return "\n".join(lines)
+    lines.append("```")
+    return lines
 
 
 def _load_manifest(run_dir: Path) -> Manifest:
