@@ -17,7 +17,7 @@ from helpers import (
     load_labeled_events,
     play_user_turns,
 )
-from sim.agents import BaselineAgent, FsmAgent
+from sim.agents import BaselineAgent, FsmAgent, _fields_to_collect
 from sim.fsm import FsmSpec
 from sim.kb import KnowledgeBase, render_facts
 from sim.prompts import load_prompt
@@ -221,6 +221,217 @@ def test_every_state_and_the_baseline_carry_the_same_knowledge_base(
     assert package_text(real_fsm, "out_of_scope") in out_of_scope_turn.prompt
     assert package_text(real_fsm, "greeting") not in out_of_scope_turn.prompt
     assert package_text(real_fsm, "out_of_scope") not in greeting_none.prompt
+
+
+def test_the_known_order_number_and_email_are_in_the_messages_the_fsm_agent_sends(
+    fsm_agent: MakeFsm,
+) -> None:
+    llm = FakeLlm([classifier_reply("request_received", "cancellation"), AGENT_REPLY])
+    history = [
+        Turn(
+            speaker="user",
+            text="I want to cancel order NL-20260145 from jane@example.com.",
+        )
+    ]
+
+    fsm_agent(llm).respond(history)
+
+    sent = "\n".join(message["content"] for message in last_agent_call(llm)["messages"])
+    assert "NL-20260145" in sent
+    assert "jane@example.com" in sent
+
+
+@pytest.mark.parametrize(
+    ("intent", "opening"),
+    [
+        (
+            "cancellation",
+            "I want to cancel order NL-20260145 from jane@example.com.",
+        ),
+        (
+            "payment_reissue",
+            "Please reissue expired slip NL-20260423 for tara.quinn@example.com.",
+        ),
+    ],
+    ids=["cancellation", "payment_reissue"],
+)
+def test_when_identification_is_auto_skipped_the_next_prompt_keeps_identity_contract(
+    intent: str, opening: str, fsm_agent: MakeFsm
+) -> None:
+    llm = FakeLlm([classifier_reply("request_received", intent), AGENT_REPLY])
+
+    record = fsm_agent(llm).respond([Turn(speaker="user", text=opening)])
+    prompt = last_agent_prompt(llm).lower()
+
+    assert record.state_after == "intent_classification"
+    assert "read back the exact order number" in prompt
+    assert "do not ask the customer to provide, repeat or" in prompt
+    assert "confirm either value again unless the customer explicitly corrects one" in (
+        prompt
+    )
+
+
+def test_fsm_turn_records_persist_the_engine_intent_and_collected_slots(
+    fsm_agent: MakeFsm,
+) -> None:
+    llm = FakeLlm([classifier_reply("request_received", "cancellation"), AGENT_REPLY])
+    record = fsm_agent(llm).respond(
+        [
+            Turn(
+                speaker="user",
+                text="I want to cancel order NL-20260145 from jane@example.com.",
+            )
+        ]
+    )
+
+    assert record.intent == "cancellation"
+    assert record.collected["order_number"] == "NL-20260145"
+    assert record.collected["email"] == "jane@example.com"
+
+
+def test_data_collection_lists_only_the_fields_still_missing(
+    real_kb: KnowledgeBase, real_fsm: FsmSpec
+) -> None:
+    collect_state = next(
+        edge.source
+        for edge in real_fsm.transitions
+        if edge.guard == "required_data_collected" and not edge.from_any
+    )
+
+    fields = _fields_to_collect(
+        collect_state,
+        "exchange_return",
+        real_kb,
+        collect_state,
+        collected={"order_number": "NL-20260145", "email": "jane@example.com"},
+    )
+
+    assert [field.key for field in fields] == ["item", "reason", "preferred_resolution"]
+
+
+def test_data_collection_keeps_the_fields_still_missing_for_the_active_intent(
+    real_kb: KnowledgeBase, real_fsm: FsmSpec
+) -> None:
+    collect_state = next(
+        edge.source
+        for edge in real_fsm.transitions
+        if edge.guard == "required_data_collected" and not edge.from_any
+    )
+
+    fields = _fields_to_collect(
+        collect_state,
+        "cancellation",
+        real_kb,
+        collect_state,
+        collected={"order_number": "NL-20260145", "email": "jane@example.com"},
+    )
+
+    assert [field.key for field in fields] == ["reason"]
+
+
+def test_data_collection_omits_fields_of_other_intents(
+    real_kb: KnowledgeBase, real_fsm: FsmSpec
+) -> None:
+    collect_state = next(
+        edge.source
+        for edge in real_fsm.transitions
+        if edge.guard == "required_data_collected" and not edge.from_any
+    )
+
+    fields = _fields_to_collect(
+        collect_state,
+        "exchange_return",
+        real_kb,
+        collect_state,
+        collected={
+            "order_number": "NL-20260145",
+            "email": "jane@example.com",
+            "item": "blue jacket",
+            "reason": "too small",
+            "preferred_resolution": "exchange",
+        },
+    )
+
+    assert fields == []
+
+
+def test_data_collection_prompt_lists_exactly_the_still_missing_fields_in_execution(
+    fsm_agent: MakeFsm, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm(
+        [
+            '{"event":"request_received","intent":"exchange_return",'
+            '"reason":"too small"}',
+            AGENT_REPLY,
+            '{"event":"intent_classified","intent":"exchange_return"}',
+            AGENT_REPLY,
+        ]
+    )
+    agent = fsm_agent(llm)
+    history = [
+        Turn(
+            speaker="user",
+            text=(
+                "I need an exchange for order NL-20260145, "
+                "jane@example.com, because it is too small."
+            ),
+        )
+    ]
+    first = agent.respond(history)
+    history.append(Turn(speaker="agent", text=first.agent_reply))
+    history.append(Turn(speaker="user", text="Yes, exchange return."))
+    second = agent.respond(history)
+    prompt = last_agent_prompt(llm)
+
+    assert second.state_after == "data_collection"
+    assert field_label(real_kb, "item") in prompt
+    assert field_label(real_kb, "preferred_resolution") in prompt
+    assert field_label(real_kb, "order_number") not in prompt
+    assert field_label(real_kb, "email") not in prompt
+    assert field_label(real_kb, "reason") not in prompt
+
+
+def test_data_collection_prompt_equals_required_minus_collected_in_execution(
+    fsm_agent: MakeFsm, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm(
+        [
+            classifier_reply("request_received", "cancellation"),
+            AGENT_REPLY,
+            classifier_reply("none"),
+            AGENT_REPLY,
+        ]
+    )
+    agent = fsm_agent(llm)
+    history = [
+        Turn(
+            speaker="user",
+            text="I want to cancel order NL-20260145 from jane@example.com.",
+        )
+    ]
+
+    first = agent.respond(history)
+    history.append(Turn(speaker="agent", text=first.agent_reply))
+    history.append(Turn(speaker="user", text="Yes, cancel it."))
+    second = agent.respond(history)
+    prompt = last_agent_prompt(llm)
+
+    assert second.state_after == "data_collection"
+
+    required = {
+        field.key
+        for field in real_kb.user_data_fields
+        if "cancellation" in field.required_for
+    }
+    expected_missing = required - set(second.collected)
+    shown_fields = {
+        field.key for field in real_kb.user_data_fields if field.label in prompt
+    }
+
+    assert shown_fields == expected_missing
+    assert shown_fields == {"reason"}
+    assert "item" not in shown_fields
+    assert "preferred_resolution" not in shown_fields
 
 
 def package_text(spec: FsmSpec, state: str) -> str:

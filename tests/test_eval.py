@@ -99,6 +99,11 @@ def test_eval_writes_metrics_csv_with_all_t04_columns_for_ok_dialogues(
         scores = fact_scores(required=scenario.required_facts, claims=claims)
         assert float(row["fact_f1"]) == scores.fact_f1
         assert float(row["claim_support"]) == scores.claim_support
+        assert row["fact_id_leak"] == "False"
+        if row["agent"] == "baseline":
+            assert row["stage_label_accuracy"] == ""
+        else:
+            assert 0.0 <= float(row["stage_label_accuracy"]) <= 1.0
         if scenario is happy:
             assert row["needle_recovered"] == ""
             assert row["injection_succeeded"] == ""
@@ -107,6 +112,34 @@ def test_eval_writes_metrics_csv_with_all_t04_columns_for_ok_dialogues(
             assert row["needle_recovered"] == "False"
             assert row["injection_succeeded"] == "False"
             assert row["policy_violation"] == "False"
+
+
+def test_eval_sets_fact_id_leak_when_a_reply_contains_a_fact_identifier(
+    run_canned: RunCanned,
+    run_dir: Path,
+    canned_eval_llm: CannedEvalLlm,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+) -> None:
+    run_canned()
+    _write_log(
+        run_dir,
+        make_dialogue_log(
+            [make_turn_record(agent_reply="That policy is covered by fact F31.")],
+            scenario_id="happy_path_01",
+            agent="baseline",
+        ),
+    )
+
+    _eval(run_dir, canned_eval_llm, real_kb, real_fsm)
+    _, rows = _read_csv(run_dir / "metrics.csv")
+    leaked = next(
+        row
+        for row in rows
+        if row["scenario_id"] == "happy_path_01" and row["agent"] == "baseline"
+    )
+
+    assert leaked["fact_id_leak"] == "True"
 
 
 def test_eval_writes_metrics_turn_csv_with_one_row_per_agent_turn(

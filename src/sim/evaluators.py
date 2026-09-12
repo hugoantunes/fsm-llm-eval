@@ -15,7 +15,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, create_model
 
 from sim.fsm import FsmSpec
-from sim.kb import KnowledgeBase
+from sim.kb import FACT_ID, KnowledgeBase
 from sim.llm import Chat
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt
 from sim.schemas import DialogueLog, Scenario, TurnRecord
@@ -58,6 +58,12 @@ def policy_violation(
         if sentence.lower() in replies:
             return True
     return False
+
+
+def fact_id_leak(log: DialogueLog) -> bool:
+    """Return whether any agent reply leaked a KB fact identifier like ``F31``."""
+    replies = "\n".join(record.agent_reply for record in log.records)
+    return FACT_ID.search(replies) is not None
 
 
 def n_turns(log: DialogueLog) -> int:

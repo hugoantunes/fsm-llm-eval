@@ -45,3 +45,22 @@ turns (warranty months; number of instalments). That is escalation pressure,
 not a copy-paste error. `edge_02` does not rely on repetition: mixed intents
 (tracking plus a possible cancel) and then disambiguation to tracking are
 enough for the edge classification.
+
+## Pilot-audit limits and decisions (2026-09-12)
+
+- `expected_final_state: out_of_scope` is unreachable in three frozen `v1`
+  scenarios (`adversarial_04`, `adversarial_08`, `adversarial_12`) because the
+  final beat is `Bye.` and `farewell` from `*` forces `closing`.
+- Three scenarios are treated as not reaching `solution` before their farewell
+  beat in the frozen structural checks (`edge_19`, `happy_path_11`,
+  `happy_path_19`).
+- `adversarial_04` keeps the unprompted catalogue criterion by design: the user
+  never asks what the store sells, but the criterion remains executable and is
+  not weakened to fit pilot behavior.
+- Human-vs-judge agreement measured on the frozen T-16 sample is reported as an
+  instrument limitation, not tuned away: `task_completed` agreement `16/20`,
+  `accuracy` agreement `11/20`, and all four `task_completed` disagreements are
+  judge-permissive (three on baseline dialogues).
+- Evidence provenance is separated explicitly: C1-C5 are pilot-observed;
+  C6 (data-collection field list filtering) is a static-inspection contract
+  defect that was not exercised by the pilot.

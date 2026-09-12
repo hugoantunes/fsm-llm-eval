@@ -297,6 +297,72 @@ def test_a_farewell_wins_over_slots_already_held(
     assert llm.calls == []
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "bye",
+        "goodbye",
+        "thanks, bye",
+        "thank you, goodbye",
+        "okay, thanks, goodbye",
+    ],
+    ids=[
+        "bye",
+        "goodbye",
+        "thanks-bye",
+        "thank-you-goodbye",
+        "okay-thanks-goodbye",
+    ],
+)
+def test_a_courtesy_only_farewell_still_uses_the_fast_path(
+    message: str, real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm([])
+    engine = _engine(real_fsm, real_kb, llm)
+    engine.park("intent_classification")
+    engine.intent = "cancellation"
+    engine.collected.update(ORDER_AND_EMAIL)
+
+    walk = engine.step(message, turn=1)
+
+    assert walk[0].event == "farewell"
+    assert walk[0].fired_by == "user"
+    assert walk[-1].dest == "closing"
+    assert llm.calls == []
+
+
+def test_a_goodbye_that_also_asks_a_question_goes_to_the_classifier(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm([classifier_reply("out_of_scope_request")])
+    engine = _engine(real_fsm, real_kb, llm)
+    engine.park("intent_classification")
+    engine.intent = "cancellation"
+    engine.collected.update(ORDER_AND_EMAIL)
+
+    walk = engine.step("how long for the money? bye", turn=1)
+
+    assert walk[0].event == "out_of_scope_request"
+    assert walk[0].fired_by == "user"
+    assert engine.state == "out_of_scope"
+    assert len(llm.calls) == 1
+
+
+def test_a_mixed_farewell_turn_cannot_emit_farewell_from_the_classifier(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm([classifier_reply("none")])
+    engine = _engine(real_fsm, real_kb, llm)
+    engine.park("intent_classification")
+    engine.intent = "cancellation"
+    engine.collected.update(ORDER_AND_EMAIL)
+
+    engine.step("how long for the money? bye", turn=1)
+
+    enum = llm.calls[0]["schema"].model_json_schema()["properties"]["event"]["enum"]
+    assert "farewell" not in enum
+
+
 def test_a_corrected_slot_in_data_collection_fires_without_the_llm(
     real_fsm: FsmSpec, real_kb: KnowledgeBase
 ) -> None:
@@ -355,6 +421,104 @@ def test_patternless_slots_from_the_classifier_leave_data_collection(
     assert walk[0].event == "data_provided"
     assert walk[-1].dest == "solution"
     assert engine.collected.items() >= expected_slots.items()
+
+
+def test_patternless_slots_are_offered_before_the_intent_is_settled(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm(
+        [
+            '{"event": "request_received", "intent": "exchange_return", '
+            '"item": "the blue jacket", "reason": "too small", '
+            '"preferred_resolution": "an exchange"}'
+        ]
+    )
+    engine = _engine(real_fsm, real_kb, llm)
+
+    engine.step(
+        "I need to return the blue jacket because it is too small and want "
+        "another one.",
+        turn=1,
+    )
+
+    schema = llm.calls[0]["schema"].model_json_schema()["properties"]
+    assert {"item", "reason", "preferred_resolution"} <= set(schema)
+
+
+def test_a_slot_stated_in_the_opening_message_opens_the_data_collection_guard(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm(
+        [
+            '{"event": "request_received", "intent": "cancellation", '
+            '"reason": "I changed my mind"}',
+            classifier_reply("none"),
+        ]
+    )
+    engine = _engine(real_fsm, real_kb, llm)
+
+    engine.step(
+        "I want to cancel order NL-20260145, email jane@example.com, "
+        "because I changed my mind.",
+        turn=1,
+    )
+    walk = engine.step("Yes, cancel it.", turn=2)
+
+    assert engine.collected["reason"] == "I changed my mind"
+    assert ("data_provided", "engine") in [(edge.event, edge.fired_by) for edge in walk]
+    assert engine.state == "solution"
+
+
+def test_a_pre_intent_capture_does_not_open_another_intents_guard(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm(
+        [
+            '{"event": "request_received", "intent": "cancellation", '
+            '"item": "the blue jacket"}',
+            classifier_reply("none"),
+        ]
+    )
+    engine = _engine(real_fsm, real_kb, llm)
+
+    engine.step(
+        "I want to cancel order NL-20260145, email jane@example.com, "
+        "about the blue jacket.",
+        turn=1,
+    )
+    walk = engine.step("Yes, cancel it.", turn=2)
+
+    assert engine.collected["item"] == "the blue jacket"
+    assert "reason" not in engine.collected
+    assert ("intent_classified", "engine") in [
+        (edge.event, edge.fired_by) for edge in walk
+    ]
+    assert all(edge.event != "data_provided" for edge in walk)
+    assert engine.state == "data_collection"
+
+
+def test_a_patternless_item_cannot_be_filled_with_an_order_number(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm(
+        [
+            '{"event": "data_provided", "intent": null, '
+            '"item": "NL-20260519", "reason": "too small", '
+            '"preferred_resolution": "an exchange"}'
+        ]
+    )
+    engine = _engine(real_fsm, real_kb, llm)
+    engine.park("data_collection")
+    engine.intent = "exchange_return"
+    engine.collected.update(ORDER_AND_EMAIL)
+
+    walk = engine.step("I need an exchange and sent the details above.", turn=1)
+
+    assert "item" not in engine.collected
+    assert engine.collected["reason"] == "too small"
+    assert engine.collected["preferred_resolution"] == "an exchange"
+    assert walk[0].event == "data_provided"
+    assert engine.state == "data_collection"
 
 
 @pytest.mark.integration

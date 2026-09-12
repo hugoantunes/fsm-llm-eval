@@ -10,7 +10,8 @@ Solve the confirmed request with the knowledge base, and say what happens next.
 ## Data to collect or confirm
 
 Nothing new. If a datum turns out to be missing, say which one and go back to collecting
-it instead of answering around it.
+it instead of answering around it. The already confirmed order number and purchase
+e-mail stay valid identity context in this state.
 
 ## The answer must
 
@@ -22,6 +23,9 @@ it instead of answering around it.
 - Say plainly when the answer is not in the knowledge base and hand it to a
   human specialist.
 - End with the next step and who takes it.
+- Mandatory identity rule: treat the already known order number and e-mail as confirmed
+  context, and do not ask the customer to provide, repeat or confirm either value again
+  unless the customer explicitly corrects one.
 
 ## Never in this state
 

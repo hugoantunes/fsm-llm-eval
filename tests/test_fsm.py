@@ -1,5 +1,6 @@
 """Tests for the FSM loader and the real machine of data/fsm/ (T-02)."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -308,6 +309,97 @@ def test_real_machine_walks_the_whole_flow_without_the_universal_exits(
         "confirmation",
         "closing",
     ]
+
+
+def test_intent_classification_package_asks_for_the_identity_read_back(
+    real_fsm: FsmSpec,
+) -> None:
+    package = (FSM_DIR / real_fsm.states["intent_classification"].package).read_text(
+        encoding="utf-8"
+    )
+    data_section, rest = package.split("## The answer must", maxsplit=1)
+    answer_section = rest.split("## Never in this state", maxsplit=1)[0]
+
+    assert "order number" in data_section.lower()
+    assert "e-mail" in data_section.lower()
+    assert "read back" in answer_section.lower()
+    assert "order number" in answer_section.lower()
+    assert "e-mail" in answer_section.lower()
+    assert "before any request-specific question or answer" in answer_section.lower()
+    assert "do not ask the customer to provide, repeat or" in answer_section.lower()
+    assert "confirm either value again" in answer_section.lower()
+    assert "unless the customer explicitly corrects one" in answer_section.lower()
+
+
+def test_solution_package_does_not_reask_known_identity(real_fsm: FsmSpec) -> None:
+    package = (FSM_DIR / real_fsm.states["solution"].package).read_text(
+        encoding="utf-8"
+    )
+    data_section, rest = package.split("## The answer must", maxsplit=1)
+    answer_section = rest.split("## Never in this state", maxsplit=1)[0]
+
+    assert "order number" in data_section.lower()
+    assert "e-mail" in data_section.lower()
+    assert "already confirmed" in data_section.lower()
+    assert (
+        "do not ask the customer to provide, repeat or confirm either value again"
+        in (answer_section.lower())
+    )
+    assert "unless the customer explicitly corrects one" in answer_section.lower()
+
+
+def test_every_package_phrases_the_store_scope_the_same_way(real_fsm: FsmSpec) -> None:
+    canonical = (
+        "the store is an online shop for clothing, footwear and home goods, with "
+        "delivery only inside the country."
+    )
+    packages = {
+        name: re.sub(
+            r"\s+",
+            " ",
+            (FSM_DIR / state.package).read_text(encoding="utf-8").lower(),
+        )
+        for name, state in real_fsm.states.items()
+    }
+    carrying_scope_rule = {
+        name: text for name, text in packages.items() if canonical in text
+    }
+
+    assert set(carrying_scope_rule) == {
+        "greeting",
+        "intent_classification",
+        "out_of_scope",
+    }
+    assert all(canonical in text for text in carrying_scope_rule.values())
+
+
+def test_out_of_scope_package_puts_scope_before_escalation_and_allows_three_lines(
+    real_fsm: FsmSpec,
+) -> None:
+    package = (FSM_DIR / real_fsm.states["out_of_scope"].package).read_text(
+        encoding="utf-8"
+    )
+    answer_section = package.split("## The answer must", maxsplit=1)[1].split(
+        "## Never in this state", maxsplit=1
+    )[0]
+    tone_section = package.split("## Tone in this state", maxsplit=1)[1]
+
+    normalized = re.sub(r"\s+", " ", answer_section.lower())
+    scope = normalized.index("online shop for clothing, footwear and home goods")
+    escalation = normalized.index("escalate to a human specialist")
+    assert scope < escalation
+    assert "three short sentences" in tone_section.lower()
+    assert "limit, scope, escalation" in tone_section.lower()
+
+
+def test_no_package_names_a_scenario_specific_domain(real_fsm: FsmSpec) -> None:
+    package_text = "\n".join(
+        (FSM_DIR / state.package).read_text(encoding="utf-8").lower()
+        for state in real_fsm.states.values()
+    )
+
+    assert "restaurant" not in package_text
+    assert "membership" not in package_text
 
 
 def test_real_machine_lets_every_state_reach_out_of_scope(real_fsm: FsmSpec) -> None:

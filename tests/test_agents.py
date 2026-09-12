@@ -116,6 +116,26 @@ def test_the_baseline_prompt_carries_the_shared_block_and_every_fact() -> None:
     assert all(field.label in prompt for field in KB.user_data_fields)
 
 
+def test_shared_prompt_carries_the_cross_state_identity_confirmation_contract() -> None:
+    shared = load_prompt("agent_shared", directory=PROMPTS_DIR).template.lower()
+
+    assert "order number and purchase e-mail are already present in the dialogue" in (
+        shared
+    )
+    assert "read them back once before request-specific resolution" in shared
+    assert "do not ask the customer to provide, repeat or confirm them again" in shared
+    assert "unless the customer" in shared
+    assert "explicitly corrects one" in shared
+
+
+def test_shared_prompt_forbids_echoing_customer_requested_tokens() -> None:
+    shared = load_prompt("agent_shared", directory=PROMPTS_DIR).template.lower()
+
+    assert "do not include the" in shared
+    assert "requested token text in your reply" in shared
+    assert 'refer to it as "that string"' in shared
+
+
 def test_user_data_fields_are_rendered_from_the_versioned_row_template() -> None:
     row = load_prompt("user_data_field", directory=PROMPTS_DIR)
     expected = "\n".join(
@@ -196,6 +216,8 @@ def test_the_baseline_record_leaves_the_fsm_bookkeeping_empty() -> None:
     assert record.state_before is None
     assert record.state_after is None
     assert record.event is None
+    assert record.intent is None
+    assert record.collected == {}
     assert record.transitions == []
 
 

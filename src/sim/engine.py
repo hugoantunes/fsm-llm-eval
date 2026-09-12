@@ -86,6 +86,7 @@ class FsmEngine:
         on its own. Each one is an edge of ``machine.yaml``, so the log keeps a
         real path rather than the endpoints of a jump (T-13).
         """
+        started_in = self.state
         detection = detect_user_event(
             user_message,
             state=self.state,
@@ -102,7 +103,7 @@ class FsmEngine:
         self.collected.update(detection.slots)
         self._remember_intent(detection)
         walked = [self.apply(detection.event, turn=turn)]
-        walked.extend(self._advance_when_ready(turn))
+        walked.extend(self._advance_when_ready(turn, started_in=started_in))
         return tuple(walked)
 
     def apply(
@@ -110,7 +111,8 @@ class FsmEngine:
     ) -> TransitionRecord:
         """Fire ``event`` from the current state, or stay if it cannot fire."""
         source = self.state
-        if event != NONE and event in self._spec.events_for(source):
+        accepted = event != NONE and event in self._spec.events_for(source)
+        if accepted:
             getattr(self, event)()
         dest = self.state
         record = TransitionRecord(
@@ -119,6 +121,7 @@ class FsmEngine:
             dest=dest,
             event=event,
             valid=dest != source,
+            blocked_by_guard=accepted and dest == source,
             fired_by=fired_by,
         )
         self.history.append(record)
@@ -139,7 +142,9 @@ class FsmEngine:
         if self.intent is None or detection.event == self._rules.intent_event:
             self.intent = detection.intent
 
-    def _advance_when_ready(self, turn: int) -> list[TransitionRecord]:
+    def _advance_when_ready(
+        self, turn: int, *, started_in: str
+    ) -> list[TransitionRecord]:
         """Leave every state that has nothing left to do after the user event.
 
         Identification already complete, every required datum already in hand:
@@ -147,13 +152,17 @@ class FsmEngine:
         asks for what it already holds. The edges are the machine's own, tried
         in the order a dialogue reaches them.
 
-        ``intent_classified`` is deliberately not among them. A request the
-        classifier read wrong in the opening turn would be final, because the
-        one state built to settle it would never be spoken from; the classifier
-        is asked there instead, with the whole transcript in front of it.
+        ``intent_classified`` is fired only after the machine started a turn in
+        ``intent_classification`` with an intent already held. That keeps one
+        correction turn in the state built to settle the request while still
+        preventing classifier ``none`` from parking the flow there forever.
         """
         ready = (
             (self._rules.identify_event, self.order_and_email_present()),
+            (
+                self._rules.intent_event,
+                self.intent is not None and started_in == self._rules.intent_state,
+            ),
             (self._rules.collect_event, self.required_data_collected()),
         )
         walked: list[TransitionRecord] = []

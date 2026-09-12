@@ -120,6 +120,7 @@ class TransitionRecord(BaseModel):
     dest: str
     event: str
     valid: bool
+    blocked_by_guard: bool = False
     fired_by: FiredBy
 
 
@@ -164,6 +165,8 @@ class TurnRecord(BaseModel):
     state_before: str | None = None
     state_after: str | None = None
     event: str | None = None
+    intent: str | None = None
+    collected: dict[str, str] = Field(default_factory=dict)
     transitions: list[TransitionRecord] = Field(default_factory=list)
 
 

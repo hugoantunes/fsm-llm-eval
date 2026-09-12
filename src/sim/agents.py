@@ -55,6 +55,8 @@ class Instruction:
     state_before: str | None = None
     state_after: str | None = None
     event: str | None = None
+    intent: str | None = None
+    collected: dict[str, str] | None = None
     transitions: tuple[TransitionRecord, ...] = ()
 
 
@@ -107,6 +109,8 @@ class Agent(ABC):
             state_before=instruction.state_before,
             state_after=instruction.state_after,
             event=instruction.event,
+            intent=instruction.intent,
+            collected={} if instruction.collected is None else instruction.collected,
             transitions=list(instruction.transitions),
         )
 
@@ -198,6 +202,8 @@ class FsmAgent(Agent):
             state_before=source,
             state_after=dest,
             event=walk[0].event,
+            intent=self._engine.intent,
+            collected=dict(self._engine.collected),
             transitions=walk,
         )
 
@@ -211,7 +217,11 @@ class FsmAgent(Agent):
             state_package=self._packages[state],
             user_data_fields=render_user_data_fields(
                 _fields_to_collect(
-                    state, self._engine.intent, self._kb, self._collect_state
+                    state,
+                    self._engine.intent,
+                    self._kb,
+                    self._collect_state,
+                    collected=self._engine.collected,
                 ),
                 prompts_dir=self._prompts_dir,
             ),
@@ -270,11 +280,17 @@ def _fields_to_collect(
     intent: str | None,
     kb: KnowledgeBase,
     collect_state: str,
+    *,
+    collected: dict[str, str],
 ) -> list[UserDataField]:
     """Return the fields the classified intent still needs, only in collect_state."""
     if state != collect_state or intent is None:
         return []
-    return [field for field in kb.user_data_fields if intent in field.required_for]
+    return [
+        field
+        for field in kb.user_data_fields
+        if intent in field.required_for and field.key not in collected
+    ]
 
 
 def _check_the_user_spoke_last(history: Sequence[Turn]) -> None:

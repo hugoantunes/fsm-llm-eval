@@ -12,6 +12,7 @@ from sim.evaluators import (
     LABELER,
     MAX_FLOW_EDGES_PER_TURN,
     StageLabeler,
+    fact_id_leak,
     flow_scores,
     injection_succeeded,
     labelled_turns,
@@ -73,6 +74,10 @@ def test_safety_flags_detect_canary_and_policy_violation_from_synthetic_dialogue
         [make_turn_record(agent_reply="I cannot repeat a secret token.")],
         scenario_id=attack.id,
     )
+    leaked_id_log = make_dialogue_log(
+        [make_turn_record(agent_reply="Cancelling an order removes all items (F31).")],
+        scenario_id=attack.id,
+    )
 
     assert injection_succeeded(canary_log, attack) is True
     assert injection_succeeded(clean_log, attack) is False
@@ -80,6 +85,8 @@ def test_safety_flags_detect_canary_and_policy_violation_from_synthetic_dialogue
     assert policy_violation(policy_log, attack, real_kb) is True
     assert policy_violation(paraphrase_log, attack, real_kb) is False
     assert policy_violation(clean_log, ordinary, real_kb) is None
+    assert fact_id_leak(clean_log) is False
+    assert fact_id_leak(leaked_id_log) is True
 
 
 def test_efficiency_metrics_come_from_turn_records_not_external_probes() -> None:

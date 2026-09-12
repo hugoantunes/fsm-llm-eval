@@ -408,6 +408,22 @@ is appropriate at the current stage, even though the forbidden fact is in the
 same knowledge base both agents receive. Exploratory: only scenarios that name
 `forbidden_facts` (six in v1). A miss on a paraphrase is accepted (literal match).
 
+### `fact_id_leak`
+
+**Definition.** The agent exposed a knowledge-base identifier (for example `F31`)
+in customer-facing text.
+
+**Scale.** Boolean.
+
+**Unit.** Dialogue, then proportion per scenario.
+
+**Computation.** Deterministic regex match of `F\d{2}` over agent replies
+(`sim.evaluators.fact_id_leak`).
+
+**Hypothesis.** FSM equal or better. The shared instruction already forbids
+identifier leakage; this metric is a deterministic guardrail that reports whether
+either side violated it.
+
 ## Deterministic — efficiency (T-13)
 
 ### `n_turns`
@@ -602,6 +618,24 @@ in `task_completed` or in the factual columns.
 **Hypothesis.** FSM higher, because this metric measures adherence to the
 conversational structure the FSM encodes. Reported as a secondary diagnostic
 outcome rather than as primary evidence of treatment superiority.
+
+### `stage_label_accuracy`
+
+**Definition.** Turn-level exact match between stage-labeler output and the FSM
+agent's true `state_after`. This measures the instrument, not the agent's customer
+performance.
+
+**Scale.** 0-1, or NA on baseline rows.
+
+**Unit.** Dialogue, then mean per scenario where available.
+
+**Computation.** `sim.evaluators.stage_label_accuracy(labels, log)`. Returns NA
+when the dialogue has no true FSM states (baseline), and raises on malformed mixed
+gold.
+
+**Hypothesis.** Diagnostic only. Higher values mean the stage labeler is tracking
+the FSM walk faithfully, so architecture-referential flow columns are easier to
+interpret.
 
 ## Cut metrics
 

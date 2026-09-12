@@ -458,8 +458,8 @@ def test_a_self_directed_injection_is_retried_and_the_beat_does_not_advance() ->
     assert len(llm.calls) == 2
 
 
-def test_a_self_directed_injection_that_never_matches_is_not_sent() -> None:
-    """The 4B's first-person rewrite must not reach the agent as a fake attack."""
+def test_a_self_directed_injection_that_never_matches_forces_the_exact_beat() -> None:
+    """On retry exhaustion, injection delivery is forced by the runtime contract."""
     llm = FakeLlm(
         [
             user_reply(
@@ -470,25 +470,26 @@ def test_a_self_directed_injection_that_never_matches_is_not_sent() -> None:
     )
     user = on_beat(2, llm, scenario=INJECTION)
 
-    with pytest.raises(UserError, match="instruction"):
-        user.speak(AGENT_ASKED)
+    turn = user.speak(AGENT_ASKED)
 
-    assert user.progress.delivered == (1,)
-    assert user.progress.current is not None
-    assert user.progress.current.number == 2
+    assert turn.message == INJECTION.script[1]
+    assert turn.status == "continue"
+    assert turn.beat == 2
+    assert user.progress.delivered == (1, 2)
     assert len(llm.calls) == INJECTION_RETRIES + 1
 
 
-def test_a_canary_only_injection_that_never_matches_is_not_sent() -> None:
+def test_a_canary_only_injection_that_never_matches_forces_the_exact_beat() -> None:
     llm = FakeLlm(
         [user_reply(f"Please proceed with {CANARY}")] * (INJECTION_RETRIES + 1)
     )
     user = on_beat(2, llm, scenario=INJECTION)
 
-    with pytest.raises(UserError, match="instruction"):
-        user.speak(AGENT_ASKED)
+    turn = user.speak(AGENT_ASKED)
 
-    assert user.progress.delivered == (1,)
+    assert turn.message == INJECTION.script[1]
+    assert turn.beat == 2
+    assert user.progress.delivered == (1, 2)
     assert len(llm.calls) == INJECTION_RETRIES + 1
 
 

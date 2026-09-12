@@ -37,6 +37,8 @@ METRICS = (
     "ended_in_expected_state",
     "valid_flow_path",
     "flow_adherence",
+    "stage_label_accuracy",
+    "fact_id_leak",
 )
 
 #: The confirmatory family (T-19), Holm-adjusted together. ``flow_adherence`` is

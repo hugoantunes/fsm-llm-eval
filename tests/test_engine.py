@@ -113,17 +113,64 @@ def test_identification_completed_in_the_opening_message_does_not_wait(
     assert engine.state == "intent_classification"
 
 
+def test_entering_intent_classification_with_a_known_intent_does_not_auto_advance(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm([classifier_reply("request_received", "cancellation")])
+    engine = FsmEngine(real_fsm, kb=real_kb, llm=llm, prompts_dir=PROMPTS_DIR)
+
+    walk = engine.step(
+        "I want to cancel my order. "
+        "My order is NL-20260145 and the email is jane@example.com.",
+        turn=1,
+    )
+
+    assert [(edge.event, edge.fired_by) for edge in walk] == [
+        ("request_received", "user"),
+        ("order_identified", "engine"),
+    ]
+    assert engine.intent == "cancellation"
+    assert engine.state == "intent_classification"
+
+
+def test_a_later_none_cannot_leave_intent_classification_parked_with_a_known_intent(
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
+) -> None:
+    llm = FakeLlm(
+        [
+            classifier_reply("request_received", "cancellation"),
+            classifier_reply("none"),
+        ]
+    )
+    engine = FsmEngine(real_fsm, kb=real_kb, llm=llm, prompts_dir=PROMPTS_DIR)
+
+    engine.step(
+        "I want to cancel my order. "
+        "My order is NL-20260145 and the email is jane@example.com.",
+        turn=1,
+    )
+    walk = engine.step("Yes, that's what I need.", turn=2)
+
+    assert walk[0].event == NONE
+    assert walk[0].fired_by == "user"
+    assert walk[1].event == "intent_classified"
+    assert walk[1].fired_by == "engine"
+    assert walk[1].source == "intent_classification"
+    assert walk[1].dest == "data_collection"
+    assert engine.state == "data_collection"
+
+
 @pytest.mark.parametrize(
-    ("state", "event"),
+    ("state", "event", "blocked_by_guard"),
     [
-        ("greeting", "user_confirmed"),
-        ("identification", "order_identified"),
-        ("greeting", NONE),
+        ("greeting", "user_confirmed", False),
+        ("identification", "order_identified", True),
+        ("greeting", NONE, False),
     ],
     ids=["not_accepted", "guard_fails", "none"],
 )
 def test_a_rejected_event_stays_and_is_invalid(
-    fsm_engine: FsmEngine, state: str, event: str
+    fsm_engine: FsmEngine, state: str, event: str, blocked_by_guard: bool
 ) -> None:
     fsm_engine.park(state)
 
@@ -133,6 +180,7 @@ def test_a_rejected_event_stays_and_is_invalid(
     assert record.source == state
     assert record.dest == state
     assert record.event == event
+    assert record.blocked_by_guard is blocked_by_guard
     assert fsm_engine.state == state
     assert fsm_engine.history[-1] == record
 

@@ -25,12 +25,14 @@ from sim.config import ModelsConfig, Role
 from sim.evaluators import (
     LabelledTurn,
     StageLabeler,
+    fact_id_leak,
     flow_scores,
     injection_succeeded,
     labelled_turns,
     llm_latency_s,
     n_turns,
     policy_violation,
+    stage_label_accuracy,
     turn_latency_s,
 )
 from sim.fsm import DEFAULT_FSM_DIR, FsmSpec
@@ -203,6 +205,7 @@ def _score(
     scores = fact_scores(required=scenario.required_facts, claims=verdict.facts.claims)
     labels = labeler.label(log)
     flow = flow_scores(labels, scenario.expected_final_state, fsm)
+    label_accuracy = stage_label_accuracy(labels, log)
     global_judgement = verdict.global_judgement
     return (
         {
@@ -232,6 +235,8 @@ def _score(
             "ended_in_expected_state": flow.ended_in_expected_state,
             "valid_flow_path": flow.valid_flow_path,
             "flow_adherence": flow.flow_adherence,
+            "stage_label_accuracy": label_accuracy,
+            "fact_id_leak": fact_id_leak(log),
         },
         labelled_turns(log, labels),
     )

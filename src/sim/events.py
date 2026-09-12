@@ -45,6 +45,17 @@ _FAREWELL_EVENT = "farewell"
 _FAREWELL = re.compile(
     rf"(?i)\bgood\s*bye\b|\bbye-bye\b|\bbye\b|\bthat[{_APOSTROPHE}]s all\b"
 )
+_COURTESY_ONLY = frozenset(
+    {
+        "thanks",
+        "thank",
+        "you",
+        "ok",
+        "okay",
+        "for",
+        "now",
+    }
+)
 
 _IDENTIFY_GUARD = "order_and_email_present"
 _COLLECT_GUARD = "required_data_collected"
@@ -113,6 +124,7 @@ class MachineRules:
     identify_keys: tuple[str, ...]
     collect_state: str
     collect_event: str
+    intent_state: str
     intent_event: str
 
 
@@ -172,13 +184,14 @@ def detect_user_event(
     classifier's answer instead of being short-circuited by what is already held.
     """
     allowed = spec.events_for(state)
+    classify_allowed = _allowed_events_for_classification(allowed, message)
     slots = _extract_slots(message, fields)
     held = {**collected, **slots}
     changed = [key for key, value in slots.items() if collected.get(key) != value]
     free_text = _patternless_for_intent(fields, intent)
     rules = machine_rules(spec, fields, intents)
 
-    if _FAREWELL_EVENT in allowed and _FAREWELL.search(message):
+    if _FAREWELL_EVENT in allowed and _is_bare_farewell(message):
         return Detection(_FAREWELL_EVENT, slots=slots)
     if (
         state == rules.identify_state
@@ -190,7 +203,7 @@ def detect_user_event(
         return Detection(rules.collect_event, slots=slots)
     return _classify_with_llm(
         state=state,
-        allowed=allowed,
+        allowed=classify_allowed,
         intents=intents,
         llm=llm,
         transcript=transcript,
@@ -198,6 +211,7 @@ def detect_user_event(
         seed=seed,
         slots=slots,
         free_text=free_text,
+        fields=fields,
     )
 
 
@@ -246,6 +260,7 @@ def machine_rules(
         identify_keys=patterned_keys_required_for_every_intent(fields, intents),
         collect_state=collect.source,
         collect_event=collect.event,
+        intent_state=intent_edge.source,
         intent_event=intent_edge.event,
     )
 
@@ -293,24 +308,70 @@ def _extract_slots(message: str, fields: Sequence[UserDataField]) -> dict[str, s
 def _patternless_for_intent(
     fields: Sequence[UserDataField], intent: str | None
 ) -> list[UserDataField]:
-    """Return free-text fields the classified intent still has to collect."""
+    """Return free-text fields the classifier may extract on this turn.
+
+    Before the request is settled, offer every free-text field so data stated in
+    the opening message is not dropped. The guard still reads only fields
+    required by the held intent, so extra captures stay inert.
+    """
     if intent is None:
-        return []
+        return [item for item in fields if item.pattern is None]
     return [
         item for item in fields if item.pattern is None and intent in item.required_for
     ]
 
 
+def _is_bare_farewell(message: str) -> bool:
+    """Return whether ``message`` is only a goodbye cue plus filler words."""
+    if _FAREWELL.search(message) is None:
+        return False
+    residue = _FAREWELL.sub(" ", message.lower())
+    words = re.findall(r"[a-z]+", residue)
+    return all(word in _COURTESY_ONLY for word in words)
+
+
 def _slots_from_payload(
-    payload: dict[str, object], patterned: dict[str, str]
+    payload: dict[str, object],
+    patterned: dict[str, str],
+    *,
+    free_text: Sequence[UserDataField],
+    fields: Sequence[UserDataField],
 ) -> dict[str, str]:
-    """Merge regex slots with any free-text values the classifier copied out."""
+    """Merge regex slots with validated free-text values from the classifier."""
+    slot_keys = {item.key for item in free_text}
+    patterned_fields = [item for item in fields if item.pattern is not None]
     from_llm = {
         key: value.strip()
         for key, value in payload.items()
-        if key not in _NOT_SLOTS and isinstance(value, str) and value.strip()
+        if key in slot_keys
+        and key not in _NOT_SLOTS
+        and isinstance(value, str)
+        and value.strip()
+        and _is_semantically_valid_free_text(value, patterned_fields)
     }
     return {**patterned, **from_llm}
+
+
+def _is_semantically_valid_free_text(
+    value: str, patterned_fields: Sequence[UserDataField]
+) -> bool:
+    """Return whether free-text ``value`` is not one of the structured IDs."""
+    return all(
+        re.search(item.pattern, value, flags=re.IGNORECASE) is None
+        for item in patterned_fields
+        if item.pattern is not None
+    )
+
+
+def _allowed_events_for_classification(
+    allowed: Sequence[str], message: str
+) -> Sequence[str]:
+    """Return the event enum for classifier fallback on ``message``."""
+    if _FAREWELL_EVENT not in allowed:
+        return allowed
+    if _is_bare_farewell(message) or _FAREWELL.search(message) is None:
+        return allowed
+    return [event for event in allowed if event != _FAREWELL_EVENT]
 
 
 def _render_slot_fields(fields: Sequence[UserDataField]) -> str:
@@ -331,6 +392,7 @@ def _classify_with_llm(
     seed: int | None,
     slots: dict[str, str],
     free_text: Sequence[UserDataField],
+    fields: Sequence[UserDataField],
 ) -> Detection:
     """Ask the small model, constrained to ``allowed`` plus ``none``."""
     if llm is None:
@@ -374,5 +436,5 @@ def _classify_with_llm(
     return Detection(
         event=payload["event"],
         intent=payload["intent"],
-        slots=_slots_from_payload(payload, slots),
+        slots=_slots_from_payload(payload, slots, free_text=free_text, fields=fields),
     )
