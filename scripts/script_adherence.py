@@ -14,7 +14,7 @@ recorded beats its own messages do not support.
 
 Usage::
 
-    uv run python scripts/script_adherence.py --run runs/exp_pilot2
+    uv run python scripts/script_adherence.py --run runs/exp_pilot
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from sim.kb import DEFAULT_KB_DIR, UserDataField, load_kb
 from sim.schemas import DialogueLog, Manifest, Scenario, load_scenarios
 from sim.script import Beat, beats_of
 
-DEFAULT_RUN_DIR = Path("runs/exp_pilot2")
+DEFAULT_RUN_DIR = Path("runs/exp_pilot")
 
 
 class AdherenceError(RuntimeError):
