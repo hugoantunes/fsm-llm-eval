@@ -18,8 +18,11 @@ def test_loads_the_real_models_yaml() -> None:
     assert config.models.judge.name
     assert config.models.agent.temperature is not None
     assert config.models.agent.seed is not None
-    # The simulated user of T-11 samples like the agents: nothing is left to
-    # Ollama's default, or a rerun would not reproduce the same customer.
+
+
+def test_the_simulator_samples_with_the_same_temperature_as_the_agents() -> None:
+    config = load_models_config(CONFIG)
+
     assert config.models.simulator.temperature == config.models.agent.temperature
     assert config.models.simulator.seed is not None
 

@@ -95,7 +95,7 @@ def test_cut_metrics_are_marked_in_the_metrics_doc(metrics_doc: str) -> None:
     assert "cut 0" in metrics_doc
     assert "Sentiment" in metrics_doc
     assert "Toxicity classifier" in metrics_doc
-    assert "simulated user follows a script" in metrics_doc
+    assert "plays a mandatory script" in metrics_doc
     assert "offensive_content" in metrics_doc[metrics_doc.index("Cut metrics") :]
 
 

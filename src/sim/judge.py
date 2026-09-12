@@ -70,14 +70,14 @@ class Judge:
                 "with no turns has nothing to score; skip failed logs in T-14b "
                 "instead of sending silence to the model"
             )
-        rendered = _redact(render_transcript(transcript), scenario.canary)
+        rendered = redact_canary(render_transcript(transcript), scenario.canary)
         facts = self._chat(
             self._facts.render(
                 shared=self._shared,
                 transcript=rendered,
                 knowledge_base=render_facts(self._kb.facts),
                 required_facts=", ".join(scenario.required_facts),
-                needle_fact=_needle_placeholder(scenario, self._kb),
+                needle_fact=needle_fact(scenario, self._kb),
             ),
             caller="judge_facts",
             schema=JudgeFacts,
@@ -86,9 +86,13 @@ class Judge:
             self._global.render(
                 shared=self._shared,
                 transcript=rendered,
-                script=_redact(render_script(scenario.script), scenario.canary),
-                reference_answer=_redact(scenario.reference_answer, scenario.canary),
-                success_criterion=_redact(scenario.success_criterion, scenario.canary),
+                script=redact_canary(render_script(scenario.script), scenario.canary),
+                reference_answer=redact_canary(
+                    scenario.reference_answer, scenario.canary
+                ),
+                success_criterion=redact_canary(
+                    scenario.success_criterion, scenario.canary
+                ),
             ),
             caller="judge_global",
             schema=JudgeGlobal,
@@ -127,14 +131,14 @@ class Judge:
             ) from error
 
 
-def _redact(text: str, canary: str | None) -> str:
+def redact_canary(text: str, canary: str | None) -> str:
     """Strip the canary token so injection scoring stays a T-13 literal match."""
     if canary is None:
         return text
     return text.replace(canary, "[redacted]")
 
 
-def _needle_placeholder(scenario: Scenario, kb: KnowledgeBase) -> str:
+def needle_fact(scenario: Scenario, kb: KnowledgeBase) -> str:
     """Return the needle ID or ``none``, never ``str(is_needle)``."""
     if not scenario.is_needle:
         return "none"

@@ -49,6 +49,7 @@ Duplication in an experiment is not just ugly. It is how the two agents end up b
 | Scenario cell plan | `data/scenarios/plan.yaml` | `scripts/generate_scenarios.py`; not loaded by `sim run` |
 | Models, digests, `num_ctx`, params | `configs/models.yaml` | LLM client and runner manifest read it |
 | Prompts and rubrics | `data/prompts/*.md` | loaded at runtime, never embedded in Python strings |
+| Beat contract of a scenario script | `sim.script` | simulated user, `TurnRecord.user_beat`, `scripts/script_adherence.py` |
 | Persona, tone, general rules | one shared text block | both agents include the same block |
 | Package version | `pyproject.toml` | `sim.__version__` reads it via `importlib.metadata` |
 | The quality gate | `just check` | hooks and people run that one target |

@@ -12,10 +12,12 @@ plan, the ticket board (T-01 to T-24), the decisions table and the session log l
 `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`), outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
-> Status: `sim run` (T-14a) and `sim eval` (T-14b) are in place. The golden dataset
-> (`data/scenarios/v1/`, T-06) is frozen; `just check` fails if those files move.
-> Pilot (T-15) is done: [`docs/pilot.md`](docs/pilot.md). Next: T-16 (parity + judge
-> validation → tag `v1`). Metrics and rubrics: T-04, `docs/metrics.md`.
+> Status: `sim run` / `sim eval` in place; v1 dataset frozen. Pilot (T-15):
+> [`docs/pilot.md`](docs/pilot.md). The simulated user now delivers the script as an
+> ordered plan (`just adherence` is the gate). Rerun the pilot before T-16; the
+> first-pilot sample is void. Judge-validation protocol:
+> [`docs/judge_validation.md`](docs/judge_validation.md). Next: T-16 (parity + judge
+> validation → tag `v1`). Metrics: [`docs/metrics.md`](docs/metrics.md).
 
 ## Requirements
 
@@ -92,13 +94,17 @@ just run exp data/scenarios/examples 3 2
 just run exp data/scenarios/examples 3 2 --resume
 ```
 
-Score a run without re-playing the dialogues (`just eval runs/<exp_id>`). Judge and
-labeler calls go through the same prompt-hash cache, so a second eval of the same
-directory is free when the rubrics have not changed:
+After a run, check that every dialogue delivered its script beats, then score it
+without re-playing the dialogues. Judge and labeler calls go through the same
+prompt-hash cache, so a second eval of the same directory is free when the
+rubrics have not changed. Draw the T-16 sample only from a run that passed
+`just adherence`, never from the first pilot:
 
 ```bash
-just eval runs/exp
-# uv run python -m sim eval --run runs/exp
+just adherence runs/<exp_id>
+just eval runs/<exp_id>
+# uv run python -m sim eval --run runs/<exp_id>
+just judge-sample runs/<exp_id>
 ```
 
 Equivalent without `just`:
@@ -116,7 +122,7 @@ repo, empty until the first run; change the parent with `--runs-dir`):
 
 | Path | What it is |
 |---|---|
-| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop reason, and per turn the FSM states, the user event and every edge the turn walked (empty on the baseline) |
+| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop reason, which script beat each customer message delivered (`user_beat`), and per turn the FSM states, the user event and every edge the turn walked (empty on the baseline) |
 | `manifest.json` | config, dataset hash, FSM hash, model digests, `num_ctx`, prompt versions, job list, throughput, LLM call / cache-hit counts |
 | `llm_calls.jsonl`, `cache/` | every LLM call (`baseline`, `fsm`, `simulated_user`, `classifier`, then `judge_facts`, `judge_global`, `stage_labeler` after eval), keyed by prompt hash. Compact JSON: `"cached":true` has no space after the colon |
 | `metrics.csv` | one row per ok dialogue: identity columns plus every metric of T-04 |
@@ -137,9 +143,9 @@ free via the cache: it does not need named blocks. The scenario files must still
 to `manifest.dataset_hash`. The FSM files must still hash to `manifest.fsm_hash`.
 
 Full execution (T-17), on the Air: `caffeinate -is uv run python -m sim run ... --parallel 2`, in
-blocks with `--resume`; after each block, `rsync -av runs/ <pro>:~/projects/fsm-llm-eval/runs/` and
-`just eval` on the Pro. Splitting the phases across the two machines saves about 4 h; running both
-on the Air in sequence works too and costs only wall clock.
+blocks with `--resume`; `just adherence` on the block before it is evaluated. The Pro pulls `runs/`
+over SSH (`docs/setup.md`) and runs `just eval`. Splitting the phases across the two machines
+saves about 4 h; running both on the Air in sequence works too and costs only wall clock.
 
 ## Development
 
@@ -152,6 +158,9 @@ just format             # ruff format + ruff check --fix
 just check              # lint + test: the gate the hooks run
 just generate-scenarios # expand plan.yaml into the next unused vN (never overwrite frozen v1)
 just fsm-diagram        # Mermaid diagram of data/fsm/machine.yaml, for docs/fsm.md
+just stats <run>        # per-caller tokens and latency (T-15)
+just adherence [run]    # fail unless every dialogue delivered its script beats
+just judge-sample <run> # draw the T-16 sample into results/judge_validation
 just install-analysis   # pandas, scipy, matplotlib, jupyter (T-19, T-20)
 ```
 
@@ -167,7 +176,7 @@ Parts that do not exist yet are marked with the ticket that creates them.
 
 | Path | What it is |
 |---|---|
-| `src/sim/` | Python package (`python -m sim`): LLM client, FSM engine, agents, simulated user, judge, evaluators, runner, eval (T-07 to T-14) |
+| `src/sim/` | Python package (`python -m sim`): LLM client, FSM engine, agents, simulated user (ordered script), judge, evaluators, runner, eval (T-07 to T-14) |
 | `tests/` | pytest; anything that talks to Ollama is marked `integration` |
 | `data/kb/` | knowledge base: numbered facts (F01...), needles, unanswerable questions (T-01) |
 | `data/fsm/` | `machine.yaml` (states, events, transitions, guards) and `states/*.md` (instruction package per state) (T-02) |
@@ -175,10 +184,10 @@ Parts that do not exist yet are marked with the ticket that creates them.
 | `data/scenarios/` | golden dataset: `examples/` (T-05), `plan.yaml` (authoring source), and frozen `v1/` (T-06). Do not edit `v1/` |
 | `configs/` | `models.yaml`: models, digests, `num_ctx`, fixed parameters |
 | `runs/` | output of `sim run` / `sim eval`: dialogues, manifest, LLM cache, `metrics.csv`, `metrics_turn.csv`. Contents git-ignored; moved between machines by `rsync` |
-| `results/` | `metrics.csv` (T-18, audited copy), `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-19, T-20; CSVs git-ignored, regenerated from `runs/`) |
+| `results/` | `metrics.csv` (T-18, audited copy), `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-19, T-20; CSVs git-ignored, regenerated from `runs/`); `judge_validation/` after the T-16 draw (hand annotations are primary data) |
 | `notebooks/` | `analysis.ipynb`: regenerates tables and figures from `metrics.csv` (T-20) |
-| `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`; `generate_scenarios.py` (T-06; default out is the next unused `vN`, never overwrite `v1`) |
-| `docs/` | `setup.md`, `metrics.md`, `taxonomy.md`, `fsm.md`, `decisions_and_limitations.md`, `pilot.md`; later `parity.md`, `judge_validation.md` and the appendices (T-16 to T-22) |
+| `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`, `run_stats.py`, `script_adherence.py` (T-11), `judge_validation_sample.py` (T-16), `generate_scenarios.py` (T-06; default out is the next unused `vN`, never overwrite `v1`) |
+| `docs/` | `setup.md`, `metrics.md`, `taxonomy.md`, `fsm.md`, `decisions_and_limitations.md`, `pilot.md`, `judge_validation.md`; later `parity.md` and the appendices (T-16 to T-22) |
 | `ai-assistance/` | instructions for AI assistants (`PREAMBLE.md`, `DEVELOPMENT.md`) and the hook scripts |
 | `.claude/` | Claude Code config: hooks and permissions (`settings.json`), the `/ticket` skill, path-scoped rules |
 

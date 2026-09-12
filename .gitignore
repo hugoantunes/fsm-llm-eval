@@ -224,8 +224,10 @@ __marimo__/
 runs/*
 !runs/.gitkeep
 
-# Result CSVs are regenerated from runs/ (T-14b, T-18, T-19).
+# Result CSVs are regenerated from runs/ (T-14b, T-18, T-19). The T-16 sheet is
+# the exception: hand annotations are primary data and cannot be regenerated.
 results/**/*.csv
+!results/judge_validation/*.csv
 
 # Execution JSONL anywhere else. The frozen dataset under data/ and the labelled
 # utterances of T-08 under tests/fixtures/ ARE versioned.

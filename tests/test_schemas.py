@@ -9,6 +9,7 @@ from helpers import (
     DOCS_DIR,
     GENERAL_FACT,
     TRACKING_FACT,
+    make_dialogue_log,
     make_kb,
     write_scenarios,
 )
@@ -20,6 +21,8 @@ from sim.schemas import (
     FULL_SET_QUOTA,
     Scenario,
     ScenarioError,
+    dialogue_filename,
+    dialogue_id,
     load_scenarios,
 )
 
@@ -314,6 +317,14 @@ def test_the_real_examples_cover_the_three_categories_with_one_canary(
     assert [scenario.id for scenario in examples if scenario.canary is not None] == [
         "adversarial_01"
     ]
+
+
+def test_dialogue_filename_is_the_dialogue_id_plus_jsonl() -> None:
+    log = make_dialogue_log([])
+
+    assert dialogue_id("edge_02", "fsm", 2) == "edge_02__fsm__rep02"
+    assert dialogue_filename("edge_02", "fsm", 2) == "edge_02__fsm__rep02.jsonl"
+    assert log.dialogue_id == dialogue_id(log.scenario_id, log.agent, log.repetition)
 
 
 def quota_table(quota: int, intents: list[str]) -> str:

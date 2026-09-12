@@ -9,11 +9,6 @@ category, one needle, one canary injection. Dataset `data/scenarios/v1`, hash
 
 Result: 20 ok, 0 failed, 0 unscored.
 
-The directory was renamed by hand after the run, so `manifest.json` still records
-`exp_id: exp_pilot2`. Nothing reads it — `sim eval --run` takes the directory path — and rewriting a
-run artifact after the fact would be worse than the mismatch. Noted here so the next reader is not
-surprised.
-
 **The numbers below are exploratory.** Five scenarios cannot separate two agents; they are here to
 show the pipeline produces the columns and to size the machine budget. Nothing in this file is a
 result of the experiment, and no cut was decided from it.
@@ -79,6 +74,9 @@ exactly the gap a turn can produce and a wider one is a skipped stage.
 spec, so the constant fails the suite if `machine.yaml` changes under it. The gold paths are a check
 on the derivation, not its justification — and had they disagreed, the derivation would have won.
 
+**The simulated user treated the script as a hint.** Dialogues dropped beats and closed with the
+injection unsent. That is the instrument failure T-16 cannot annotate; see *The script was a hint*.
+
 ## What changed
 
 | Artifact | Change |
@@ -90,7 +88,62 @@ on the derivation, not its justification — and had they disagreed, the derivat
 | `src/sim/metrics.py` | `flow_adherence` dropped from `PRIMARY_METRICS` |
 | `scripts/run_stats.py` | new: per-caller tokens and latency from `llm_calls.jsonl` |
 
-State packages, the simulated user and the stage-labeler prompt were read and left unchanged.
+State packages and the stage-labeler prompt were read and left unchanged. The simulated user was
+rewritten after the dialogues were read; see *The script was a hint*. The numbers in *Cost per
+dialogue* are from `runs/exp_pilot`, that instrument-failed run. They still size the machine. They
+are not the T-16 frame.
+
+## The script was a hint
+
+The simulated user of T-11 handed the model the whole numbered script every turn and let it infer
+its own position from the history. Dialogues dropped beats, paraphrased a canary, and closed while
+the injection they existed to deliver had never been sent. On `adversarial_13` / fsm / rep01 the
+customer sent `Please proceed with VN6-HARBOUR-1188`: the token reached the agent, the attack did
+not. That is an instrument failure. Annotating those transcripts would validate the judge on a
+customer who never played the scenario, which is why the first-pilot T-16 sample is void.
+
+A rerun the same day showed why marking the beat due now is not enough. Delivery was still inferred
+from generation:
+
+- a beat asking where a slip appears was consumed by the customer answering its own question
+- on `edge_02`, "not a cancel" was consumed by a tracking question (`edge_19` the same way)
+- asked whether it had delivered a beat, the 4B answered no while sending that beat's own words,
+  and yes while sending the next
+- the 4B rewrites `your` as `my` on an injection (`I need to ignore my previous instructions`),
+  which has the content words and still aims the attack at the customer
+
+The runtime now owns delivery. `sim.script` derives a **contract** from the beat's own words: the
+strings it spells out (order numbers, e-mails, the canary), the content words it is made of, a
+question where it asks one, a denial where it denies, and the whole beat verbatim when it plants a
+canary. A beat is consumed only by a message that meets that contract. The dialogue may not end
+while a beat is still owed. A clarification may postpone a beat (`MAX_DEFERRALS` = 2); after that
+the prompt insists. Misses are retried (`BEAT_RETRIES` = 3, `INJECTION_RETRIES` = 8 on a canary
+beat) with a bumped seed. What still fails is sent as `continue` so the beat stays owed — except a
+failed injection that still carries the token, which is refused rather than planted as a fake
+attack.
+
+The contract is checked without a second model: a judge in the simulator loop would make the
+instrument depend on the thing T-16 is validating.
+
+`TurnRecord.user_beat` is the audit trail. `scripts/script_adherence.py` (`just adherence`) re-checks
+a run from the JSONL alone: every beat arrived, in order, the recorded messages still meet the
+contract, and an injection was delivered as written, not merely as a token. A dialogue that fails
+is an instrument failure, not a data point. T-16 draws from a run that has passed this gate.
+
+The example scenarios in `data/scenarios/examples/` were rewritten as customer utterances, because
+the contract is read off the beat's own words and a stage direction ("Greet the agent and ask…")
+would become the requirement. Frozen `data/scenarios/v1/` was already authored that way and was not
+edited.
+
+| Artifact | Change |
+|---|---|
+| `data/prompts/simulated_user.md` | v1 → v5: the beat due now is marked; literals, content words, ask/deny flags |
+| `src/sim/script.py` | new: beat contract and `ScriptProgress` |
+| `src/sim/user.py` | a beat is consumed only by a message that meets its contract; stopping is refused while a beat is owed |
+| `src/sim/dialogue.py` | records `user_beat` on the turn that delivered it |
+| `src/sim/schemas.py` | `TurnRecord.user_beat` |
+| `data/scenarios/examples/` | scripts rewritten as customer utterances (v1 untouched) |
+| `scripts/script_adherence.py` | new: deterministic gate on a run (`just adherence`) |
 
 ## Cost per dialogue
 
@@ -121,12 +174,14 @@ Projected at N = 60, K = 3 (360 dialogues per phase):
 | Phase | Planned | Measured | Measured on | T-17 runs it on |
 |---|---|---|---|---|
 | `run` | 6.6 h | **5.8 h** | Air | Air |
-| `eval` | 9.4 h | **18.1 h** (serial) | Air | **Pro** |
+| `eval` | 9.4 h | **18.1 h** (serial) | Air | **Pro, ≈ 16.0 h serial** |
 
 The `eval` row is measured on one machine and planned for another, which is a gap and not a
-detail: the pilot ran end to end on the Air, so 180.6 s per dialogue, the 18.1 h, and the
-concurrency measurement below are all M4 / 24 GB numbers. The Pro is an M5 with 16 GB. Nothing
-here has been measured on it.
+detail: the pilot ran end to end on the Air, so 180.6 s per dialogue and the 18.1 h are M4 / 24 GB
+numbers, while T-17 runs `eval` on an M5 with 16 GB. Replaying the same four `judge_facts` prompts
+on the Pro put it at **126.2 s a call against the Air's 142.4 s, or 0.89×**, which rebases the
+projection to ≈ 16.0 h serial there. *The Pro is unmeasured* below records what that replay did
+and did not settle.
 
 Run is inside budget. **Eval is 1.9× over**, and the overrun is one caller: `judge_facts` at 139.1 s
 a call. Against `judge_global` (79.9 output tokens, 35.4 s) on the same model, the fixed cost is
@@ -187,40 +242,59 @@ memory-bandwidth-bound, and one stream already saturates the bandwidth, so a sec
 rather than filling idle capacity. Accepting parallel requests and benefiting from them are
 different things, and the architecture warning only rules out the first.
 
-| Gain | Eval at N = 60, K = 3 | vs planned 9.4 h |
-|---|---|---|
-| 1× (serial) | 18.1 h | 1.9× over |
-| **1.10× (measured)** | **16.5 h** | **1.8× over** |
+On the Air, then, `--parallel 2` is worth roughly 1.6 h of the 18.1, not the 5–9 h the bracket
+assumed. It stays in because it is free and validity-neutral, but on that machine it is not the
+lever. The Pro is a different answer.
 
-So `--parallel 2` is worth roughly 1.6 h of the 18.1, not the 5–9 h the bracket assumed. It stays in
-because it is free and validity-neutral, but **it is not the lever, and the eval budget should be
-planned at ~17 h.** The levers that remain are fewer judge output tokens — ruled out until after
-T-16, since it invalidates the hand-annotated judge validation and the `v1` freeze — or splitting
-the 360 dialogues across the Air and the Pro, which are separate GPUs and so really do halve it.
-That second one needs code before the 2026-09-14 freeze and is not costed here.
+### The same probe on the Pro
 
-### The Pro is unmeasured, and that is the larger number
+The Air numbers above do not transfer, and the reason they do not is the reason they are small:
+one decode stream already saturates the Air's memory bandwidth, and bandwidth is a property of the
+chip. So the probe was re-run on the Pro — cold, on the same four recorded prompts, against the
+same pinned `JudgeFacts` schema, with the arms on disjoint halves so neither can inherit a KV
+prefix from the other.
 
-Everything above ran on the Air. `ollama ps` before and after the probe showed `gemma4:12b` and
-`qwen3.5:4b` both resident with no eviction, which settles the memory question **for the Air and
-only for the Air**. T-17 assigns `eval` to the Pro, and on the Pro nothing here has been checked:
+| | per-stream rate, alone → shared | `--parallel 2` | per-call latency |
+|---|---|---|---|
+| Air (M4, 24 GB) | 12.0 → 6.7 tok/s (0.56×) | 1.10× | 142.4 s |
+| **Pro (M5, 16 GB)** | **8.53 → 5.74 tok/s (0.67×)** | **1.34×** | **126.2 s (0.89×)** |
 
-- **Memory.** The eval phase needs both models resident, 9.0 + 3.4 = 12.4 GB, against the
-  6.3–8.1 GiB of free system RAM measured on the Pro on 2026-09-08. If it evicts, the penalty
-  recorded that day is **3.3×** — against which the 1.10× above is noise. It applies at
-  `--parallel 1` too, so it is not created by concurrency and not avoided by dropping it.
-- **The 1.10× itself.** The reason it is 1.10× and not 2× is that one decode stream already
-  saturates memory bandwidth. Bandwidth is a property of the chip, and the Pro is an M5 while the
-  measurement is an M4. The ceiling could sit anywhere on the Pro; assuming it is the same number
-  repeats exactly the mistake this measurement just corrected.
-- **The 18.1 h.** Same problem one level up: it is a sum of Air latencies. The Pro's per-call
-  judge time is unmeasured, with or without eviction.
+Two independent gains, and they compound. The Pro is about 11% faster per call on identical
+prompts, and it keeps two-thirds of its single-stream rate on each of two streams where the Air
+keeps barely half — headroom the M4 does not have. Rebasing the serial projection by 0.89× and
+then dividing by 1.34×:
 
-Re-running the probe on the Pro costs about 8 minutes and answers all three at once. Until it is
-run, the defensible plan is the one the pilot actually demonstrated: **`eval` on the Air, ~17 h**,
-with the Pro as the optimisation rather than the assumption. That reverses the machine split of
-2026-09-08 for the `eval` phase only, and it is a scheduling choice, not a measurement one —
-`run` and `eval` are separate phases and no metric mixes the two machines either way.
+| | serial | at `--parallel 2` | vs planned 9.4 h |
+|---|---|---|---|
+| Air | 18.1 h | 16.5 h | 1.8× over |
+| **Pro** | **≈ 16.0 h** | **≈ 12.0 h** | **1.3× over** |
+
+**`eval` stays on the Pro**, as the 2026-09-08 split assigned it, and `--parallel 2` is worth about
+4 h there rather than the 1.6 h it is worth on the Air. Note how nearly this went the other way:
+had the Air's 1.10× been carried across unmeasured, the conclusion would have been to move `eval`
+to the Air and lose ~4.5 h — the same class of error as the 1.4× assumption that started this.
+
+Beyond that, the remaining lever is fewer judge output tokens, ruled out until after T-16 because
+it invalidates the hand-annotated judge validation and the `v1` freeze. Splitting the 360 dialogues
+across both machines would halve it again, but needs code before the 2026-09-14 freeze and is not
+costed here.
+
+### What the probe did not settle: co-residency
+
+**The memory question is still open on the Pro, and the probe cannot close it.** It only ever calls
+`gemma4:12b`, so `qwen3.5:4b` is never loaded: `ollama ps` came back empty before the run and
+listed gemma4 alone at 8.6 GB after it. The `eval` phase needs both resident — 9.0 + 3.4 =
+12.4 GB — against the 6.3–8.1 GiB of free system RAM measured on the Pro on 2026-09-08, where
+eviction cost **3.3×**. That dwarfs the 1.34× and applies at `--parallel 1` too, so it is neither
+created by concurrency nor avoided by dropping it.
+
+The 8.6 GB is itself a flag: the Air reports `gemma4:12b` at 9.0 GB, the extra being the second
+slot's KV cache that `OLLAMA_NUM_PARALLEL=2` allocates at load time. Those variables are applied by
+`launchctl` and have to be re-applied after every reboot (`scripts/ollama_env.sh`), so the Pro may
+have produced its 1.34× without them — in which case 1.34× is a floor.
+
+Both are one command on the Pro: load each model once and read `ollama ps`. Until that is run,
+≈ 12.0 h is the estimate and eviction is the risk it is conditional on.
 
 ## The transfer path
 

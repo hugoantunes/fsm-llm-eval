@@ -180,12 +180,23 @@ def run_canned(
     run_dir: Path,
     two_example_scenarios: tuple[Scenario, Scenario],
 ) -> RunCanned:
-    """Run the experiment on the 2x2 pair with a one-turn fake per job."""
+    """Run the experiment on the 2x2 pair with a one-turn fake per job.
+
+    Each brief is cut to its last beat. The script is a mandatory ordered plan
+    (T-11), so a one-turn canned dialogue needs a one-beat brief; the runner's
+    schedule, files and manifest are what these tests are about, and the last
+    beat of both examples is a closing beat that spells nothing out word for
+    word.
+    """
     config = load_models_config(CONFIG)
+    one_beat = [
+        scenario.model_copy(update={"script": scenario.script[-1:]})
+        for scenario in two_example_scenarios
+    ]
 
     def _run(**kwargs: Any) -> Manifest:
         params: dict[str, Any] = {
-            "scenarios": list(two_example_scenarios),
+            "scenarios": one_beat,
             "agents": AGENTS,
             "reps": 1,
             "parallel": 1,

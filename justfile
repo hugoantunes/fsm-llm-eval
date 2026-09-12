@@ -70,6 +70,14 @@ eval run_dir parallel="2":
 stats run_dir:
     uv run python scripts/run_stats.py {{run_dir}}
 
+# Fail unless every dialogue of a run delivered its script beats in order (T-11)
+adherence run_dir="runs/exp_pilot2":
+    uv run python scripts/script_adherence.py --run {{run_dir}}
+
+# Draw the stratified judge-validation sample into results/judge_validation (T-16)
+judge-sample run_dir *args:
+    uv run python scripts/judge_validation_sample.py --run {{run_dir}} {{args}}
+
 # Remove caches and coverage output
 clean:
     rm -rf .pytest_cache .ruff_cache .coverage htmlcov

@@ -15,8 +15,16 @@ paired Wilcoxon/permutation procedures, with Holm adjustment across the three
 primary outcomes. T-19 only fills the observed tests.
 
 `goal_reached` is a stopping condition of the simulated user (T-11). It is **not** a
-metric. Whether the task was completed is `task_completed`, scored by the judge
-against the scenario's `success_criterion`.
+metric. The runtime also refuses it (and `gave_up`, and `agent_ended`) while a
+mandatory beat is still owed. Whether the task was completed is `task_completed`,
+scored by the judge against the scenario's `success_criterion`.
+
+The scenario `script` is a mandatory ordered plan, not a hint: the customer sends one
+beat per message, in the order written, and the dialogue may not end while a beat is
+still owed. Delivery is decided by the runtime (`sim.script`, `TurnRecord.user_beat`),
+not by the model. `just adherence` is the gate a run has to pass before it is
+evaluated or sampled for T-16. It is not a column of `metrics.csv`. A dialogue that
+lost a beat is an instrument failure, not a data point.
 
 The treatment is the **FSM-based architecture as a package**: explicit state
 control, transitions and state-specific instruction packages. The baseline is one
@@ -146,12 +154,15 @@ Before T-17, this file plus `configs/models.yaml`, `data/scenarios/v1/` and
 ## Human validation of the judge (T-16)
 
 The LLM judge is not replaced by humans. T-16 draws a stratified sample of
-completed pilot dialogues (both agents; `happy_path` / `edge` / `adversarial`;
-intents; `correct` / `partial` / `incorrect` and supported / unsupported claims
-where they occur). A human grades the same rubric without seeing the model
-output. Report Cohen's kappa (binary/categorical), weighted Cohen's kappa for
-ordinal `accuracy`, and raw percentage agreement. This validates the instrument.
-The sample is not used to retune the judge after T-17 results are seen.
+completed dialogues from a run that passed `just adherence` (both agents;
+`happy_path` / `edge` / `adversarial`; intents; `correct` / `partial` /
+`incorrect` and supported / unsupported claims where they occur). The
+first-pilot sample is void: those dialogues dropped beats
+([`docs/judge_validation.md`](judge_validation.md)). A human grades the same
+rubric without seeing the model output. Report Cohen's kappa
+(binary/categorical), weighted Cohen's kappa for ordinal `accuracy`, and raw
+percentage agreement. This validates the instrument. The sample is not used to
+retune the judge after T-17 results are seen.
 
 ## Judge call 1 — facts and claims
 
@@ -601,7 +612,7 @@ These are not columns of `metrics.csv` unless a cut is reversed in
   Thursday 10 removes a 1–5 field from the global schema. The cost after that is
   validation (T-16) and a page in the Results. What remains for "the customer got
   what they came for" is `task_completed`.
-- **Sentiment** — cut 0. The simulated user follows a script; the feeling in its
+- **Sentiment** — cut 0. The simulated user plays a mandatory script; the feeling in its
   turns is written in the scenario, not produced by the agent. Scoring it would
   measure the dataset. User experience in this project is `task_completed` plus
   `relevance` (or `task_completed` alone if cut 2 lands).

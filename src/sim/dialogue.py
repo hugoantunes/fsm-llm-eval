@@ -6,6 +6,11 @@ conversation, or the turn budget of the scenario ran out. It is the same loop fo
 both agents, and it holds no answer key: the brief lives in the simulated user
 and the knowledge base in the agent.
 
+The first three stops are the customer's and are guarded where the script lives,
+in :mod:`sim.user`: a dialogue may not end while a mandatory beat is still owed.
+The loop records which beat each customer message delivered on the turn it
+belongs to, and stops on ``max_turns`` whatever the script still holds.
+
 The runner of T-14a wraps this with the CLI, the JSONL per dialogue, the
 manifest, ``--resume`` and the thread pool. None of that belongs here.
 """
@@ -91,7 +96,9 @@ def run_dialogue(
                 stop = "agent_closed"
                 break
             transcript.append(Turn(speaker="user", text=reply.message))
-            record = agent.respond(transcript)
+            record = agent.respond(transcript).model_copy(
+                update={"user_beat": reply.beat}
+            )
             records.append(record)
             transcript.append(Turn(speaker="agent", text=record.agent_reply))
             if reply.status != "continue":

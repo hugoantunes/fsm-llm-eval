@@ -137,12 +137,18 @@ class TurnRecord(BaseModel):
     The prompt itself is not stored here: ``prompt_hash`` addresses it in the
     ``llm_calls.jsonl`` of T-07, which is the same key its cache uses, so the text
     lives in exactly one place and ``runs/`` stays small enough to rsync (T-17).
+
+    ``user_beat`` is the script beat the customer's message delivered (T-11), or
+    null on a message that only answered the agent. It is the audit trail of an
+    ordered plan: whether a dialogue owed a beat it never sent can be decided
+    from the log alone, which is what ``scripts/script_adherence.py`` reports.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     turn: int
     user_message: str
+    user_beat: int | None = None
     agent_reply: str
     model: str
     prompt_hash: str
@@ -173,6 +179,16 @@ def transcript_from_records(records: Sequence[TurnRecord]) -> list[Turn]:
     ]
 
 
+def dialogue_id(scenario_id: str, agent: str, repetition: int) -> str:
+    """Name one (scenario, agent, repetition) the way T-14a names its file stem."""
+    return f"{scenario_id}__{agent}__rep{repetition:02d}"
+
+
+def dialogue_filename(scenario_id: str, agent: str, repetition: int) -> str:
+    """Return the JSONL file name of one (scenario, agent, repetition)."""
+    return f"{dialogue_id(scenario_id, agent, repetition)}.jsonl"
+
+
 class DialogueLog(BaseModel):
     """One dialogue as stored under ``runs/<exp_id>/dialogues/`` (T-14a).
 
@@ -195,6 +211,11 @@ class DialogueLog(BaseModel):
     def transcript(self) -> list[Turn]:
         """The user and agent turns, flattened from ``records``."""
         return transcript_from_records(self.records)
+
+    @property
+    def dialogue_id(self) -> str:
+        """The stem T-14a names this log's file by."""
+        return dialogue_id(self.scenario_id, self.agent, self.repetition)
 
 
 class JobRef(BaseModel):

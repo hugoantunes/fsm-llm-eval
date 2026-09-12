@@ -25,7 +25,7 @@ from sim.io import atomic_write
 from sim.kb import KnowledgeBase
 from sim.llm import LLM_CALLS_LOG, Chat, LlmCallRecord, LlmError
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt_versions
-from sim.schemas import DialogueLog, JobRef, Manifest, Scenario
+from sim.schemas import DialogueLog, JobRef, Manifest, Scenario, dialogue_filename
 from sim.user import SimulatedUser, UserError
 
 #: The two agents under comparison, in the order the inner loop always emits.
@@ -98,11 +98,6 @@ def dialogue_seed(base: int, scenario_id: str, repetition: int) -> int:
     """
     digest = hashlib.sha256(f"{base}:{scenario_id}:{repetition}".encode()).digest()
     return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
-
-
-def dialogue_filename(scenario_id: str, agent: str, repetition: int) -> str:
-    """Return the JSONL file name of one (scenario, agent, repetition)."""
-    return f"{scenario_id}__{agent}__rep{repetition:02d}.jsonl"
 
 
 def dialogue_path(run_dir: Path, job: DialogueJob) -> Path:
@@ -284,7 +279,13 @@ def _play(
         prompts_dir=prompts_dir,
         fsm_dir=fsm_dir,
     )
-    user = SimulatedUser(llm, scenario=job.scenario, prompts_dir=prompts_dir, seed=seed)
+    user = SimulatedUser(
+        llm,
+        scenario=job.scenario,
+        data_fields=kb.user_data_fields,
+        prompts_dir=prompts_dir,
+        seed=seed,
+    )
     try:
         result = run_dialogue(agent, user, max_turns=job.scenario.max_turns)
     except (

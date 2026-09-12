@@ -28,6 +28,7 @@ That folder is on iCloud: if a file is unreadable it is probably evicted, so ask
 - `just test`: pytest without `integration` tests. `just test-all` includes them (needs Ollama with the models in `configs/models.yaml`). Extra arguments go to pytest: `just test tests/test_cli.py -k help`.
 - `just lint` / `just format`: ruff check and ruff format. `just check` = lint + test; it is the gate the hooks run.
 - `just run [exp_id] [scenarios] [reps] [parallel] [args...]` and `just eval runs/<exp_id>`: thin wrappers over `python -m sim run|eval` (T-14a, T-14b). Smoke defaults to `data/scenarios/examples`; the experiment is `data/scenarios/v1`.
+- `just stats <run>`: per-caller tokens and latency from `llm_calls.jsonl`. `just adherence [run]`: fail unless every dialogue delivered its script beats. `just judge-sample <run>`: draw the T-16 sample into `results/judge_validation` (requires the run directory; do not resample the first pilot).
 - `just generate-scenarios`: expand `plan.yaml`. Default `--out` is the next unused `data/scenarios/vN`; a directory that already has JSONL is refused. Do not overwrite frozen `v1`.
 - `just pull-models` / `just digests` / `just verify-models`: pull the models of `configs/models.yaml`, print their digests, fail on any digest mismatch (`scripts/models.py`).
 - Always go through `uv run ...`; add dependencies with `uv add` (or `uv add --group dev`), never pip.
@@ -36,7 +37,7 @@ That folder is on iCloud: if a file is unreadable it is probably evicted, so ask
 
 | Path | Purpose |
 |---|---|
-| `src/sim/` | the package (`python -m sim`): LLM client, FSM engine, agents, simulated user, judge, evaluators, runner, eval |
+| `src/sim/` | the package (`python -m sim`): LLM client, FSM engine, agents, simulated user (ordered script), judge, evaluators, runner, eval |
 | `tests/` | pytest; `@pytest.mark.integration` on anything that talks to Ollama |
 | `data/` | KB (`kb/`), FSM (`fsm/machine.yaml`, `fsm/states/*.md`), prompts (`prompts/*.md`), scenarios (`scenarios/plan.yaml`, `scenarios/examples/`, frozen `scenarios/v1/`) |
 | `configs/models.yaml` | models, digests, `num_ctx`, fixed params: the single place for these |
@@ -77,7 +78,7 @@ From the section *O que não deve mudar* of TICKETS.md:
 - Unit of analysis is the scenario (repetitions aggregated); report wins/ties/losses per scenario.
 - Parity checklist, dated decisions table, explicit out-of-scope list, frozen dataset hash.
 - `num_ctx` explicit in config; fail loudly when a prompt exceeds 80% of it. Structured output via JSON Schema (`format=<schema>`), no defensive parsing.
-- The simulated user sees only persona, goal and script, never the KB or the reference answer.
+- The simulated user sees only persona, goal and script, never the KB or the reference answer. The script is a mandatory ordered plan: the runtime (`sim.script`) decides delivery, not the model. `just adherence` is the gate a run has to pass before it is evaluated or sampled for T-16.
 - Both agents get the full KB. The FSM differs by explicit states, transitions, guards, event classification and state-specific instructions: a deliberate difference, not a bug.
 
 ## Working rules

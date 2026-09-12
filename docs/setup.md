@@ -31,32 +31,50 @@ The repository lives in `~/projects/fsm-llm-eval` on both machines, outside iClo
 GitHub; `runs/` is git-ignored on purpose and moves Air to Pro by `rsync` over SSH on the local
 network.
 
-Transfer path, state on 2026-09-08:
+Transfer path, working end to end since 2026-09-11 (T-15). Hostnames and addresses are deliberately
+not recorded in this repository: read them off the Sharing pane, or with `scutil --get LocalHostName`
+on the machine itself.
 
-- **Remote Login is on** on the Pro, port 22 accepting connections, access limited to
+- **The Pro pulls from the Air**, which is the opposite of the direction planned on 09-08 and is
+  the simpler one: the machine that needs the data starts the transfer, and `run` finishes on the
+  Air before `eval` begins on the Pro anyway.
+- **Remote Login is on** on both machines, port 22 accepting connections, access limited to
   Administrators. `systemsetup -setremotelogin on` fails from a terminal without Full Disk Access;
-  the System Settings toggle under General, Sharing does not need it. The machine's own name and
-  address are deliberately not recorded here: read them off that Sharing pane when you need them.
-- **Key auth on the Pro is still not set up.** The Pro has no `~/.ssh/authorized_keys`, so `rsync`
-  will prompt for a password on every block. Run `ssh-copy-id <user>@<pro-host>` from the Air once.
-  Needed for anything unattended.
-- **The transfer path itself was exercised on 2026-09-11 (T-15), against `localhost` on the Air.**
-  The Air's own key was added to its `~/.ssh/authorized_keys` and
-  `rsync -az --partial -e ssh runs/exp_pilot localhost:<dest>/` moved all 258 files of the pilot
-  directory with identical checksums. `sim eval --run <dest>/exp_pilot` then scored the 20 dialogues
-  with **no LLM call**: `cache/` travels with the run, so re-evaluating on the second machine is
-  free for anything already judged. What remains untested is the network hop and the Pro's own
-  `authorized_keys`, not the command or the payload.
+  the System Settings toggle under General, Sharing does not need it.
+- **Key auth is set up in the direction that is used.** The Pro's `~/.ssh/id_ed25519.pub` is in the
+  Air's `~/.ssh/authorized_keys`, installed by `ssh-copy-id <user>@<air-host>` from the Pro. The
+  Air's own key is also there, left over from the `localhost` rehearsal below; two keys is the
+  expected count. The reverse direction, Air into the Pro, is still not set up and is not needed.
+- **Verify the host key out of band the first time.** On the Pro,
+  `ssh-keyscan -t ed25519 <air-host> | tee -a ~/.ssh/known_hosts | ssh-keygen -lf -` records it
+  without an interactive prompt and prints the fingerprint; compare it against
+  `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` run on the Air. Do not paste the three
+  transfer commands as one block: the first would consume the next as its answer to that prompt.
+- **Rehearsed against `localhost` on the Air, then run for real.** The rehearsal moved all 258
+  files of the pilot directory with identical checksums, and `sim eval --run <dest>/exp_pilot`
+  scored the 20 dialogues with **no LLM call**: `cache/` travels with the run, so re-evaluating on
+  the second machine is free for anything already judged. The network hop itself then carried the
+  same directory Air → Pro.
 - **"Allow full disk access for remote users" is on and is not needed here.** `rsync` writes into
   `~/projects/fsm-llm-eval/runs/`, which is not a TCC-protected path. Turning it off keeps SSH
   sessions away from Mail, Messages, Photos, Safari data and Time Machine without affecting the
   transfer.
-- Still untested end to end (Air → Pro), because it needs both machines awake. Do that before
-  T-17, not on the day of the full run.
+
+The commands, run on the Pro:
+
+```sh
+rsync -az --partial -e ssh <user>@<air-host>:~/projects/fsm-llm-eval/runs/exp_<id> \
+  ~/projects/fsm-llm-eval/runs/
+```
+
+Code travels by GitHub, not by `rsync`: `runs/` is written by whichever commit the Air had, so
+`git pull` on the Pro before `sim eval` or the eval reads a run its own code did not write.
 
 The transfer is an optimization worth about 4 h, not a dependency: if it fails, run and eval both
-happen on the Air in sequence, 12.3 h instead of 8.3 h, with nothing lost, because the two phases
-are already separate and cached by prompt hash.
+happen on the Air in sequence, with nothing lost, because the two phases are already separate and
+cached by prompt hash. What it buys is measured in `docs/pilot.md`: the Pro is 0.89× the Air's
+per-call judge latency and gets 1.34× from `--parallel 2` against the Air's 1.10×, so `eval` there
+is ≈ 12.0 h against ≈ 16.5 h on the Air — conditional on the co-residency check recorded there.
 
 ## Ollama installation
 

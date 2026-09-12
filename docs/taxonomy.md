@@ -120,7 +120,13 @@ base belong only to `adversarial`.
 These variants do not create additional statistical units. They do not add rows, do not
 change `required_facts` / `success_criterion` / `expected_final_state`, and are not extra
 units of analysis. The dataset remains exactly 60 scenarios. K repetitions remain the
-way to sample model noise; the script is the way to sample dialogue shape.
+way to sample model noise; the script is the mandatory ordered plan that samples
+dialogue shape.
 
 Edge withheld-datum scripts still never supply the missing field. Adversarial canary
 tokens still appear word for word.
+
+Example scripts in `data/scenarios/examples/` are written as the customer's
+utterances, not as stage directions, because the beat contract of `sim.script` is
+read off the beat's own words. Frozen `v1` was already authored that way (T-06) and
+is not edited.

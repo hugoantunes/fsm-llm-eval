@@ -21,7 +21,8 @@ from pydantic import BaseModel, ConfigDict
 
 from sim.agents import Agent
 from sim.config import Role
-from sim.kb import Fact, KnowledgeBase, Needle, UserDataField
+from sim.events import CLASSIFIER
+from sim.kb import Fact, KnowledgeBase, Needle, UserDataField, load_kb
 from sim.llm import LlmCallRecord, LlmResponse, Message
 from sim.metrics import Accuracy, JudgeClaim, JudgeFacts, JudgeGlobal, judge_claim
 from sim.schemas import (
@@ -32,8 +33,10 @@ from sim.schemas import (
     StopReason,
     Turn,
     TurnRecord,
+    dialogue_filename,
 )
-from sim.user import UserReply, UserStatus
+from sim.script import beats_of
+from sim.user import SimulatedUser, UserReply, UserStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -271,11 +274,9 @@ class FakeLlm:
                 "num_predict": num_predict,
             }
         )
-        if not self.replies:
-            raise AssertionError("FakeLlm ran out of replies")
         if self.delay_s:
             time.sleep(self.delay_s)
-        text = self.replies.pop(0)
+        text = self._next(caller)
         return LlmResponse(
             text=text,
             parsed=None if schema is None else schema.model_validate_json(text),
@@ -287,10 +288,53 @@ class FakeLlm:
             cached=False,
         )
 
+    def _next(self, caller: str) -> str:
+        """Return the next canned answer, in the order they were given."""
+        if not self.replies:
+            raise AssertionError("FakeLlm ran out of replies")
+        return self.replies.pop(0)
 
-def user_reply(message: str, status: UserStatus = "continue") -> str:
-    """Render one schema-valid answer from the simulated user of T-11."""
-    return UserReply(message=message, status=status).model_dump_json()
+
+class CannedJobLlm(FakeLlm):
+    """A fake that answers by caller instead of by call order.
+
+    The event classifier of T-08 is rule-first: whether it reaches the model at
+    all depends on the words the customer used, so a queue in call order
+    desyncs as soon as a beat happens to name an order or an item. The customer
+    still speaks from a queue, one message per beat.
+    """
+
+    def __init__(self, user_replies: Sequence[str], *, delay_s: float = 0.0) -> None:
+        super().__init__(list(user_replies), delay_s=delay_s)
+
+    def _next(self, caller: str) -> str:
+        if caller == SimulatedUser.name:
+            return super()._next(caller)
+        if caller == CLASSIFIER:
+            return classifier_reply("none")
+        return CANNED_AGENT_REPLY
+
+
+def real_data_fields() -> list[UserDataField]:
+    """The patterned slots of ``data/kb/``, as the simulated user of T-11 reads them.
+
+    What a script beat requires word for word is derived from these patterns, so
+    a test hands over the real ones rather than a second copy of the regexes.
+    """
+    return load_kb(KB_DIR).user_data_fields
+
+
+def user_reply(
+    message: str, status: UserStatus = "continue", *, answering: bool = False
+) -> str:
+    """Render one schema-valid answer from the simulated user of T-11.
+
+    ``answering`` defaults to false, as the field does: a customer turn carries
+    the beat it owes unless it says it is answering the agent instead.
+    """
+    return UserReply(
+        message=message, answering_agent_question=answering, status=status
+    ).model_dump_json()
 
 
 def classifier_reply(event: str, intent: str | None = None) -> str:
@@ -317,11 +361,13 @@ def make_turn_record(
     state_before: str | None = None,
     state_after: str | None = None,
     event: str | None = None,
+    user_beat: int | None = None,
 ) -> TurnRecord:
     """Build one turn record; only the fields a test cares about need saying."""
     return TurnRecord(
         turn=turn,
         user_message=user_message,
+        user_beat=user_beat,
         agent_reply=agent_reply,
         model="agent-model",
         prompt_hash="a" * 64,
@@ -441,33 +487,40 @@ def judge_global_reply(
 #: what the identification guard reads, so a test can park past it.
 ORDER_AND_EMAIL = {"order_number": "NL-20260145", "email": "jane@example.com"}
 
-#: One canned user turn that ends the dialogue after the agent's first reply.
-CANNED_USER_TURN = "Hi, where is my order?"
+#: The canned agent turn, one per beat of the script the job plays.
 CANNED_AGENT_REPLY = "Hello from support."
 
 
-def canned_replies_for(agent: str, *, delay_s: float = 0.0) -> FakeLlm:
-    """A one-turn fake: the customer reaches its goal on the opening message.
-
-    The FSM agent also classifies that turn; the baseline does not. Each job
-    of T-14a gets its own instance, so a thread pool cannot mix their queues.
-    """
-    replies: list[str] = [user_reply(CANNED_USER_TURN, status="goal_reached")]
-    if agent == "fsm":
-        replies.append(classifier_reply("none"))
-    replies.append(CANNED_AGENT_REPLY)
-    return FakeLlm(replies, delay_s=delay_s)
-
-
-class HasAgent(Protocol):
+class HasScenario(Protocol):
     """The slice of a dialogue job the canned factory reads."""
 
     agent: str
+    scenario: Scenario
 
 
-def canned_llm_factory(job: HasAgent, *, delay_s: float = 0.0) -> FakeLlm:
-    """Build a one-turn fake for ``job``; the factory the runner tests inject."""
-    return canned_replies_for(job.agent, delay_s=delay_s)
+def canned_llm_factory(job: HasScenario, *, delay_s: float = 0.0) -> FakeLlm:
+    """Build a canned fake for ``job``; the factory the runner tests inject.
+
+    The script is a mandatory ordered plan (T-11), so the fake customer plays
+    every beat and reaches its goal on the last one. Each message is the beat's
+    own words, which is the one message every beat contract accepts, so a canned
+    dialogue never spends a retry. A one-turn dialogue therefore needs a
+    one-beat brief, which is what ``run_canned`` cuts them to.
+
+    Each job of T-14a gets its own instance, so a thread pool cannot mix their
+    queues.
+    """
+    beats = beats_of(job.scenario, real_data_fields())
+    return CannedJobLlm(
+        [
+            user_reply(
+                beat.text,
+                "goal_reached" if beat.number == len(beats) else "continue",
+            )
+            for beat in beats
+        ],
+        delay_s=delay_s,
+    )
 
 
 RunCanned = Callable[..., Manifest]
@@ -614,6 +667,26 @@ def make_manifest(**fields: Any) -> Manifest:
     }
     values.update(fields)
     return Manifest(**values)
+
+
+def write_run(
+    directory: Path,
+    logs: Sequence[DialogueLog],
+    *,
+    scenarios_dir: str = "data/scenarios/v1",
+) -> Path:
+    """Write ``logs`` and a manifest as ``sim run`` would, and return the directory."""
+    dialogues = directory / "dialogues"
+    dialogues.mkdir(parents=True)
+    for log in logs:
+        (
+            dialogues / dialogue_filename(log.scenario_id, log.agent, log.repetition)
+        ).write_text(log.model_dump_json() + "\n", encoding="utf-8")
+    (directory / "manifest.json").write_text(
+        make_manifest(scenarios_dir=scenarios_dir).model_dump_json(),
+        encoding="utf-8",
+    )
+    return directory
 
 
 def canned_eval_transport_replies(n_dialogues: int) -> list[ChatResponse]:

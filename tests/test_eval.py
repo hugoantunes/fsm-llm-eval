@@ -24,8 +24,8 @@ from sim.io import atomic_write
 from sim.kb import KnowledgeBase
 from sim.llm import LlmClient
 from sim.metrics import METRICS, JudgeFacts, fact_scores
-from sim.runner import AGENTS, dialogue_filename, iter_jobs
-from sim.schemas import DialogueLog, Manifest, Scenario, TurnRecord
+from sim.runner import AGENTS, iter_jobs
+from sim.schemas import DialogueLog, Manifest, Scenario, TurnRecord, dialogue_filename
 
 IDENTITY = ("scenario_id", "agent", "repetition")
 
