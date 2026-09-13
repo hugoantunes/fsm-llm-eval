@@ -19,8 +19,8 @@ Four files are written, none of which shows the judge's labels:
 ``response_annotations.csv``
     what is annotated on one response: 30 rows, keyed by annotation ID only
 ``dialogue_annotations.csv``
-    what the judge answers over a whole dialogue: one row per distinct dialogue
-    the sample touches, keyed by blind dialogue ID
+    what the judge answers over a whole dialogue: one row per ok dialogue,
+    keyed by blind dialogue ID
 ``packet.md``
     the evidence: the fact catalogue the judge grades against, then one
     section per dialogue in ``D`` ID order, then one compact section per
@@ -127,7 +127,7 @@ class SampledResponse(BaseModel):
 
 
 class SampledDialogue(BaseModel):
-    """One dialogue the sample touches, under the ID the annotator sees."""
+    """One ok dialogue, under the ID the annotator sees."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -273,18 +273,24 @@ def draw_sample(
             )
             for number, response in enumerate(shuffled, start=1)
         ],
-        dialogues=_blind_dialogues(picks, seed=seed),
+        dialogues=_blind_dialogues(frame, picks, seed=seed),
     )
 
 
-def _blind_dialogues(picks: Sequence[Response], *, seed: int) -> list[SampledDialogue]:
-    """Number the drawn dialogues under IDs that do not order them by agent.
+def _blind_dialogues(
+    frame: Sequence[Response], picks: Sequence[Response], *, seed: int
+) -> list[SampledDialogue]:
+    """Number every ok dialogue under IDs that do not order them by agent.
 
     Sorting the real dialogue IDs would hand every scenario's baseline the lower
     number, so the order is a shuffle of its own, seeded like every other choice
     here.
     """
-    by_id = {pick.dialogue_id: pick for pick in picks}
+    by_id = {response.dialogue_id: response for response in frame}
+    sampled_count = {
+        dialogue_id: sum(1 for pick in picks if pick.dialogue_id == dialogue_id)
+        for dialogue_id in by_id
+    }
     shuffled = sorted(by_id)
     random.Random(f"{seed}|dialogues").shuffle(shuffled)
     return [
@@ -294,9 +300,7 @@ def _blind_dialogues(picks: Sequence[Response], *, seed: int) -> list[SampledDia
             scenario_id=by_id[dialogue_id].scenario_id,
             agent=by_id[dialogue_id].agent,
             repetition=by_id[dialogue_id].repetition,
-            n_sampled_responses=sum(
-                1 for pick in picks if pick.dialogue_id == dialogue_id
-            ),
+            n_sampled_responses=sampled_count[dialogue_id],
         )
         for number, dialogue_id in enumerate(shuffled, start=1)
     ]
@@ -532,7 +536,7 @@ def _packet_header(sample: Sample) -> str:
             "",
             f"`{RESPONSE_CSV}`, one row per `A` ID: fill from the `A` sections "
             "after the dialogues, in `A01` order, about the marked response "
-            "only. `>>> Axx` in a `D` section is the same turn.",
+            "only. The dialogue field points at the `D` section with full context.",
             "",
             "- `fact_ids_stated`: every knowledge-base ID the marked response "
             "materially states, separated by `;`, or empty for none",
@@ -577,7 +581,7 @@ def _packet_dialogue(
     sampled: Sequence[SampledResponse],
     kb: KnowledgeBase,
 ) -> str:
-    """Render one conversation, with every sampled turn marked for the A sheet."""
+    """Render one conversation once, under its dialogue annotation ID."""
     canary = scenario.canary
     listed = "; ".join(f"{item.annotation_id} (turn {item.turn})" for item in sampled)
     lines = [
@@ -600,11 +604,10 @@ def _packet_dialogue(
         redact_canary(render_script(scenario.script), canary),
         "```",
         "",
-        "Transcript (`>>>` marks sampled responses for the A sheet):",
+        "Transcript:",
         "",
     ]
-    marks = {item.turn: item.annotation_id for item in sampled}
-    lines.extend(_transcript_block(log, canary, marks, label_ids=True))
+    lines.extend(_transcript_block(log, canary, {}))
     lines.append("")
     return "\n".join(lines)
 

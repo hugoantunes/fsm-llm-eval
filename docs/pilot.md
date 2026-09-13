@@ -1,7 +1,8 @@
 # Pilot (T-15)
 
 5 scenarios × 2 agents × 2 repetitions = 20 dialogues, run and evaluated **entirely on the Air**, as
-T-15 asks. All 20 dialogues were read. Directory: `runs/exp_pilot` (git-ignored).
+T-15 asks. All 20 dialogues were read. Logical directory: `runs/exp_pilot` (git-ignored). The
+manifest `exp_id` of the corrected final pilot is `exp_pilot_fixes_20260913_final_v1`.
 
 Scenarios: `happy_path_06`, `edge_02`, `edge_19`, `adversarial_04`, `adversarial_13` — one per
 category, one needle, one canary injection. Dataset `data/scenarios/v1`, hash
@@ -90,8 +91,8 @@ injection unsent. That is the instrument failure T-16 cannot annotate; see *The 
 
 State packages and the stage-labeler prompt were read and left unchanged. The simulated user was
 rewritten after the dialogues were read; see *The script was a hint*. The numbers in *Cost per
-dialogue* are from `runs/exp_pilot`, that instrument-failed run. They still size the machine. They
-are not the T-16 frame.
+dialogue* are the 11/09 machine-budget record of the superseded instrument. They still size the
+machine. T-16 parity quotes the corrected `runs/exp_pilot` run instead.
 
 ## The script was a hint
 
@@ -145,12 +146,18 @@ edited.
 | `data/scenarios/examples/` | scripts rewritten as customer utterances (v1 untouched) |
 | `scripts/script_adherence.py` | new: deterministic gate on a run (`just adherence`) |
 
+The original pilot was superseded after identifying simulated-user script-adherence failures. The runtime was revised to track and validate mandatory beats explicitly. The corrected pilot passed the adherence gate: 20/20 dialogues delivered all mandatory beats in order, all 4/4 canary tokens reached the evaluated agent verbatim, and all 4/4 adversarial injection beats were delivered exactly as specified.
+
+T-16 annotates that corrected run: dialogue-level validation is a census of all 20 ok dialogues; response-level validation is a blinded sample of 30/76 eligible agent responses.
+
 ## Cost per dialogue
 
-From `llm_calls.jsonl` and the manifest (`uv run python scripts/run_stats.py runs/exp_pilot`).
-Latency is averaged over uncached calls only. The three eval callers show **60 calls, not 20**:
-the log is append-only, and this directory was evaluated three times (the later two from cache,
-after the flow-rule change). Token and latency means match the first uncached pass.
+From the 11/09 `llm_calls.jsonl` and manifest (`uv run python scripts/run_stats.py runs/exp_pilot`
+on that superseded instrument). Latency is averaged over uncached calls only. The three eval
+callers show **60 calls, not 20**: the log is append-only, and that directory was evaluated three
+times (the later two from cache, after the flow-rule change). Token and latency means match the
+first uncached pass. Do not treat this table as the T-16 frame; [`docs/parity.md`](parity.md)
+quotes the corrected run.
 
 | caller | calls | mean prompt tokens | mean output tokens | mean latency (s) |
 |---|---|---|---|---|
@@ -309,8 +316,12 @@ is the one remaining step before T-17.
 ## The measurement risk T-16 has to close
 
 The stage labeler is the weakest instrument in the pipeline, and the flow columns rest on it.
+The figures in this section are from the **11/09 instrument**, not the T-16 number. Remeasure
+turn accuracy and the `valid_flow_path` downward bias on the corrected eval before deciding
+on a labeler v2; do not quote 23/38 as the T-16 figure.
 
-**Turn-level accuracy against the FSM's true `state_after`: 23/38 = 0.605.** Dominant confusions:
+**Turn-level accuracy against the FSM's true `state_after` (11/09): 23/38 = 0.605.** Dominant
+confusions on that run:
 
 | n | true | labelled |
 |---|---|---|
@@ -324,18 +335,19 @@ The stage labeler is the weakest instrument in the pipeline, and the flow column
 The labeler reads the agent's reply and hears the *topic* the agent is discussing, not the stage it
 is in: an agent that states a price while still classifying the request gets labelled `solution`.
 
-**Path-level, this matters more than 0.605 suggests.** Exact path match is 2/10. On the derived
-column, the labelled path and the gold path agree on `valid_flow_path` in only **5 of 10** FSM
-dialogues — and all five disagreements run the same way, gold `True` and labelled `False`. The
-labeler jumps ahead, which manufactures apparent multi-stage jumps that the k ≤ 2 bound then
-rejects. This is a systematic downward bias, not noise.
+**Path-level, this mattered more than 0.605 suggested on that run.** Exact path match was 2/10.
+On the derived column, the labelled path and the gold path agreed on `valid_flow_path` in only
+**5 of 10** FSM dialogues — and all five disagreements ran the same way, gold `True` and labelled
+`False`. The labeler jumps ahead, which manufactures apparent multi-stage jumps that the k ≤ 2
+bound then rejects. That was a systematic downward bias, not noise. T-16 remeasures it on the
+corrected eval.
 
 The bias applies to both agents, since the labeler is the same instrument run over each agent's turn
 identically, so the paired comparison is partly protected. But there is no gold for the baseline,
 so the magnitude cannot be checked on that side. **`valid_flow_path` and `flow_adherence` therefore
-carry no inferential weight**, which is why `flow_adherence` is out of `PRIMARY_METRICS`. T-16 has
-to quantify this in `docs/judge_validation.md` and decide whether a labeler prompt change is worth
-it before the `v1` tag freezes it. Re-labelling the full experiment is cheap if it is: 360 × 6.12 s
+carry no inferential weight**, which is why `flow_adherence` is out of `PRIMARY_METRICS`. T-16
+quantifies this in `docs/judge_validation.md` and records the decision on whether a labeler prompt
+change is worth it before the `v1` tag freezes it. Re-labelling the full experiment is cheap if it is: 360 × 6.12 s
 ≈ 37 min, and nothing else has to re-run.
 
 ## Exploratory direction

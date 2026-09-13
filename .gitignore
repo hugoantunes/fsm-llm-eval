@@ -228,6 +228,7 @@ runs/*
 # the exception: hand annotations are primary data and cannot be regenerated.
 results/**/*.csv
 !results/judge_validation/*.csv
+!results/judge_validation/**/*.csv
 
 # Execution JSONL anywhere else. The frozen dataset under data/ and the labelled
 # utterances of T-08 under tests/fixtures/ ARE versioned.

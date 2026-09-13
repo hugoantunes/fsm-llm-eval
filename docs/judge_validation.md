@@ -1,40 +1,44 @@
 # Judge validation (T-16)
 
-The LLM judge of T-12 is validated against a human on a stratified sample of the
-instrument-fixed pilot, annotated by hand before anyone looks at what the judge answered.
-The judge validated here is the judge that scores the experiment in T-17: validating one
+The LLM judge of T-12 is validated against a human on the instrument-fixed pilot. Dialogue-level
+validation is a census of all 20 ok dialogues. Response-level validation is a blinded sample of
+30/76 eligible agent responses. Both were annotated by hand before anyone looks at what the judge
+answered. The judge validated here is the judge that scores the experiment in T-17: validating one
 model and running another validates nothing.
 
 This file is the protocol. It fixes the sample, the rubric the human fills and how agreement is
-computed. The numbers go in at the end, under *Results*, which is empty until the sheets are filled.
+computed, then records the measured values under *Results*.
 
 ## The sample
 
 Drawn by `scripts/judge_validation_sample.py` **after** the instrument-fixed pilot (the simulated
 user of T-11 now delivers the script as an ordered plan) **and** after `just adherence` has passed
-on that run. The first-pilot sample is void: those dialogues dropped beats, so annotating them
-would validate the judge on an instrument failure. Discard any sheet written from `runs/exp_pilot`.
-Do not resample that directory.
+on that run. The logical run path is `runs/exp_pilot`. The manifest `exp_id` of this final pilot is
+`exp_pilot_fixes_20260913_final_v1`. Join agreement to that path, not to a later
+`exp_pilot_fixes_*` directory.
 
-The script reads `manifest.json` and the dialogue JSONL of the new run and **nothing else**: not
+The **11/09 sample** is void: those dialogues dropped beats, so annotating them would validate the
+judge on an instrument failure. What is void is that draw, not the path `runs/exp_pilot`. The
+frozen files live under `results/judge_validation/exp_pilot/`. **Do not redraw them.**
+
+The script reads `manifest.json` and the dialogue JSONL of the run and **nothing else**: not
 `metrics.csv`, not `metrics_turn.csv`, not `llm_calls.jsonl`. No judge output can steer which
 responses a human is asked to grade, and a test asserts it by writing a sentinel into those files
 and checking it never reaches the output.
 
-Until `just judge-sample runs/<exp_id>` is run on the instrument-fixed run, `results/judge_validation/`
-holds no valid sample. The draw itself does not change:
+The frozen frame:
 
 | | |
 |---|---|
+| Eligible responses | 76 (38 baseline, 38 FSM) |
 | Drawn | 30 responses: 15 baseline, 15 FSM |
+| Dialogues | census of all 20 ok dialogues |
 | Strata | (agent, scenario), spread over the dialogues of each cell by round-robin |
 | Eligibility | every agent turn of every `ok` dialogue whose reply is not blank |
 | Seed | `20260911` |
 | Reproducible | the same seed over the same dialogues rewrites the four files byte for byte |
 
-Frame size, per-cell quota and how many dialogues the 30 responses touch are properties of the new
-run. Do not copy the first-pilot figures (78 eligible, 3 per cell, 20 dialogues) onto a different
-frame.
+The first-pilot frame was 78 eligible turns. Do not copy that figure onto this run.
 
 Spreading inside a stratum is round-robin over a seeded shuffle of its dialogues, so a dialogue is
 never two responses ahead of another that still has turns to give, and chance only decides which
@@ -47,14 +51,14 @@ the outcome, which is the one thing this exercise exists to rule out.
 
 ### Files
 
-Everything lives in `results/judge_validation/`.
+Everything for this draw lives in `results/judge_validation/exp_pilot/`.
 
 | File | What it is |
 |---|---|
-| `sample.json` | the metadata, the 30 selected responses with full identity, and the blind dialogue IDs |
-| `packet.md` | the evidence: the fact catalogue, then one section per dialogue in `D` ID order, then one compact section per sampled response in `A` ID order. Each transcript is printed once |
-| `response_annotations.csv` | 30 rows to fill: `annotation_id,fact_ids_stated,claim_support,notes` |
-| `dialogue_annotations.csv` | one row per distinct dialogue the 30 responses touch: `dialogue_annotation_id,accuracy,task_completed,notes` |
+| `sample.json` | the metadata, the 30 selected responses with full identity, and the blind dialogue IDs of all 20 ok dialogues |
+| `packet.md` | the evidence: the fact catalogue, then one section per ok dialogue in `D` ID order, then one compact section per sampled response in `A` ID order. Each transcript is printed once |
+| `response_annotations.csv` | 30 rows: `annotation_id,fact_ids_stated,claim_support,notes` |
+| `dialogue_annotations.csv` | one row per ok dialogue (census of 20): `dialogue_annotation_id,accuracy,task_completed,notes` |
 
 Neither sheet nor the packet names an agent. `A01`–`A30` and the `D` IDs on the dialogue sheet are
 the only keys the annotator sees; `sample.json` holds the join back to scenario, agent, repetition
@@ -69,6 +73,10 @@ decided against a subset of the closed world. The canary of an adversarial scena
 through `sim.judge.redact_canary`, the same function the judge's caller uses, so neither grader sees
 the token that T-13 detects by literal match.
 
+A later draw prints a full transcript under each `D` ID with no `>>>` marks, and marks the turn
+only in the `A` block. The locked packet of this draw already has `D` then `A`; it still marks
+sampled turns in some `D` transcripts. That file is frozen with the sheets. Do not regenerate it.
+
 ## The rubric
 
 Two units, deliberately not mixed. `claim_support` is a property of one response; the judge answers
@@ -76,8 +84,9 @@ Two units, deliberately not mixed. `claim_support` is a property of one response
 fields on response rows would weight a dialogue by how many of its turns happened to be drawn.
 
 - **Response level — the marked response only.** Read the transcript for context, but grade the one
-  turn marked `>>>`. 30 units.
-- **Dialogue level — the entire transcript.** One unit per distinct dialogue the sample touches.
+  turn marked `>>>`. Blinded sample of 30/76 eligible agent responses.
+- **Dialogue level — the entire transcript.** Census of all 20 ok dialogues, independent of the
+  response sample. A dialogue with no sampled turn still gets a `D` row.
 
 ### `fact_ids_stated` (response level)
 
@@ -135,22 +144,27 @@ can meet the criterion while stating the reference answer only partly.
    means nothing.
 5. Use `notes` whenever a call was close. The disagreements are what the write-up explains.
 
+The sheets under `results/judge_validation/exp_pilot/` are filled and reviewed. Joining them to the
+judge output of `runs/exp_pilot` is allowed after that lock.
+
 ## Agreement
 
 Computed after the sheets are complete, per field:
 
 - Percent agreement on every field, plus **Cohen's kappa** for the categorical and binary ones
-  (`claim_support`, `task_completed`) and **weighted kappa** for `accuracy`, which is ordinal
-  (`incorrect` < `partial` < `correct`).
-- **Dialogue-level agreement runs over the unique dialogues the sample touches, never over the 30
-  responses.** Scoring it per response would count a dialogue that contributed two responses twice
-  and inflate the effective n.
+  (`claim_support`, `task_completed`) and **quadratic weighted kappa** for `accuracy`, which is
+  ordinal (`incorrect` < `partial` < `correct`).
+- **Dialogue-level validation is a census of all 20 ok dialogues**, never the 30 responses.
+  Scoring it per response would count a dialogue that contributed two responses twice and inflate
+  the effective n.
+- **Response-level validation is the blinded sample of 30/76 eligible agent responses.**
 - `fact_ids_stated` is a set, not a category: report exact-set agreement plus micro-averaged
   precision, recall and F1 of the human's IDs against the judge's, over the responses that could be
   matched (see below).
 
 If the schedule collapses, the pre-declared fallback of T-16 is 20 responses and percent agreement
-only, recorded as a limitation. It is a cut of scope, not of data already annotated.
+only, recorded as a limitation. It is a cut of scope, not of data already annotated. It was not
+applied: this draw is 30 of 76.
 
 ## Where the two rubrics do not line up
 
@@ -181,9 +195,47 @@ Read this before computing anything; each point is a decision the analysis has t
    in an afternoon, and the other two are near-constant on this sample. They are reported as
    unvalidated in the limitations, not as validated.
 
+The judge is not retuned to raise agreement. The same `gemma4:12b` judge is used in T-16 and T-17.
+
 ## Results
 
-Empty until the sheets are filled. It takes: the agreement table per field, the stage-labeler
-accuracy of T-13 measured on the pilot, the final version of the two judge rubrics, and the
-disagreements worth a sentence in the discussion. Tag `v1` comes after this section is written, and
-prompts and rubrics freeze at that tag.
+Computed on the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_id`
+`exp_pilot_fixes_20260913_final_v1`) with:
+
+- `uv run python scripts/validate_judge.py agree --run runs/exp_pilot --sample results/judge_validation/exp_pilot`
+- `uv run python scripts/validate_judge.py labeler --run runs/exp_pilot`
+
+### Agreement table
+
+| Field | Unit | n | Percent agreement | Kappa |
+|---|---|---:|---:|---:|
+| `task_completed` | dialogue census | 20 | 0.750 | 0.419 (Cohen) |
+| `accuracy` | dialogue census | 20 | 0.700 | 0.444 (quadratic weighted Cohen) |
+| `claim_support` | response sample | 30 | 0.733 | 0.529 (Cohen) |
+| `fact_ids_stated` exact-set | response sample | 30 | 0.733 | n/a (set metric) |
+| `fact_ids_stated` micro precision | response sample | 30 | 1.000 | n/a |
+| `fact_ids_stated` micro recall | response sample | 30 | 0.818 | n/a |
+| `fact_ids_stated` micro F1 | response sample | 30 | 0.900 | n/a |
+
+Unmatched claim attribution cases: 19 claims with zero or multiple turn matches.
+They are reported and excluded from forced turn-level labels by design.
+
+### Stage labeler on this final eval
+
+Measured from `metrics_turn.csv` on the same corrected run:
+
+- Turn-level exact match against FSM `true_state_after`: 24/38 = 0.632
+- FSM dialogues: 10
+- `valid_flow_path` agreement between gold and labelled paths: 7/10 = 0.700
+- Downward bias count (`gold=True`, `labelled=False`): 3/10 dialogues
+
+The topic-vs-stage bias remains but is smaller than on the 11/09 instrument run.
+No stage-labeler retune is applied in T-16.
+
+### Frozen rubric versions
+
+- `judge_facts.md v3`
+- `judge_global.md v2`
+- `judge_shared.md v2`
+
+Tag `v1` comes after this section and freezes prompts and rubrics.

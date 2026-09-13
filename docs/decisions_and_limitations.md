@@ -57,10 +57,28 @@ enough for the edge classification.
 - `adversarial_04` keeps the unprompted catalogue criterion by design: the user
   never asks what the store sells, but the criterion remains executable and is
   not weakened to fit pilot behavior.
-- Human-vs-judge agreement measured on the frozen T-16 sample is reported as an
-  instrument limitation, not tuned away: `task_completed` agreement `16/20`,
-  `accuracy` agreement `11/20`, and all four `task_completed` disagreements are
-  judge-permissive (three on baseline dialogues).
+- Human-vs-judge agreement on the 11/09 sample is void with that instrument. T-16
+  agreement is the census of all 20 ok dialogues plus the blinded sample of 30/76
+  eligible agent responses on the corrected `runs/exp_pilot` run, reported in
+  `docs/judge_validation.md` *Results* and not tuned away.
 - Evidence provenance is separated explicitly: C1-C5 are pilot-observed;
   C6 (data-collection field list filtering) is a static-inspection contract
   defect that was not exercised by the pilot.
+
+## Pre-main acceptance closure (2026-09-13)
+
+- Claim strength stays bounded: C1-C5 were reproduced in both relevant pilot
+  repetitions with different seeds, which supports reproducibility inside the
+  pilot but does not justify deterministic language.
+- C5 mechanism statements stay causal-hypothesis language until the
+  counterfactual probe is run; fixes are accepted only when they match the
+  demonstrated cause, not because score moved.
+- C6 is accepted only with execution-level evidence that deliberately exercises
+  `data_collection` with mixed collected and missing required fields and shows
+  the rendered list is exactly `required_for(active_intent) - collected`.
+  A natural re-run dialogue may satisfy this when it reaches the state, but a
+  dedicated integration fixture is the default discharge path.
+- Readiness is contract-gated, not score-gated: the FSM is not ready for the
+  main experiment until C1-C6 acceptance criteria and adherence gates are all
+  green while frozen judge/scenarios/success criteria/original pilot artifacts
+  remain unchanged.

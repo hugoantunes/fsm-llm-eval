@@ -49,6 +49,18 @@ def metrics_doc() -> str:
 
 
 @pytest.fixture(scope="session")
+def parity_doc() -> str:
+    """The parity checklist of ``docs/parity.md`` (T-16)."""
+    return (DOCS_DIR / "parity.md").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="session")
+def judge_validation_doc() -> str:
+    """The T-16 protocol and results in ``docs/judge_validation.md``."""
+    return (DOCS_DIR / "judge_validation.md").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="session")
 def judge_shared_prompt() -> Prompt:
     """The blindness block both judge calls include (T-04)."""
     return load_prompt("judge_shared", directory=PROMPTS_DIR)

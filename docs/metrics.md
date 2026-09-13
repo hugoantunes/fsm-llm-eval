@@ -153,16 +153,21 @@ Before T-17, this file plus `configs/models.yaml`, `data/scenarios/v1/` and
 
 ## Human validation of the judge (T-16)
 
-The LLM judge is not replaced by humans. T-16 draws a stratified sample of
-completed dialogues from a run that passed `just adherence` (both agents;
-`happy_path` / `edge` / `adversarial`; intents; `correct` / `partial` /
-`incorrect` and supported / unsupported claims where they occur). The
-first-pilot sample is void: those dialogues dropped beats
-([`docs/judge_validation.md`](judge_validation.md)). A human grades the same
-rubric without seeing the model output. Report Cohen's kappa
-(binary/categorical), weighted Cohen's kappa for ordinal `accuracy`, and raw
-percentage agreement. This validates the instrument. The sample is not used to
-retune the judge after T-17 results are seen.
+The LLM judge is not replaced by humans. T-16 validates it on a run that passed
+`just adherence`. Dialogue-level validation is a census of all 20 ok dialogues
+(`accuracy`, `task_completed`). Response-level validation is a blinded stratified
+sample of 30/76 eligible agent responses (`fact_ids_stated`, `claim_support`),
+15 per agent, seed `20260911`. The 11/09 sample is void: those dialogues dropped
+beats ([`docs/judge_validation.md`](judge_validation.md)). The path
+`runs/exp_pilot` is the logical directory of the corrected pilot (manifest
+`exp_id` `exp_pilot_fixes_20260913_final_v1`); do not redraw the frozen sheets
+under `results/judge_validation/exp_pilot/`. A human grades the same rubric
+without seeing the model output. Report Cohen's kappa (binary/categorical),
+quadratic weighted Cohen's kappa for ordinal `accuracy`, and raw percentage
+agreement; `fact_ids_stated` is exact-set agreement plus micro P/R/F1. This
+validates the instrument. The sample is not used to retune the judge after T-17
+results are seen. The same `gemma4:12b` judge is used in T-16 and T-17.
+`flow_adherence` stays out of `PRIMARY_METRICS`.
 
 ## Judge call 1 — facts and claims
 

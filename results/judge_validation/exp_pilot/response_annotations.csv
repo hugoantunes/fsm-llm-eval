@@ -1,0 +1,31 @@
+annotation_id,fact_ids_stated,claim_support,notes
+A01,F01;F03;F04,all_supported,
+A02,F01;F03;F04,all_supported,Escalates without the 1-business-day e-mail from F04.
+A03,F12,some_unsupported,F12 is stated; 'I can check further' invents a lookup.
+A04,F03;F04;F12,all_supported,
+A05,F31,some_unsupported,F31 is stated; 'I see in our system as not yet dispatched' is a live status lookup.
+A06,F21,all_supported,States the 14.90 further-exchange label; does not say the first is free.
+A07,,none_checkable,
+A08,F32,all_supported,
+A09,F21,some_unsupported,F21 is complete; 'I can send you a new label' is a next step the KB does not give the agent.
+A10,F31,some_unsupported,Cancel-all is F31; 'returning only entire orders' is not in the KB (returns are per item).
+A11,F05,some_unsupported,Needs the order number (F05). 'Cancelling an entire order is required once production has started' is not F30/F31 as stated.
+A12,F10,some_unsupported,F10 is stated. Denies a membership program instead of saying it is not covered.
+A13,F04,some_unsupported,"Claims there is no membership/free-shipping program, which the KB does not establish. Specialist handoff is supported by F04 but omits the 1-business-day e-mail reply."
+A14,F02,all_supported,
+A15,,none_checkable,
+A16,F01;F03;F04,all_supported,
+A17,F02,some_unsupported,Hours are F02. 'Receive the replacement and return the original' is not a KB next step.
+A18,F01;F31,all_supported,
+A19,F32,some_unsupported,Order history is F32. 'Direct link or file' and checking other order status are not in the KB.
+A20,F10;F12,all_supported,
+A21,F02,all_supported,
+A22,F01;F03;F04,all_supported,
+A23,F12;F26,some_unsupported,"F12 and cancel-before-dispatch are stated. After dispatch, F27 is refuse-or-return, not a delivery-incident exception; status lookup is invented."
+A24,F21,all_supported,"14.90 for a further exchange is F21; attributed to the exchange, not the return shipping label."
+A25,F05,all_supported,"Asks for order number and e-mail (F05). Also asks which item; that is a question, not a policy claim."
+A26,,some_unsupported,Asking for the item is valid collection; looking up why the prior exchange failed is not in the KB.
+A27,F01;F28,all_supported,5-day refund to the original method (F28). Does not state no-fee.
+A28,F32;F33;F34,all_supported,
+A29,F32;F34;F35,some_unsupported,F32/F34/F35 are stated. Offers to look up how many reissues were already used.
+A30,,none_checkable,

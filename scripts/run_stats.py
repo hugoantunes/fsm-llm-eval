@@ -81,6 +81,15 @@ def summarize(run_dir: Path) -> RunStats:
     )
 
 
+def fsm_turn_prompt_tokens(stats: RunStats) -> float | None:
+    """Return FSM turn prompt tokens as agent plus classifier means."""
+    fsm = stats.callers.get("fsm")
+    classifier = stats.callers.get("classifier")
+    if fsm is None or classifier is None:
+        return None
+    return fsm.mean_prompt_tokens + classifier.mean_prompt_tokens
+
+
 def _caller_stats(rows: Sequence[LlmCallRecord]) -> CallerStats:
     """Average tokens over every call and latency over uncached ones."""
     n_calls = len(rows)
@@ -109,8 +118,11 @@ def render(stats: RunStats) -> str:
     ev = (
         "-" if stats.eval_s_per_dialogue is None else f"{stats.eval_s_per_dialogue:.1f}"
     )
+    fsm_turn = fsm_turn_prompt_tokens(stats)
+    fsm_turn_text = "-" if fsm_turn is None else f"{fsm_turn:.1f}"
     lines.append(f"run s/dialogue    {run}")
     lines.append(f"eval s/dialogue   {ev}")
+    lines.append(f"fsm turn prompt   {fsm_turn_text}")
     return "\n".join(lines)
 
 

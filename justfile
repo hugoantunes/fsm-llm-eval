@@ -78,6 +78,14 @@ adherence run_dir="runs/exp_pilot":
 judge-sample run_dir *args:
     uv run python scripts/judge_validation_sample.py --run {{run_dir}} {{args}}
 
+# Compute T-16 agreement from frozen sheets and one run directory
+validate-judge run_dir="runs/exp_pilot" sample_dir="results/judge_validation/exp_pilot":
+    uv run python scripts/validate_judge.py agree --run {{run_dir}} --sample {{sample_dir}}
+
+# Measure stage-labeler accuracy and flow-path agreement on one run
+validate-labeler run_dir="runs/exp_pilot":
+    uv run python scripts/validate_judge.py labeler --run {{run_dir}}
+
 # Remove caches and coverage output
 clean:
     rm -rf .pytest_cache .ruff_cache .coverage htmlcov

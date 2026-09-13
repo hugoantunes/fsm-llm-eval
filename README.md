@@ -12,12 +12,15 @@ plan, the ticket board (T-01 to T-24), the decisions table and the session log l
 `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`), outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
-> Status: `sim run` / `sim eval` in place; v1 dataset frozen. Pilot (T-15):
-> [`docs/pilot.md`](docs/pilot.md). The simulated user now delivers the script as an
-> ordered plan (`just adherence` is the gate). Rerun the pilot before T-16; the
-> first-pilot sample is void. Judge-validation protocol:
-> [`docs/judge_validation.md`](docs/judge_validation.md). Next: T-16 (parity + judge
-> validation → tag `v1`). Metrics: [`docs/metrics.md`](docs/metrics.md).
+> Status: `sim run` / `sim eval` in place; v1 dataset frozen. Corrected pilot (T-15)
+> at `runs/exp_pilot` (manifest `exp_pilot_fixes_20260913_final_v1`) passed
+> `just adherence` (20/20, 4/4 canary, 4/4 injection). The 11/09 sample is void.
+> T-16 protocol: census of all 20 ok dialogues plus a blinded sample of 30/76
+> eligible agent responses — [`docs/judge_validation.md`](docs/judge_validation.md),
+> [`docs/parity.md`](docs/parity.md). Sheets locked under
+> `results/judge_validation/exp_pilot/` (do not redraw). Agreement and labeler
+> reports are computed; *Results* is filled. Next: tag `v1`. Metrics:
+> [`docs/metrics.md`](docs/metrics.md).
 
 ## Requirements
 
@@ -97,14 +100,17 @@ just run exp data/scenarios/examples 3 2 --resume
 After a run, check that every dialogue delivered its script beats, then score it
 without re-playing the dialogues. Judge and labeler calls go through the same
 prompt-hash cache, so a second eval of the same directory is free when the
-rubrics have not changed. Draw the T-16 sample only from a run that passed
-`just adherence`, never from the first pilot:
+rubrics have not changed. The T-16 sheets under `results/judge_validation/exp_pilot/`
+are frozen (census of all 20 ok dialogues; blinded sample of 30/76 eligible agent
+responses). Do not redraw them. Draw a sample only from a run that passed
+`just adherence`, never from the 11/09 instrument:
 
 ```bash
 just adherence runs/<exp_id>
 just eval runs/<exp_id>
 # uv run python -m sim eval --run runs/<exp_id>
-just judge-sample runs/<exp_id>
+# just judge-sample runs/<exp_id>   # frozen for this pilot; do not rerun
+```
 ```
 
 Equivalent without `just`:
@@ -187,7 +193,7 @@ Parts that do not exist yet are marked with the ticket that creates them.
 | `results/` | `metrics.csv` (T-18, audited copy), `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-19, T-20; CSVs git-ignored, regenerated from `runs/`); `judge_validation/` after the T-16 draw (hand annotations are primary data) |
 | `notebooks/` | `analysis.ipynb`: regenerates tables and figures from `metrics.csv` (T-20) |
 | `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`, `run_stats.py`, `script_adherence.py` (T-11), `judge_validation_sample.py` (T-16), `generate_scenarios.py` (T-06; default out is the next unused `vN`, never overwrite `v1`) |
-| `docs/` | `setup.md`, `metrics.md`, `taxonomy.md`, `fsm.md`, `decisions_and_limitations.md`, `pilot.md`, `judge_validation.md`; later `parity.md` and the appendices (T-16 to T-22) |
+| `docs/` | `setup.md`, `metrics.md`, `taxonomy.md`, `fsm.md`, `decisions_and_limitations.md`, `pilot.md`, `judge_validation.md`, `parity.md`; later the appendices (T-16 to T-22) |
 | `ai-assistance/` | instructions for AI assistants (`PREAMBLE.md`, `DEVELOPMENT.md`) and the hook scripts |
 | `.claude/` | Claude Code config: hooks and permissions (`settings.json`), the `/ticket` skill, path-scoped rules |
 

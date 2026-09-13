@@ -29,3 +29,9 @@ def test_seconds_per_dialogue_separates_run_from_eval(stats_run_dir: Path) -> No
 
     assert stats.run_s_per_dialogue == 10.0
     assert stats.eval_s_per_dialogue == 35.0
+
+
+def test_fsm_turn_prompt_tokens_include_the_classifier(stats_run_dir: Path) -> None:
+    stats = run_stats.summarize(stats_run_dir)
+
+    assert run_stats.fsm_turn_prompt_tokens(stats) == 120.0

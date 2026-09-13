@@ -251,7 +251,7 @@ def test_the_response_sheet_holds_one_empty_row_per_sampled_response(
         assert set(row.values()) == {row["annotation_id"], ""}
 
 
-def test_the_dialogue_sheet_holds_one_empty_row_per_sampled_dialogue(
+def test_the_dialogue_sheet_holds_one_empty_row_per_ok_dialogue(
     written_pilot: Path,
 ) -> None:
     rows = _rows(written_pilot / sampler.DIALOGUE_CSV)
@@ -271,17 +271,33 @@ def test_no_annotation_file_names_an_agent(written_pilot: Path) -> None:
         assert "fsm" not in text
 
 
-def test_the_dialogue_ids_map_onto_the_sampled_dialogues(pilot_run: Path) -> None:
+def test_the_dialogue_ids_cover_every_ok_dialogue(
+    pilot_run: Path, tmp_path: Path
+) -> None:
     sample = sampler.draw_sample(pilot_run)
     again = sampler.draw_sample(pilot_run)
-
-    sampled = {response.dialogue_id for response in sample.responses}
+    frame = sampler.build_frame(sampler.load_dialogues(pilot_run))
+    sampled = {response.dialogue_id for response in frame}
     mapped = {dialogue.dialogue_id for dialogue in sample.dialogues}
+
     assert mapped == sampled
     assert len(sample.dialogues) == 20
     assert sum(dialogue.n_sampled_responses for dialogue in sample.dialogues) == 30
     assert [dialogue.dialogue_id for dialogue in sample.dialogues] == [
         dialogue.dialogue_id for dialogue in again.dialogues
+    ]
+    run_dir = write_run(
+        tmp_path / "exp",
+        [
+            make_log("edge_02", "fsm", 1, n_turns=1),
+            make_log("edge_02", "fsm", 2, n_turns=4),
+        ],
+    )
+    sparse = sampler.draw_sample(run_dir, per_agent=1, agents=("fsm",))
+    assert len(sparse.dialogues) == 2
+    assert sorted(dialogue.n_sampled_responses for dialogue in sparse.dialogues) == [
+        0,
+        1,
     ]
 
 
@@ -403,7 +419,7 @@ def test_the_packet_lists_dialogues_in_sheet_order(
     assert headings == [
         f"## {dialogue.dialogue_annotation_id}" for dialogue in sample.dialogues
     ]
-    assert packet.count("Transcript (`>>>` marks") == len(sample.dialogues)
+    assert packet.count("Transcript:") == len(sample.dialogues)
 
 
 def test_the_packet_prints_each_dialogue_once(
@@ -414,15 +430,15 @@ def test_the_packet_prints_each_dialogue_once(
 
     for dialogue in sample.dialogues:
         entry = _entry(packet, dialogue.dialogue_annotation_id)
-        assert "Transcript (`>>>` marks" in entry
+        assert "Transcript:" in entry
         assert "Success criterion:" in entry
+        assert ">>>" not in entry
         for response in sample.responses:
             if response.dialogue_id != dialogue.dialogue_id:
                 continue
-            assert f">>> {response.annotation_id}" in entry
             stub = _entry(packet, response.annotation_id)
             assert "Success criterion:" not in stub
-            assert "Transcript (`>>>` marks" not in stub
+            assert "Transcript:" not in stub
             assert dialogue.dialogue_annotation_id in stub
 
 
