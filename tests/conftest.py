@@ -267,13 +267,13 @@ def stats_run_dir(tmp_path: Path) -> Path:
             ),
             make_llm_call_record(
                 caller="classifier",
-                role="simulator",
+                role="classifier",
                 prompt_tokens=40,
                 latency_s=0.5,
             ),
             make_llm_call_record(
                 caller="simulated_user",
-                role="simulator",
+                role="simulated_user",
                 prompt_tokens=60,
                 latency_s=1.0,
             ),
@@ -305,13 +305,13 @@ def stats_run_dir(tmp_path: Path) -> Path:
             ),
             make_llm_call_record(
                 caller="stage_labeler",
-                role="simulator",
+                role="state_labeler",
                 prompt_tokens=200,
                 latency_s=5.0,
             ),
             make_llm_call_record(
                 caller="stage_labeler",
-                role="simulator",
+                role="state_labeler",
                 prompt_tokens=200,
                 latency_s=5.0,
                 prompt_hash="ff",

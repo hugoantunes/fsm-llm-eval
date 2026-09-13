@@ -415,7 +415,7 @@ def _classify_with_llm(
         parsed = chat_parsed(
             llm,
             messages,
-            role="simulator",
+            role="classifier",
             caller=CLASSIFIER,
             schema=schema,
             seed=seed,

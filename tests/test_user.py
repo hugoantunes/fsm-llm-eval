@@ -246,7 +246,7 @@ def test_the_call_is_logged_as_the_simulated_user_on_the_simulator_model() -> No
     assert reply.status == "goal_reached"
     assert user.name == "simulated_user"
     assert llm.calls[0]["caller"] == "simulated_user"
-    assert llm.calls[0]["role"] == "simulator"
+    assert llm.calls[0]["role"] == "simulated_user"
     assert llm.calls[0]["schema"] is UserReply
     assert llm.calls[0]["seed"] == 4217
 
@@ -298,6 +298,37 @@ def test_goal_reached_is_refused_while_a_beat_is_pending() -> None:
 
     assert turn.status == "continue"
     assert turn.message == SENT[1]
+    assert len(llm.calls) == 2
+
+
+def test_goal_reached_is_kept_when_the_current_beat_completes() -> None:
+    llm = FakeLlm([user_reply(SENT[1], status="goal_reached")])
+    user = on_beat(2, llm)
+
+    turn = user.speak(AGENT_ASKED)
+
+    assert turn.status == "goal_reached"
+    assert turn.beat == 2
+    assert not user.progress.complete
+    assert user.progress.delivered == (1, 2)
+    assert len(llm.calls) == 1
+
+
+def test_gave_up_is_refused_when_later_beats_are_still_pending() -> None:
+    llm = FakeLlm(
+        [
+            user_reply(SENT[1], status="gave_up"),
+            user_reply(SENT[1]),
+        ]
+    )
+    user = on_beat(2, llm)
+
+    turn = user.speak(AGENT_ASKED)
+
+    assert turn.status == "continue"
+    assert turn.beat == 2
+    assert not user.progress.complete
+    assert user.progress.delivered == (1, 2)
     assert len(llm.calls) == 2
 
 

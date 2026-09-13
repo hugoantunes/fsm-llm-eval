@@ -215,6 +215,9 @@ class DialogueLog(BaseModel):
     stop_reason: StopReason | None = None
     termination_reason: StopReason | None = None
     active_beat_complete: bool | None = None
+    goal_reached_seen: bool = False
+    goal_reached_at_turn: int | None = None
+    script_complete_at_goal_reached: bool | None = None
     failure_kind: FailureKind | None = None
     failure_reason: str | None = None
     failure_metadata: dict[str, object] = Field(default_factory=dict)

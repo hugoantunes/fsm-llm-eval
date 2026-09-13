@@ -7,6 +7,9 @@
 #               footprint measurement (`ollama ps` at num_ctx 8192, OLLAMA_NUM_PARALLEL=2):
 #               qwen3.5:9b 5.7 GB + qwen3.5:4b 3.4 GB = 9.1 GB in the run phase, inside the
 #               Pro's ~11 GB GPU budget; gemma4:12b 8.6 GB on the Air.
+#   2026-09-13  simulated_user / classifier / state_labeler split; simulated_user locked
+#               to qwen3.5:9b (docs/decisions_and_limitations.md). T-16 parity table is
+#               still the 4B simulated-user frame.
 #
 # Digests: `just digests` on the first machine, paste here, commit; `just verify-models`
 # must pass on the other machine before any run. Without identical digests the
@@ -14,18 +17,18 @@
 #
 # Rules (TICKETS.md, T-03):
 #   - ONE model for both agents (baseline and fsm), same temperature and seed.
-#   - ONE small model for the simulated user, the event classifier (T-08) and the
-#     stage labeler (T-13): they run a lot and need to be consistent, not good.
+#   - Split roles for simulated_user, classifier (T-08), and state_labeler (T-13).
+#     Defaults keep them on the same small model unless changed on purpose.
 #   - ONE judge from another family; the SAME one in T-16 (validation) and T-17 (experiment).
 #   - Explicit num_ctx: Ollama's default silently truncates the beginning of the prompt.
-#   - All three models have a thinking mode: every call passes think=False.
+#   - Every configured model role has a thinking mode: every call passes think=False.
 #
 # Every change here is an experiment decision: record it in DECISOES.md.
 
 ollama:
   version: "0.33.3"             # `ollama --version`; Air and Pro both checked 2026-09-08
   env:                          # applied by scripts/ollama_env.sh (details in docs/setup.md)
-    OLLAMA_MAX_LOADED_MODELS: 2 # agent and simulator stay loaded together
+    OLLAMA_MAX_LOADED_MODELS: 2 # agent and simulated user stay loaded together
     OLLAMA_KEEP_ALIVE: -1       # never unload between turns
     OLLAMA_NUM_PARALLEL: 2      # matches `sim run --parallel 2`. Qwen 3.5 serves one request per
                                 # model at a time (Ollama warns on every load), so the gain comes
@@ -49,14 +52,24 @@ models:
     temperature: 0.7            # deployment-realistic sampling; identical for both agents
     seed: 42                    # BASE seed: T-14a derives the per-dialogue seed from
                                 # (42, scenario_id, repetition) and gives both agents the same
-  simulator:                    # simulated user + event classifier + stage labeler
-    name: "qwen3.5:4b"          # 4.7B, Q4_K_M; 3.4 GB download, 3.4 GB loaded
-    digest: "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd"
+  simulated_user:
+    name: "qwen3.5:9b"          # 9.7B, Q4_K_M; 6.6 GB download, 5.7 GB loaded
+    digest: "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7"
     temperature: 0.7            # T-11: the same sampling as the agents, so the customer varies
                                 # across the K repetitions the way a real one would
     seed: 42                    # BASE seed, as for the agents: T-14a derives the per-dialogue
                                 # seed from (42, scenario_id, repetition) and passes the same
                                 # value with either agent, so both meet the same customer
+  classifier:
+    name: "qwen3.5:4b"
+    digest: "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd"
+    temperature: 0.7
+    seed: 42
+  state_labeler:
+    name: "qwen3.5:4b"
+    digest: "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd"
+    temperature: 0.7
+    seed: 42
   judge:                        # a different family from the agents; the SAME in T-16 and T-17
     name: "gemma4:12b"          # 11.9B, Q4_K_M; 7.6 GB download, 8.6 GB loaded
     digest: "4eb23ef187e2c5462566d6a1d3bbbc2f1346d0b4327cbb66d58fffbcc9b2b05c"

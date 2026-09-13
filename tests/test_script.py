@@ -203,6 +203,29 @@ def test_an_inflected_word_carries_the_content_word_of_a_beat(
     assert beat.satisfied_by("I am not cancelling, I only want tracking.")
 
 
+def test_ships_carries_shipped_in_the_same_beat_contract(
+    real_kb: KnowledgeBase,
+) -> None:
+    beat = beats_of(
+        brief("Cancel NL-20260616, nothing shipped. Refund?"),
+        real_kb.user_data_fields,
+    )[0]
+
+    assert beat.satisfied_by("Cancel NL-20260616, nothing ships yet. Refund?")
+
+
+def test_happy_path_09_opening_paraphrase_satisfies_beat_one(
+    v1_scenarios: dict[str, Scenario], real_kb: KnowledgeBase
+) -> None:
+    beat = beats_of(v1_scenarios["happy_path_09"], real_kb.user_data_fields)[0]
+
+    assert beat.satisfied_by(
+        "I need to cancel order NL-20260616 for elena.vasquez@example.com "
+        "before it ships, and I want a refund to the original method-how long "
+        "does that take?"
+    )
+
+
 def test_a_beat_that_asks_something_requires_a_question(
     real_kb: KnowledgeBase,
 ) -> None:
@@ -225,6 +248,48 @@ def test_a_beat_that_denies_something_requires_a_denial(
     assert beat.negates
     assert not beat.satisfied_by("Go ahead and cancel it for now.")
     assert beat.satisfied_by("Just tracking for now, not a cancel.")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "before it ships",
+        "before the order ships",
+        "it hasn't shipped yet",
+        "it has not shipped yet",
+        "nothing has shipped",
+        "nothing shipped",
+        "the order hasn't gone out yet",
+    ],
+)
+def test_shipment_not_yet_phrases_satisfy_the_denial_predicate(
+    real_kb: KnowledgeBase, text: str
+) -> None:
+    beat = beats_of(brief("not"), real_kb.user_data_fields)[0]
+
+    assert beat.negates
+    assert beat.keywords == ()
+    assert beat.satisfied_by(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "after it ships",
+        "when it ships",
+        "it ships tomorrow",
+        "it already shipped",
+        "once it ships",
+        "the shipment is on the way",
+    ],
+)
+def test_non_negated_shipment_phrases_do_not_satisfy_the_denial_predicate(
+    real_kb: KnowledgeBase, text: str
+) -> None:
+    beat = beats_of(brief("not"), real_kb.user_data_fields)[0]
+
+    assert beat.negates
+    assert not beat.satisfied_by(text)
 
 
 def test_a_beat_is_not_satisfied_by_the_content_of_its_neighbours(

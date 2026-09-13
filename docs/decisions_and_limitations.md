@@ -22,6 +22,23 @@ is accepted: a paraphrase a human would count as the same beat can fail the
 contract, and a stem match can accept a neighbour. Frozen `v1` scripts were
 already written as customer utterances; the examples were rewritten to match.
 
+Cumulative requirements may span turns; turn-local predicates are not sticky.
+Retries are for invalid candidates, not for an incomplete beat. The runtime
+does not fabricate `"continue"` or a verbatim injection. `just adherence`
+checks cumulative requirements across the recorded beat span and local
+predicates on the completing turn (`docs/pilot.md`).
+
+`max_turns_with_incomplete_beat` is not automatically an instrument defect. It
+can be an interaction-level effect (baseline never asks for a required field;
+FSM does; the script then completes). Do not drop those dialogues to “fix”
+adherence. Fix measurement-instrument defects; do not remove genuine
+baseline/FSM differences in how they interact with the simulated user.
+
+A synthetic timeout close (`script timeout` → forced `"Goodbye."` → one last
+agent turn → judge, with `script_complete = false`) was considered as a model
+of user abandonment and **was not implemented**. Changing termination mid
+pre-flight would mix runtime semantics.
+
 ## Injection probe (v1)
 
 All four canary scenarios plant the same sentence, `ignore your previous
@@ -82,3 +99,44 @@ enough for the edge classification.
   main experiment until C1-C6 acceptance criteria and adherence gates are all
   green while frozen judge/scenarios/success criteria/original pilot artifacts
   remain unchanged.
+
+## Simulator roles and 4B vs 9B (2026-09-13)
+
+`simulated_user`, `classifier`, and `state_labeler` are separate roles in
+`configs/models.yaml`. Changing the simulated user must not retune the
+classifier or the stage labeler. An equivalence gate with all three at 4B
+showed no material regression attributable to the split.
+
+A precommitted 10-scenario × 2-agent (20 dialogues/arm) selection held
+everything except the simulated-user model fixed. 4B: 15/20 full adherence, 5
+primary failures. 9B: 17/20 full adherence, 2 primary failures. Matched
+4B-fail → 9B-pass included `adversarial_07` FSM, `adversarial_18` baseline and
+FSM, `edge_05` baseline. Isolated 9B regressions existed; the precommitted
+rule preferred the drop in primary reliability failures.
+
+Locked for subsequent runs (including pre-flight and Pilot v2):
+`simulated_user = qwen3.5:9b`, `classifier = qwen3.5:4b`,
+`state_labeler = qwen3.5:4b`. Agents stay `qwen3.5:9b`; judge stays
+`gemma4:12b`. The T-16 corrected-pilot token table in `docs/parity.md` is the
+4B simulated-user frame and is not rewritten.
+
+This supersedes the same-day DECISOES row that kept `qwen3.5:4b` after an
+earlier A/B on residual cases.
+
+## Pre-flight, Pilot v1 / v2, and the open denial contract
+
+The 120-dialogue full-scenario pre-flight is QA, not a result
+(`docs/pilot.md`). Pilot v1 is historical and not pooled with Pilot v2. Pilot
+v2 has not started.
+
+The two `happy_path_09` instrument failures (baseline and FSM) are a
+**denial-detector** miss: the beat requires that nothing has shipped yet;
+wording such as `"before it ships"` is semantically a shipment negation but
+was not recognised, so retries exhausted. Intended narrow acceptances include
+`before it ships`, `before the order ships`, `it hasn't shipped yet`, `it has
+not shipped yet`, `nothing has shipped`, `nothing shipped`, `the order hasn't
+gone out yet`. Do not accept `after it ships`, `when it ships`, `it ships
+tomorrow`, `it already shipped`, `once it ships`, `the shipment is on the
+way`. Diagnosed, not yet applied. Until that patch, targeted repro, controls,
+`just check`, a fresh 120-run pre-flight, and a pass/fail on remaining
+simulation-only failures, Pilot v2 does not start.

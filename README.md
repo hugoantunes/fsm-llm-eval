@@ -19,7 +19,9 @@ everything the models read or write are in English; the thesis glosses names in 
 > eligible agent responses — [`docs/judge_validation.md`](docs/judge_validation.md),
 > [`docs/parity.md`](docs/parity.md). Sheets locked under
 > `results/judge_validation/exp_pilot/` (do not redraw). Agreement and labeler
-> reports are computed; *Results* is filled. Next: tag `v1`. Metrics:
+> reports are computed; *Results* is filled. Pilot v1 is historical and not
+> pooled with Pilot v2. Full-scenario pre-flight (120 dialogues) is QA, not
+> evidence; `happy_path_09` denial-contract is the open blocker. Metrics:
 > [`docs/metrics.md`](docs/metrics.md).
 
 ## Requirements
@@ -128,7 +130,7 @@ repo, empty until the first run; change the parent with `--runs-dir`):
 
 | Path | What it is |
 |---|---|
-| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop/termination metadata, structured failure classification (`failure_kind`, `failure_reason`, `failure_metadata`), beat completion flag (`active_beat_complete`), per-turn beat delivery (`user_beat`) plus beat span provenance (`beat_started_at_turn`, `beat_completed_at_turn`), and the FSM states/user event/edges per turn (empty on the baseline) |
+| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop/termination metadata, structured failure classification (`failure_kind`, `failure_reason`, `failure_metadata`), beat completion flag (`active_beat_complete`), goal-reached provenance (`goal_reached_seen`, `goal_reached_at_turn`, `script_complete_at_goal_reached`), per-turn beat delivery (`user_beat`) plus beat span provenance (`beat_started_at_turn`, `beat_completed_at_turn`), and the FSM states/user event/edges per turn (empty on the baseline) |
 | `manifest.json` | config, dataset hash, FSM hash, model digests, `num_ctx`, prompt versions, job list, throughput, LLM call / cache-hit counts |
 | `llm_calls.jsonl`, `cache/` | every LLM call (`baseline`, `fsm`, `simulated_user`, `classifier`, then `judge_facts`, `judge_global`, `stage_labeler` after eval), keyed by prompt hash. Compact JSON: `"cached":true` has no space after the colon |
 | `metrics.csv` | one row per ok dialogue: identity columns plus every metric of T-04 |

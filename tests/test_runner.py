@@ -291,8 +291,70 @@ def test_max_turns_with_incomplete_beat_is_failed_simulation(
     assert log.failure_reason == "max_turns_with_incomplete_beat"
     assert log.termination_reason == "max_turns"
     assert log.active_beat_complete is False
+    assert log.goal_reached_seen is False
+    assert log.goal_reached_at_turn is None
+    assert log.script_complete_at_goal_reached is None
     assert "active_beat_index" in log.failure_metadata
     assert "missing_cumulative_requirements" in log.failure_metadata
+
+
+def test_goal_reached_before_completion_keeps_failed_max_turn_semantics(
+    run_dir: Path,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+) -> None:
+    scenario = Scenario(
+        id="happy_path_97",
+        category="happy_path",
+        intent="order_tracking",
+        user_persona="A customer.",
+        user_goal="Track the order.",
+        script=[
+            "alpha request",
+            "bravo request",
+            "order NL-20260145 and user@example.com",
+            "Goodbye.",
+        ],
+        reference_answer="Standard delivery takes 5 business days.",
+        required_facts=["F09"],
+        expected_final_state="closing",
+        success_criterion="The estimate is provided.",
+        max_turns=5,
+    )
+    config = load_models_config(CONFIG)
+    run_experiment(
+        scenarios=[scenario],
+        agents=("baseline",),
+        reps=1,
+        parallel=1,
+        resume=False,
+        run_dir=run_dir,
+        llm_factory=lambda _job: CannedJobLlm(
+            [
+                user_reply("alpha request"),
+                user_reply("bravo request", status="goal_reached"),
+                user_reply("order NL-20260145"),
+                user_reply("order NL-20260145"),
+                user_reply("order NL-20260145"),
+            ]
+        ),
+        kb=real_kb,
+        fsm=real_fsm,
+        config=config,
+        scenarios_dir=EXAMPLES_DIR,
+        exp_id="exp",
+    )
+
+    job = iter_jobs([scenario], agents=("baseline",), reps=1)[0]
+    log = _read_log(run_dir, job)
+    assert log.status == "failed"
+    assert log.failure_kind == "simulation"
+    assert log.failure_reason == "max_turns_with_incomplete_beat"
+    assert log.termination_reason == "max_turns"
+    assert log.active_beat_complete is False
+    assert log.goal_reached_seen is True
+    assert log.goal_reached_at_turn == 2
+    assert log.script_complete_at_goal_reached is False
 
 
 def test_two_scenarios_two_agents_one_rep_write_four_dialogue_files(
@@ -410,7 +472,7 @@ def _llm_log_line(*, cached: bool, prompt_hash: str) -> str:
     """One valid ``llm_calls.jsonl`` row for the manifest counter."""
     return make_llm_call_record(
         caller="simulated_user",
-        role="simulator",
+        role="simulated_user",
         prompt_tokens=1,
         output_tokens=1,
         latency_s=0.1,

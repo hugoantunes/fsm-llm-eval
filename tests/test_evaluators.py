@@ -231,7 +231,7 @@ def test_stage_labeler_labels_turn_sequence_for_both_agents_with_same_schema(
         items = call["schema"].model_json_schema()["properties"]["stages"]["items"]
 
         assert labelled == labels
-        assert call["role"] == "simulator"
+        assert call["role"] == "state_labeler"
         assert call["caller"] == LABELER
         assert call["seed"] == seed
         assert set(items["enum"]) == set(real_fsm.states)

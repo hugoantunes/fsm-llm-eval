@@ -301,6 +301,9 @@ def _play(
                 records=result.records,
                 termination_reason="max_turns",
                 active_beat_complete=False,
+                goal_reached_seen=result.goal_reached_seen,
+                goal_reached_at_turn=result.goal_reached_at_turn,
+                script_complete_at_goal_reached=result.script_complete_at_goal_reached,
                 failure_kind="simulation",
                 failure_reason="max_turns_with_incomplete_beat",
                 failure_metadata=metadata,
@@ -335,6 +338,9 @@ def _play(
         stop_reason=result.stop_reason,
         termination_reason=result.stop_reason,
         active_beat_complete=user.progress.complete,
+        goal_reached_seen=result.goal_reached_seen,
+        goal_reached_at_turn=result.goal_reached_at_turn,
+        script_complete_at_goal_reached=result.script_complete_at_goal_reached,
         records=result.records,
     )
 

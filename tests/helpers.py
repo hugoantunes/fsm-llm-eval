@@ -153,7 +153,11 @@ models:
     name: "agent-model"
     temperature: 0.7
     seed: 42
-  simulator:
+  simulated_user:
+    name: "small-model"
+  classifier:
+    name: "small-model"
+  state_labeler:
     name: "small-model"
   judge:
     name: "judge-model"

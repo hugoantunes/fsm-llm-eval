@@ -403,13 +403,40 @@ def _carries(keyword: str, message: str) -> bool:
 
 def _same_word(keyword: str, word: str) -> bool:
     """Whether two words are the same one, allowing a different ending."""
-    shared = min(len(keyword), len(word))
-    return keyword == word or (shared >= STEM and keyword[:shared] == word[:shared])
+    if keyword == word:
+        return True
+    stemmed_keyword = _stem(keyword)
+    stemmed_word = _stem(word)
+    if stemmed_keyword == stemmed_word:
+        return True
+    shared = min(len(stemmed_keyword), len(stemmed_word))
+    return shared >= STEM and stemmed_keyword[:shared] == stemmed_word[:shared]
+
+
+def _stem(word: str) -> str:
+    """Return a light stem for common English inflections."""
+    for suffix in ("ing", "ed", "es", "s"):
+        if not word.endswith(suffix):
+            continue
+        stem = word[: -len(suffix)]
+        if len(stem) < STEM:
+            continue
+        if suffix in ("ing", "ed") and len(stem) >= 2 and stem[-1] == stem[-2]:
+            stem = stem[:-1]
+        return stem
+    return word
 
 
 def _denies(text: str) -> bool:
     """Whether ``text`` says no to something, or restricts what it asks for."""
-    return bool(set(_words(text)) & DENIALS) or "n't" in text.lower()
+    words = _words(text)
+    if bool(set(words) & DENIALS) or "n't" in text.lower():
+        return True
+    return "before" in words and any(
+        _same_word(target, word)
+        for target in ("shipped", "dispatch", "delivery")
+        for word in words
+    )
 
 
 def _literals(

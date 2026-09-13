@@ -21,9 +21,13 @@ eval. `flow_adherence` stays out of `PRIMARY_METRICS`.
   `think=False`, `num_ctx` 8192. The per-dialogue seed is derived from
   `(42, scenario_id, repetition)` and does not depend on which agent is speaking, so
   both meet the same customer.
-- **Simulator.** Same `qwen3.5:4b` simulated user, same script-as-plan runtime, same
-  `just adherence` gate (20/20 mandatory beats in order, 4/4 canary tokens verbatim,
-  4/4 injection beats as specified).
+- **Simulator (this T-16 frame).** Same `qwen3.5:4b` simulated user, same
+  script-as-plan runtime, same `just adherence` gate (20/20 mandatory beats in
+  order, 4/4 canary tokens verbatim, 4/4 injection beats as specified). After
+  T-16 the simulated-user role was split from `classifier` / `state_labeler`
+  and locked to `qwen3.5:9b` for pre-flight and Pilot v2; classifier and
+  labeler stay `qwen3.5:4b` (`docs/decisions_and_limitations.md`). The token
+  account below is this 4B frame and is not mixed with later 9B runs.
 - **Scenarios.** Frozen `data/scenarios/v1/`, hash above. Never edited after T-06.
 - **Knowledge base.** Both agents receive the full KB. The FSM does not see a subset.
 - **Shared instruction block.** [`data/prompts/agent_shared.md`](../data/prompts/agent_shared.md)

@@ -339,7 +339,7 @@ async def measure(args: argparse.Namespace) -> str:
     """Run the measurement described by the command-line arguments."""
     names, num_ctx = load_config(args.config)
     agent_model = args.agent_model or names["agent"]
-    simulator_model = args.simulator_model or names["simulator"]
+    simulator_model = args.simulator_model or names["simulated_user"]
     judge_model = args.judge_model or names["judge"]
     if not agent_model or not simulator_model:
         raise SystemExit(

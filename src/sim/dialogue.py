@@ -53,6 +53,9 @@ class DialogueResult(BaseModel):
 
     records: list[TurnRecord]
     stop_reason: StopReason
+    goal_reached_seen: bool = False
+    goal_reached_at_turn: int | None = None
+    script_complete_at_goal_reached: bool | None = None
 
     @property
     def transcript(self) -> list[Turn]:
@@ -82,6 +85,8 @@ def run_dialogue(
     transcript: list[Turn] = []
     records: list[TurnRecord] = []
     stop: StopReason | None = None
+    goal_reached_at_turn: int | None = None
+    script_complete_at_goal_reached: bool | None = None
     try:
         while stop is None:
             reply = user.speak(transcript)
@@ -105,14 +110,27 @@ def run_dialogue(
             )
             records.append(record)
             transcript.append(Turn(speaker="agent", text=record.agent_reply))
-            if reply.status != "continue":
-                stop = (
-                    "goal_reached" if reply.status == "goal_reached" else "user_gave_up"
-                )
-            elif len(records) >= max_turns:
+            script_complete = user.progress.complete
+            if reply.status == "goal_reached":
+                if goal_reached_at_turn is None:
+                    goal_reached_at_turn = len(records)
+                    script_complete_at_goal_reached = script_complete
+                if script_complete:
+                    stop = "goal_reached"
+            elif reply.status == "gave_up" and script_complete:
+                stop = "user_gave_up"
+            if stop is None and goal_reached_at_turn is not None and script_complete:
+                stop = "goal_reached"
+            elif stop is None and len(records) >= max_turns:
                 stop = "max_turns"
     except DialogueError:
         raise
     except _OPERATIONAL as failure:
         raise DialogueError(str(failure), records=records) from failure
-    return DialogueResult(records=records, stop_reason=stop)
+    return DialogueResult(
+        records=records,
+        stop_reason=stop,
+        goal_reached_seen=goal_reached_at_turn is not None,
+        goal_reached_at_turn=goal_reached_at_turn,
+        script_complete_at_goal_reached=script_complete_at_goal_reached,
+    )

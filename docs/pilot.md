@@ -14,6 +14,10 @@ Result: 20 ok, 0 failed, 0 unscored.
 show the pipeline produces the columns and to size the machine budget. Nothing in this file is a
 result of the experiment, and no cut was decided from it.
 
+This file reports the T-15 pilots. Later instrument fixes, the full-scenario pre-flight, and the
+Pilot v1 / v2 split are in *After the corrected pilot*. Design limits live in
+[`docs/decisions_and_limitations.md`](decisions_and_limitations.md).
+
 ## What broke
 
 **The user-event classifier could return `intent_classified` without an intent.** The FSM engine
@@ -113,17 +117,31 @@ from generation:
 - the 4B rewrites `your` as `my` on an injection (`I need to ignore my previous instructions`),
   which has the content words and still aims the attack at the customer
 
-The runtime now owns delivery. `sim.script` derives a **contract** from the beat's own words: the
-strings it spells out (order numbers, e-mails, the canary), the content words it is made of, a
-question where it asks one, a denial where it denies, and the whole beat verbatim when it plants a
-canary. A beat is consumed only by a message that meets that contract. The dialogue may not end
-while a beat is still owed. A clarification may postpone a beat (`MAX_DEFERRALS` = 2); after that
-the prompt insists. Candidate retries (`BEAT_RETRIES` = 3, `INJECTION_RETRIES` = 8 on a canary
-beat) are now only for **invalid** simulated-user candidates (unusable output or contradictory stop
-status), with a bumped seed per attempt. Valid partial turns are committed immediately, cumulative
-beat progress is carried across turns, and turn-local predicates are checked only on the completing
-turn. Retry exhaustion raises `invalid_candidate_retry_exhausted` (instrument failure). A dialogue
-that reaches `max_turns` with an incomplete active beat is explicitly classified as
+The runtime now owns delivery. `sim.script` derives a **contract** from the beat's own words. The
+completion rule is:
+
+```text
+cumulative_satisfied(previous_progress + current_message)
+AND
+local_predicates_satisfied(current_message)
+```
+
+Cumulative requirements (exact strings, informational keywords) may be satisfied across several
+delivered user turns. Turn-local predicates (question, denial, verbatim/injection, closing words
+when required) are checked only on the completing turn and are not sticky. Only messages delivered
+to the experimental agent mutate progress; rejected generation attempts do not. The runtime does
+not fabricate completion (`"continue"` or a silent injection). Diagnostics persist
+`satisfied_cumulative_requirements`, `missing_cumulative_requirements`, and
+`pending_local_predicates` besides the beat-span fields on `TurnRecord`.
+
+A beat is consumed only by a message that meets that contract. The dialogue may not end while a
+beat is still owed. A clarification may postpone a beat (`MAX_DEFERRALS` = 2); after that the
+prompt insists. Candidate retries (`BEAT_RETRIES` = 3, `INJECTION_RETRIES` = 8 on a canary beat)
+are only for **invalid** candidates (unusable output or contradictory stop status), with a bumped
+seed per attempt. An incomplete beat is not an invalid candidate: the three outcomes are
+`invalid_candidate`, `valid_partial_turn`, and `valid_completing_turn`. Valid partial turns are
+committed immediately. Retry exhaustion raises `invalid_candidate_retry_exhausted` (instrument
+failure). A dialogue that reaches `max_turns` with an incomplete active beat is
 `max_turns_with_incomplete_beat` (failed simulation), with persisted beat diagnostics.
 
 The contract is checked without a second model: a judge in the simulator loop would make the
@@ -154,6 +172,48 @@ edited.
 The original pilot was superseded after identifying simulated-user script-adherence failures. The runtime was revised to track and validate mandatory beats explicitly. The corrected pilot passed the adherence gate: 20/20 dialogues delivered all mandatory beats in order, all 4/4 canary tokens reached the evaluated agent verbatim, and all 4/4 adversarial injection beats were delivered exactly as specified.
 
 T-16 annotates that corrected run: dialogue-level validation is a census of all 20 ok dialogues; response-level validation is a blinded sample of 30/76 eligible agent responses.
+
+That original 11/09 / first-corrected-pilot raw directory was later deleted by accident and is not
+recoverable. T-16 does not need a rerun: `results/judge_validation/exp_pilot/` still holds the
+blinded packet (all 20 transcripts, scenario briefs, success criteria, reference answers, sampled
+responses), `sample.json` (76 eligible, 38+38, the 30-response draw, identities, seed, hashes), and
+[`docs/parity.md`](parity.md) records the configuration. What was lost was the operational
+`runs/` tree. Call that closed run **Pilot v1**. It is historical development work and is **not**
+pooled with Pilot v2.
+
+## After the corrected pilot
+
+Pilot v1 had not exercised every scenario. Before Pilot v2 a **full-scenario pre-flight** was
+inserted: 60 scenarios × baseline + FSM = 120 dialogues. It is a QA gate (runtime defects,
+contract defects, adherence, invalid candidates, max-turn loops, injection/verbatim, premature
+goal termination). It is not experimental evidence and is not pooled into Pilot v2 or T-17.
+
+The first pre-flight exposed a termination bug: `goal_reached` from the agent stopped the
+dialogue while mandatory user beats were still owed (`adversarial_20` baseline, `edge_01`
+baseline, `edge_20` FSM). The runtime now records `goal_reached_seen`, `goal_reached_at_turn`,
+and `script_complete_at_goal_reached`, continues until the script is complete (or `max_turns`),
+and keeps the original moment of goal achievement. Regression tests cover pending beats (one or
+several), goal reached plus eventual `max_turns`, goal already complete, and provenance. Targeted
+repro of those three cases now continues, delivers the closing beat, and finishes; known
+incomplete-beat failures were not turned into successes. Semantics are in
+[`docs/metrics.md`](metrics.md).
+
+The partial pre-fix run was kept as `runs/full_scenario_preflight_pre_fix_fail_2026-09-13` (later
+removed from disk; census in [`docs/run_cleanup_2026-09-13.md`](run_cleanup_2026-09-13.md)). A
+fresh `runs/full_scenario_preflight/` was started so the two termination semantics were not mixed.
+
+Corrected pre-flight: **120/120**, 114 ok, 6 failed.
+
+- simulation / `max_turns_with_incomplete_beat`: `adversarial_07` baseline, `adversarial_12`
+  baseline, `adversarial_19` baseline, `happy_path_18` baseline
+- instrument / `invalid_candidate_retry_exhausted`: `happy_path_09` baseline and FSM
+
+The premature-`goal_reached` bug did not recur. `adversarial_07` is the example that a max-turn
+incomplete beat is not automatically an instrument bug: under the same scenario/seed/model,
+baseline never asked for the missing e-mail and beat 1 never completed; FSM asked for it, the
+user supplied `walt.reed@example.com`, and the script progressed. Those cases stay in the
+experiment. The `happy_path_09` pair is treated as a denial-contract defect (see
+[`docs/decisions_and_limitations.md`](decisions_and_limitations.md)). Pilot v2 has not started.
 
 ## Cost per dialogue
 

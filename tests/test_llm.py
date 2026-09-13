@@ -106,7 +106,7 @@ def test_a_pydantic_schema_becomes_format_and_comes_back_parsed(
 
     response = client.chat(
         [{"role": "user", "content": "my order is NL-12345678"}],
-        role="simulator",
+        role="classifier",
         caller="classifier",
         schema=Event,
     )
@@ -247,7 +247,7 @@ def test_a_reply_that_does_not_match_the_schema_raises(tmp_path: Path) -> None:
     with pytest.raises(LlmError, match="Event"):
         client.chat(
             [{"role": "user", "content": "hi"}],
-            role="simulator",
+            role="classifier",
             caller="classifier",
             schema=Event,
         )
@@ -325,8 +325,8 @@ def test_a_cached_answer_is_parsed_again_through_the_schema(tmp_path: Path) -> N
     client = make_client(tmp_path, transport)
     messages = [{"role": "user", "content": "I want to return a lamp"}]
 
-    client.chat(messages, role="simulator", caller="classifier", schema=Event)
-    second = client.chat(messages, role="simulator", caller="classifier", schema=Event)
+    client.chat(messages, role="classifier", caller="classifier", schema=Event)
+    second = client.chat(messages, role="classifier", caller="classifier", schema=Event)
 
     assert isinstance(second.parsed, Event)
     assert second.parsed.event == "intent_classified"
@@ -339,12 +339,12 @@ def test_one_jsonl_record_per_call_carries_the_tokens_latency_and_caller(
     client = make_client(tmp_path, transport)
 
     client.chat(
-        [{"role": "user", "content": "hi"}], role="simulator", caller="classifier"
+        [{"role": "user", "content": "hi"}], role="classifier", caller="classifier"
     )
 
     (record,) = read_log(tmp_path)
     assert record["caller"] == "classifier"
-    assert record["role"] == "simulator"
+    assert record["role"] == "classifier"
     assert record["model"] == "small-model"
     assert record["messages"] == [{"role": "user", "content": "hi"}]
     assert record["text"] == "hi there"
@@ -365,7 +365,7 @@ def test_a_real_call_returns_text_and_a_prompt_eval_count(
 ) -> None:
     response = real_client.chat(
         [{"role": "user", "content": "Say hello in three words."}],
-        role="simulator",
+        role="simulated_user",
         caller="probe",
         num_predict=20,
     )
@@ -391,7 +391,7 @@ def test_a_real_schema_call_returns_a_valid_enum_member(
                 ),
             }
         ],
-        role="simulator",
+        role="classifier",
         caller="probe",
         schema=Event,
         num_predict=40,
@@ -404,7 +404,7 @@ def test_a_real_schema_call_returns_a_valid_enum_member(
 def test_a_real_reply_carries_no_reasoning_text(real_client: LlmClient) -> None:
     response = real_client.chat(
         [{"role": "user", "content": "How much is 17 times 23? Answer with a number."}],
-        role="simulator",
+        role="simulated_user",
         caller="probe",
         num_predict=80,
     )

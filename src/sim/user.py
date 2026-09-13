@@ -47,6 +47,7 @@ from sim.schemas import Scenario, Turn, as_messages
 from sim.script import (
     NOTHING,
     Beat,
+    BeatAssessment,
     ScriptProgress,
     beats_of,
     render_beat,
@@ -227,7 +228,7 @@ class SimulatedUser:
                 history,
                 speaking_as="user",
             ),
-            role="simulator",
+            role="simulated_user",
             caller=self.name,
             schema=UserReply,
             seed=None if self._seed is None else self._seed + attempt,
@@ -309,6 +310,13 @@ def _invalid_candidate_reason(reply: UserReply, progress: ScriptProgress) -> str
             f"beat {beat.number}: the reply reported {reply.status!r} with "
             f"incomplete requirements still owed"
         )
+    if reply.status == "goal_reached":
+        return None
+    if closing and not _completes_script(progress, assessment):
+        return (
+            f"beat {beat.number}: the reply reported {reply.status!r} before "
+            "all mandatory beats were delivered"
+        )
     return None
 
 
@@ -345,6 +353,16 @@ def _status_mismatch(reply: UserReply) -> str | None:
         f"and the customer has nothing to add, so it is the one status that "
         f"comes empty, and the only one that may"
     )
+
+
+def _completes_script(progress: ScriptProgress, assessment: BeatAssessment) -> bool:
+    """Whether accepting this candidate would complete every mandatory beat."""
+    beat = progress.current
+    if beat is None:
+        return True
+    if not assessment.complete:
+        return False
+    return beat.number == len(progress.beats)
 
 
 def _check_the_agent_spoke_last(history: Sequence[Turn]) -> None:

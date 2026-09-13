@@ -157,10 +157,18 @@ Decision history (Decisões, T-03), mirrored in `configs/models.yaml`:
    Pro* below. The models did not change; the `run` phase moved to the Air instead, which is the
    machine whose free RAM the rule should have been written against.
 
+4. **2026-09-13, role split and simulated-user size.** `simulated_user`,
+   `classifier`, and `state_labeler` are independent roles. After a
+   precommitted 4B vs 9B selection on the simulated user only, that role is
+   `qwen3.5:9b`; classifier and labeler stay `qwen3.5:4b`. Rationale in
+   [`docs/decisions_and_limitations.md`](decisions_and_limitations.md). The
+   T-16 parity table remains the 4B simulated-user frame.
+
 | Role | Model | Parameters | Download | Loaded footprint | Notes |
 |---|---|---|---|---|---|
 | Agents (`baseline` and `fsm`, the same model, same parameters) | `qwen3.5:9b` | 9.7B, Q4_K_M | 6.6 GB | 5.7 GB | same loaded size as Qwen2.5-7B; the vision tower is not loaded for text |
-| Simulator, event classifier and stage labeler | `qwen3.5:4b` | 4.7B, Q4_K_M | 3.4 GB | 3.4 GB | faster than Qwen2.5-7B on both prompt processing and generation |
+| Simulated user (locked 2026-09-13, after T-16) | `qwen3.5:9b` | 9.7B, Q4_K_M | 6.6 GB | 5.7 GB | split from classifier/labeler so a user-model change cannot retune them; T-16 corrected pilot still used 4B |
+| Event classifier and stage labeler | `qwen3.5:4b` | 4.7B, Q4_K_M | 3.4 GB | 3.4 GB | faster than Qwen2.5-7B on both prompt processing and generation |
 | Judge (the same in T-16 and T-17) | `gemma4:12b` | 11.9B, Q4_K_M | 7.6 GB | 8.6 GB | third family, a condition of the blind judge; same footprint and speed as Gemma 3 12B |
 
 Candidates measured on the Air on 2026-09-08 (`num_ctx` 8192, 2 parallel dialogues, thinking
@@ -206,11 +214,12 @@ The full digests live in `configs/models.yaml`; the table records the 12-charact
 | Role | Model | ID (Air, 2026-09-08) | ID (Pro, 2026-09-08) | Same? |
 |---|---|---|---|---|
 | agents (baseline and fsm) | `qwen3.5:9b` | `6488c96fa5fa` | `6488c96fa5fa` | yes |
-| simulator, event classifier, stage labeler | `qwen3.5:4b` | `2a654d98e6fb` | `2a654d98e6fb` | yes |
+| simulated user (from 2026-09-13 lock; same digest as agents) | `qwen3.5:9b` | `6488c96fa5fa` | `6488c96fa5fa` | yes |
+| event classifier, stage labeler | `qwen3.5:4b` | `2a654d98e6fb` | `2a654d98e6fb` | yes |
 | judge | `gemma4:12b` | `4eb23ef187e2` | `4eb23ef187e2` | yes |
 
-`just verify-models` passes on both machines, so all three digests also match the ones recorded in
-`configs/models.yaml`.
+`just verify-models` passes on both machines, so every configured digest matches
+`configs/models.yaml`. The simulated-user lock reuses the agent 9B digest.
 
 ## Language and sanity checks (Air, 2026-09-08)
 

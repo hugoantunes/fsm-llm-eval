@@ -15,9 +15,10 @@ paired Wilcoxon/permutation procedures, with Holm adjustment across the three
 primary outcomes. T-19 only fills the observed tests.
 
 `goal_reached` is a stopping condition of the simulated user (T-11). It is **not** a
-metric. The runtime also refuses it (and `gave_up`, and `agent_ended`) while a
-mandatory beat is still owed. Whether the task was completed is `task_completed`,
-scored by the judge against the scenario's `success_criterion`.
+metric. If it appears before all mandatory beats are delivered, the runtime records
+that fact and keeps the dialogue running until the script is complete or `max_turns`
+is reached. Whether the task was completed is `task_completed`, scored by the judge
+against the scenario's `success_criterion`.
 
 The scenario `script` is a mandatory ordered plan, not a hint: the customer sends one
 beat per message, in the order written, and the dialogue may not end while a beat is
@@ -30,7 +31,13 @@ Failed logs carry explicit failure classes in the run JSONL. Keep two cases sepa
 in reporting: `invalid_candidate_retry_exhausted` is an instrument-generation failure
 (`failure_kind=instrument`), while `max_turns_with_incomplete_beat` is an incomplete
 simulation artifact (`failure_kind=simulation`, `termination_reason=max_turns`,
-`active_beat_complete=false`). Neither case enters `metrics.csv`.
+`active_beat_complete=false`). The second is **not** automatically an instrument bug:
+it can be an interaction-level effect (one agent never elicits a required datum; the
+other does). Do not recode it as agent failure and do not drop it to clean the run.
+Dialogue logs also persist goal-reached provenance (`goal_reached_seen`,
+`goal_reached_at_turn`, `script_complete_at_goal_reached`) so early goal achievement
+can be analyzed without overriding failure semantics. Neither failure case enters
+`metrics.csv`.
 
 The treatment is the **FSM-based architecture as a package**: explicit state
 control, transitions and state-specific instruction packages. The baseline is one

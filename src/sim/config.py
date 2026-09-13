@@ -14,10 +14,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 DEFAULT_CONFIG_PATH = Path("configs/models.yaml")
 
-#: The three roles a model can play. One model serves both agents, one serves
-#: the simulated user, the event classifier and the stage labeler, and one is
-#: the judge, from a different family (T-03).
-Role = Literal["agent", "simulator", "judge"]
+#: The model roles of the experiment. The two agents share one model; simulated
+#: user, event classifier and stage labeler are independently configurable.
+Role = Literal["agent", "simulated_user", "classifier", "state_labeler", "judge"]
 
 #: The same three as values, for iteration and for error messages.
 ROLES: tuple[Role, ...] = get_args(Role)
@@ -39,12 +38,14 @@ class ModelSpec(BaseModel):
 
 
 class ModelsByRole(BaseModel):
-    """The three models of the experiment, one per role."""
+    """The configured models of the experiment, one per role."""
 
     model_config = ConfigDict(extra="forbid")
 
     agent: ModelSpec
-    simulator: ModelSpec
+    simulated_user: ModelSpec
+    classifier: ModelSpec
+    state_labeler: ModelSpec
     judge: ModelSpec
 
 

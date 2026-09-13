@@ -123,7 +123,7 @@ def evaluate_run(
         for scenario in load_scenarios(scenarios_dir, kb=kb, fsm=fsm)
     }
     judge_seed = _seed(config, "judge")
-    labeler_seed = _seed(config, "simulator")
+    labeler_seed = _seed(config, "state_labeler")
     judge = Judge(llm, kb=kb, prompts_dir=prompts_dir, seed=judge_seed)
     labeler = StageLabeler(llm, spec=fsm, prompts_dir=prompts_dir, seed=labeler_seed)
     logs = _load_logs(run_dir)

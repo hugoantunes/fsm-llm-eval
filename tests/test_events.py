@@ -105,7 +105,7 @@ def test_llm_fallback_uses_the_current_states_enum_plus_none(
     call = classified.llm.calls[0]
     schema = call["schema"]
 
-    assert call["role"] == "simulator"
+    assert call["role"] == "classifier"
     assert call["caller"] == CLASSIFIER
     assert set(schema.model_json_schema()["properties"]["event"]["enum"]) == set(
         real_fsm.events_for("intent_classification")

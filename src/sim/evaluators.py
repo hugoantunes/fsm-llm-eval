@@ -287,7 +287,7 @@ class StageLabeler:
                     ),
                 }
             ],
-            role="simulator",
+            role="state_labeler",
             caller=LABELER,
             schema=self._schema,
             seed=self._seed,
