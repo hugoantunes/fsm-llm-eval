@@ -49,6 +49,9 @@ StopReason = Literal["goal_reached", "user_gave_up", "agent_closed", "max_turns"
 #: Whether that dialogue produced a complete log or stopped on an error.
 DialogueStatus = Literal["ok", "failed"]
 
+#: Failure class for dialogues that do not end with a complete valid simulation.
+FailureKind = Literal["instrument", "simulation", "operational"]
+
 #: Who fired one edge of the machine: the customer's own event, or the engine
 #: leaving a state that had nothing left to do (T-08). Both are edges of
 #: ``machine.yaml``; only the first is something the customer did.
@@ -150,6 +153,8 @@ class TurnRecord(BaseModel):
     turn: int
     user_message: str
     user_beat: int | None = None
+    beat_started_at_turn: int | None = None
+    beat_completed_at_turn: int | None = None
     agent_reply: str
     model: str
     prompt_hash: str
@@ -208,6 +213,11 @@ class DialogueLog(BaseModel):
     status: DialogueStatus
     error: str | None = None
     stop_reason: StopReason | None = None
+    termination_reason: StopReason | None = None
+    active_beat_complete: bool | None = None
+    failure_kind: FailureKind | None = None
+    failure_reason: str | None = None
+    failure_metadata: dict[str, object] = Field(default_factory=dict)
     records: list[TurnRecord] = Field(default_factory=list)
 
     @property

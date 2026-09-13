@@ -362,12 +362,16 @@ def make_turn_record(
     state_after: str | None = None,
     event: str | None = None,
     user_beat: int | None = None,
+    beat_started_at_turn: int | None = None,
+    beat_completed_at_turn: int | None = None,
 ) -> TurnRecord:
     """Build one turn record; only the fields a test cares about need saying."""
     return TurnRecord(
         turn=turn,
         user_message=user_message,
         user_beat=user_beat,
+        beat_started_at_turn=beat_started_at_turn,
+        beat_completed_at_turn=beat_completed_at_turn,
         agent_reply=agent_reply,
         model="agent-model",
         prompt_hash="a" * 64,

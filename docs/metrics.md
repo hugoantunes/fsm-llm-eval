@@ -26,6 +26,12 @@ not by the model. `just adherence` is the gate a run has to pass before it is
 evaluated or sampled for T-16. It is not a column of `metrics.csv`. A dialogue that
 lost a beat is an instrument failure, not a data point.
 
+Failed logs carry explicit failure classes in the run JSONL. Keep two cases separate
+in reporting: `invalid_candidate_retry_exhausted` is an instrument-generation failure
+(`failure_kind=instrument`), while `max_turns_with_incomplete_beat` is an incomplete
+simulation artifact (`failure_kind=simulation`, `termination_reason=max_turns`,
+`active_beat_complete=false`). Neither case enters `metrics.csv`.
+
 The treatment is the **FSM-based architecture as a package**: explicit state
 control, transitions and state-specific instruction packages. The baseline is one
 prompt. Both agents receive the same full knowledge base. That package is a

@@ -27,8 +27,8 @@ from pathlib import Path
 
 from sim.fsm import DEFAULT_FSM_DIR, load_fsm
 from sim.kb import DEFAULT_KB_DIR, UserDataField, load_kb
-from sim.schemas import DialogueLog, Manifest, Scenario, load_scenarios
-from sim.script import Beat, beats_of
+from sim.schemas import DialogueLog, Manifest, Scenario, TurnRecord, load_scenarios
+from sim.script import Beat, BeatProgress, beats_of
 
 DEFAULT_RUN_DIR = Path("runs/exp_pilot")
 
@@ -94,17 +94,14 @@ def check_dialogue(
     delivered = tuple(
         record.user_beat for record in log.records if record.user_beat is not None
     )
-    by_beat = {
-        record.user_beat: record.user_message
-        for record in log.records
-        if record.user_beat is not None
-    }
-    unsatisfied = tuple(
-        f"beat {beat.number} needs {fault}"
-        for beat in beats
-        if beat.number in by_beat
-        for fault in beat.faults_in(by_beat[beat.number])
-    )
+    by_beat = _records_by_beat(log.records)
+    unsatisfied: list[str] = []
+    for beat in beats:
+        record = by_beat.get(beat.number)
+        if record is None:
+            continue
+        faults = _beat_faults(beat, record, log.records)
+        unsatisfied.extend(f"beat {beat.number} needs {fault}" for fault in faults)
     return Report(
         dialogue_id=log.dialogue_id,
         scenario_id=log.scenario_id,
@@ -118,14 +115,17 @@ def check_dialogue(
             beat.number for beat in beats if beat.number not in set(delivered)
         ),
         out_of_order=list(delivered) != sorted(set(delivered)),
-        unsatisfied=unsatisfied,
+        unsatisfied=tuple(unsatisfied),
         canary_delivered=_canary_delivered(log, scenario),
-        injection_delivered=_injection_delivered(beats, by_beat, scenario),
+        injection_delivered=_injection_delivered(beats, by_beat, log.records, scenario),
     )
 
 
 def _injection_delivered(
-    beats: Sequence[Beat], by_beat: dict[int, str], scenario: Scenario
+    beats: Sequence[Beat],
+    by_beat: dict[int, TurnRecord],
+    records: Sequence[TurnRecord],
+    scenario: Scenario,
 ) -> bool | None:
     """Whether the beat that plants the canary was delivered as written.
 
@@ -137,10 +137,59 @@ def _injection_delivered(
     if scenario.canary is None:
         return None
     return all(
-        beat.number in by_beat and beat.satisfied_by(by_beat[beat.number])
+        _beat_is_delivered(beat, by_beat.get(beat.number), records)
         for beat in beats
         if scenario.canary in beat.literals
     )
+
+
+def _records_by_beat(records: Sequence[TurnRecord]) -> dict[int, TurnRecord]:
+    """Return first completing record by beat number."""
+    by_beat: dict[int, TurnRecord] = {}
+    for record in records:
+        beat = record.user_beat
+        if beat is None or beat in by_beat:
+            continue
+        by_beat[beat] = record
+    return by_beat
+
+
+def _span_for(record: TurnRecord) -> tuple[int, int] | None:
+    """Return recorded beat span ``(start, end)`` from one turn record."""
+    start = record.beat_started_at_turn
+    end = record.beat_completed_at_turn
+    if start is None or end is None:
+        return None
+    return (start, end)
+
+
+def _beat_faults(
+    beat: Beat, completing_record: TurnRecord, records: Sequence[TurnRecord]
+) -> tuple[str, ...]:
+    """Return adherence faults for one completed beat from recorded provenance."""
+    span = _span_for(completing_record)
+    if span is None:
+        return ("recorded span provenance is missing",)
+    start, end = span
+    messages = [
+        record.user_message for record in records if start <= record.turn <= end
+    ]
+    progress = BeatProgress()
+    for message in messages:
+        progress = progress.with_message(beat, message)
+    return (
+        *beat.cumulative_faults(progress),
+        *beat.local_faults_in(completing_record.user_message),
+    )
+
+
+def _beat_is_delivered(
+    beat: Beat, record: TurnRecord | None, records: Sequence[TurnRecord]
+) -> bool:
+    """Whether ``record`` proves that ``beat`` was delivered as required."""
+    if record is None:
+        return False
+    return not _beat_faults(beat, record, records)
 
 
 def _canary_delivered(log: DialogueLog, scenario: Scenario) -> bool | None:

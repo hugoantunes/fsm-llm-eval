@@ -7,6 +7,7 @@ from sim.schemas import Scenario
 from sim.script import (
     MAX_DEFERRALS,
     NOTHING,
+    BeatProgress,
     ScriptError,
     ScriptProgress,
     beats_of,
@@ -242,6 +243,51 @@ def test_a_beat_is_not_satisfied_by_the_content_of_its_neighbours(
     assert not second.satisfied_by("Where does the tracking code show up?")
     assert not third.satisfied_by("Just tracking for now, not a cancel.")
     assert not fourth.satisfied_by("Okay, go ahead and cancel the whole order.")
+
+
+def test_cumulative_progress_completes_a_beat_across_multiple_turns(
+    real_kb: KnowledgeBase,
+) -> None:
+    beat = beats_of(
+        brief("NL-20261011 daria.kowal@example.com cancelled. want slip anyway"),
+        real_kb.user_data_fields,
+    )[0]
+    progress = BeatProgress()
+
+    first = beat.assess("NL-20261011", progress=progress)
+    second = beat.assess("daria.kowal@example.com", progress=first.progress)
+    third = beat.assess(
+        "It was cancelled, I still want the slip anyway.", progress=second.progress
+    )
+
+    assert not first.complete
+    assert not second.complete
+    assert third.complete
+
+
+def test_turn_local_predicates_are_not_sticky_across_turns(
+    real_kb: KnowledgeBase,
+) -> None:
+    beat = beats_of(
+        brief("NL-20260145 user@example.com cancelled?"), real_kb.user_data_fields
+    )[0]
+    progress = BeatProgress()
+
+    first = beat.assess("NL-20260145?", progress=progress)
+    second = beat.assess("user@example.com cancelled", progress=first.progress)
+
+    assert not second.cumulative_missing
+    assert second.local_missing == ("a question",)
+    assert not second.complete
+
+
+def test_closing_words_are_turn_local_requirements(
+    real_kb: KnowledgeBase,
+) -> None:
+    beat = beats_of(brief("Goodbye."), real_kb.user_data_fields)[0]
+
+    assert beat.local_requirements()
+    assert any("goodbye" in requirement for requirement in beat.local_requirements())
 
 
 def test_the_beats_are_numbered_from_one_in_script_order(

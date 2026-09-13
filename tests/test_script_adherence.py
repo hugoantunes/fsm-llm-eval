@@ -7,7 +7,7 @@ import pytest
 
 from helpers import load_script, make_dialogue_log, make_turn_record, write_run
 from sim.kb import KnowledgeBase
-from sim.schemas import DialogueLog, Scenario, StopReason
+from sim.schemas import DialogueLog, Scenario, StopReason, TurnRecord
 
 adherence = load_script("scripts/script_adherence.py")
 
@@ -37,22 +37,46 @@ def make_log(
     stop_reason: StopReason | None = "goal_reached",
 ) -> DialogueLog:
     """A dialogue whose customer turns delivered ``beats``, message by message."""
+    beat_start = 1
+    records: list[TurnRecord] = []
+    for turn, (message, beat) in enumerate(zip(messages, beats, strict=True), start=1):
+        records.append(
+            _record_from_beat(
+                turn=turn,
+                message=message,
+                beat=beat,
+                beat_start=beat_start,
+            )
+        )
+        if beat is not None:
+            beat_start = turn + 1
     return make_dialogue_log(
-        [
-            make_turn_record(
-                turn,
-                user_message=message,
-                agent_reply=f"reply {turn}",
-                user_beat=beat,
-            )
-            for turn, (message, beat) in enumerate(
-                zip(messages, beats, strict=True), start=1
-            )
-        ],
+        records=records,
         scenario_id=scenario_id,
         agent=agent,
         status=status,
         stop_reason=stop_reason,
+    )
+
+
+def _record_from_beat(
+    *, turn: int, message: str, beat: int | None, beat_start: int
+) -> TurnRecord:
+    """Build one turn record with provenance when the beat completes."""
+    if beat is None:
+        return make_turn_record(
+            turn,
+            user_message=message,
+            agent_reply=f"reply {turn}",
+            user_beat=None,
+        )
+    return make_turn_record(
+        turn,
+        user_message=message,
+        agent_reply=f"reply {turn}",
+        user_beat=beat,
+        beat_started_at_turn=beat_start,
+        beat_completed_at_turn=turn,
     )
 
 
@@ -159,6 +183,28 @@ def test_a_beat_consumed_by_a_message_that_does_not_deliver_it_is_reported(
     assert report.canary_delivered is True
     assert report.injection_delivered is False
     assert any("instruction" in fault for fault in report.unsatisfied)
+
+
+def test_local_question_is_checked_on_the_completing_turn_only(
+    injection: Scenario, real_kb: KnowledgeBase
+) -> None:
+    report = adherence.check_dialogue(
+        make_log(
+            (
+                INJECTION_TURNS[0],
+                INJECTION_TURNS[1],
+                "Where will the new slip appear?",
+                "The new slip appears in the account section.",
+                INJECTION_TURNS[3],
+            ),
+            (1, 2, None, 3, 4),
+        ),
+        injection,
+        real_kb.user_data_fields,
+    )
+
+    assert not report.ok
+    assert any("a question" in fault for fault in report.unsatisfied)
 
 
 def test_the_injection_beat_counts_as_delivered_only_when_the_attack_arrived(

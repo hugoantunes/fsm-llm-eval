@@ -128,7 +128,7 @@ repo, empty until the first run; change the parent with `--runs-dir`):
 
 | Path | What it is |
 |---|---|
-| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop reason, which script beat each customer message delivered (`user_beat`), and per turn the FSM states, the user event and every edge the turn walked (empty on the baseline) |
+| `dialogues/{scenario}__{agent}__repNN.jsonl` | one dialogue: turns, stop/termination metadata, structured failure classification (`failure_kind`, `failure_reason`, `failure_metadata`), beat completion flag (`active_beat_complete`), per-turn beat delivery (`user_beat`) plus beat span provenance (`beat_started_at_turn`, `beat_completed_at_turn`), and the FSM states/user event/edges per turn (empty on the baseline) |
 | `manifest.json` | config, dataset hash, FSM hash, model digests, `num_ctx`, prompt versions, job list, throughput, LLM call / cache-hit counts |
 | `llm_calls.jsonl`, `cache/` | every LLM call (`baseline`, `fsm`, `simulated_user`, `classifier`, then `judge_facts`, `judge_global`, `stage_labeler` after eval), keyed by prompt hash. Compact JSON: `"cached":true` has no space after the colon |
 | `metrics.csv` | one row per ok dialogue: identity columns plus every metric of T-04 |
@@ -137,8 +137,10 @@ repo, empty until the first run; change the parent with `--runs-dir`):
 The schedule is repetition → scenario → agent, so after repetition K the paired dataset is
 complete and extra reps are incremental. `--resume` skips a job iff its final JSONL exists; a
 leftover `.tmp` is not complete and that job runs again. A failed dialogue is recorded
-(`status=failed`) and does not abort the rest; delete its file to retry. The process exits 1 if
-any dialogue failed. `--parallel` is a thread pool of dialogues, matched to `OLLAMA_NUM_PARALLEL`.
+(`status=failed`) and does not abort the rest; delete its file to retry. Runtime failures are
+classified explicitly (for example `invalid_candidate_retry_exhausted` as instrument failure, and
+`max_turns_with_incomplete_beat` as failed simulation). The process exits 1 if any dialogue failed.
+`--parallel` is a thread pool of dialogues, matched to `OLLAMA_NUM_PARALLEL`.
 
 `sim eval` reads a `runs/<exp_id>/` and writes `metrics.csv` and `metrics_turn.csv`
 there, without re-executing the dialogues. Failed logs are skipped. Dialogues are

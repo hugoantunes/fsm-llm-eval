@@ -25,6 +25,8 @@ simulator would make the instrument depend on the thing T-16 is validating.
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Any
 
 from sim.kb import UserDataField
 from sim.schemas import Scenario
@@ -192,6 +194,10 @@ QUESTION = "?"
 #: other, so "cancel" is carried by "cancelling" and "not" is not by "nothing".
 STEM = 4
 
+#: Closing speech-act words that must appear on the completing turn when present
+#: in the beat text.
+CLOSING_WORDS = frozenset(("goodbye", "bye"))
+
 
 class ScriptError(RuntimeError):
     """The script cannot advance here; the message says why."""
@@ -217,32 +223,116 @@ class Beat:
     asks: bool = False
     negates: bool = False
     verbatim: str | None = None
+    local_keywords: tuple[str, ...] = ()
 
     def faults_in(self, message: str) -> tuple[str, ...]:
-        """Return what this beat requires that ``message`` does not carry."""
+        """Return what this beat requires that one message does not carry."""
+        assessment = self.assess(message, progress=BeatProgress())
+        return assessment.cumulative_missing + assessment.local_missing
+
+    def satisfied_by(self, message: str) -> bool:
+        """Whether ``message`` delivers this beat and may consume it."""
+        return self.assess(message, progress=BeatProgress()).complete
+
+    def assess(self, message: str, *, progress: "BeatProgress") -> "BeatAssessment":
+        """Evaluate ``message`` against cumulative progress and local predicates."""
+        updated = progress.with_message(self, message)
+        return BeatAssessment(
+            progress=updated,
+            progress_gained=updated != progress,
+            cumulative_missing=self.cumulative_faults(updated),
+            local_missing=self.local_faults_in(message),
+        )
+
+    def cumulative_faults(self, progress: "BeatProgress") -> tuple[str, ...]:
+        """Return cumulative requirements still missing in ``progress``."""
         faults = [
             f"the exact string {literal!r}"
             for literal in self.literals
-            if literal not in message
+            if literal not in progress.matched_literals
         ]
         if self.verbatim is not None:
-            if not _contains_normalized(self.verbatim, message):
-                faults.append(f"the instruction {self.verbatim!r}")
             return tuple(faults)
         faults += [
             f"the word {keyword!r}"
             for keyword in self.keywords
-            if not _carries(keyword, message)
+            if keyword not in progress.matched_keywords
         ]
+        return tuple(faults)
+
+    def local_faults_in(self, message: str) -> tuple[str, ...]:
+        """Return turn-local requirements ``message`` does not satisfy."""
+        faults: list[str] = []
+        if self.verbatim is not None and not _contains_normalized(
+            self.verbatim, message
+        ):
+            faults.append(f"the instruction {self.verbatim!r}")
         if self.negates and not _denies(message):
             faults.append("a denial")
         if self.asks and QUESTION not in message:
             faults.append("a question")
+        if self.local_keywords and not any(
+            _carries(keyword, message) for keyword in self.local_keywords
+        ):
+            faults.append(_local_words_requirement(self.local_keywords))
         return tuple(faults)
 
-    def satisfied_by(self, message: str) -> bool:
-        """Whether ``message`` delivers this beat and may consume it."""
-        return not self.faults_in(message)
+    def local_requirements(self) -> tuple[str, ...]:
+        """Return turn-local predicates still required for completion."""
+        required: list[str] = []
+        if self.verbatim is not None:
+            required.append(f"the instruction {self.verbatim!r}")
+        if self.asks:
+            required.append("a question")
+        if self.negates:
+            required.append("a denial")
+        if self.local_keywords:
+            required.append(_local_words_requirement(self.local_keywords))
+        return tuple(required)
+
+
+@dataclass(frozen=True)
+class BeatProgress:
+    """Cumulative requirements matched by delivered turns of the active beat."""
+
+    matched_literals: frozenset[str] = frozenset()
+    matched_keywords: frozenset[str] = frozenset()
+
+    def with_message(self, beat: Beat, message: str) -> "BeatProgress":
+        """Return progress updated by one delivered ``message``."""
+        return BeatProgress(
+            matched_literals=self.matched_literals
+            | {literal for literal in beat.literals if literal in message},
+            matched_keywords=self.matched_keywords
+            | {keyword for keyword in beat.keywords if _carries(keyword, message)},
+        )
+
+
+@dataclass(frozen=True)
+class BeatAssessment:
+    """Beat check result for one candidate/delivered message."""
+
+    progress: BeatProgress
+    progress_gained: bool
+    cumulative_missing: tuple[str, ...]
+    local_missing: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        """Whether cumulative and local requirements are both satisfied."""
+        return not self.cumulative_missing and not self.local_missing
+
+
+@dataclass(frozen=True)
+class TurnProgress:
+    """Outcome of committing one delivered user message."""
+
+    turn: int
+    consumed_beat: int | None
+    beat_started_at_turn: int | None
+    beat_completed_at_turn: int | None
+    assessment: BeatAssessment | None
+    active_beat_complete: bool
 
 
 def beats_of(scenario: Scenario, fields: Sequence[UserDataField]) -> tuple[Beat, ...]:
@@ -258,14 +348,16 @@ def _beat(
 ) -> Beat:
     """Read one beat's contract off the words it is written with."""
     literals = _literals(text, canary, fields)
+    keywords = _keywords(text, literals)
     return Beat(
         number=number,
         text=text,
         literals=literals,
-        keywords=_keywords(text, literals),
+        keywords=keywords,
         asks=QUESTION in text,
         negates=_denies(text),
         verbatim=text if canary is not None and canary in text else None,
+        local_keywords=_closing_keywords(keywords),
     )
 
 
@@ -352,6 +444,9 @@ class ScriptProgress:
         self._beats = tuple(beats)
         self._index = 0
         self._deferrals = 0
+        self._turn = 0
+        self._progress = BeatProgress()
+        self._beat_start_turn = 1 if beats else 0
 
     @property
     def beats(self) -> tuple[Beat, ...]:
@@ -390,6 +485,113 @@ class ScriptProgress:
         """Whether the current beat has been put off as long as it may be."""
         return not self.complete and self._deferrals >= MAX_DEFERRALS
 
+    @property
+    def turn(self) -> int:
+        """Delivered user turns committed so far."""
+        return self._turn
+
+    @property
+    def current_progress(self) -> BeatProgress:
+        """Cumulative matches gathered for the active beat."""
+        return self._progress
+
+    @property
+    def beat_start_turn(self) -> int:
+        """Turn index where the active beat started."""
+        return self._beat_start_turn
+
+    def assess(self, message: str) -> BeatAssessment | None:
+        """Preview ``message`` against current beat without mutating progress."""
+        beat = self.current
+        if beat is None:
+            return None
+        return beat.assess(message, progress=self._progress)
+
+    def commit(self, message: str) -> TurnProgress:
+        """Commit one delivered user ``message`` into progress and beat order."""
+        self._turn += 1
+        beat = self.current
+        if beat is None:
+            return TurnProgress(
+                turn=self._turn,
+                consumed_beat=None,
+                beat_started_at_turn=None,
+                beat_completed_at_turn=None,
+                assessment=None,
+                active_beat_complete=True,
+            )
+        assessment = beat.assess(message, progress=self._progress)
+        self._progress = assessment.progress
+        if assessment.complete:
+            start = self._beat_start_turn
+            end = self._turn
+            self._index += 1
+            self._deferrals = 0
+            self._progress = BeatProgress()
+            if not self.complete:
+                self._beat_start_turn = self._turn + 1
+            return TurnProgress(
+                turn=self._turn,
+                consumed_beat=beat.number,
+                beat_started_at_turn=start,
+                beat_completed_at_turn=end,
+                assessment=assessment,
+                active_beat_complete=True,
+            )
+        if assessment.progress_gained:
+            self._deferrals = 0
+        else:
+            self._deferrals += 1
+        return TurnProgress(
+            turn=self._turn,
+            consumed_beat=None,
+            beat_started_at_turn=None,
+            beat_completed_at_turn=None,
+            assessment=assessment,
+            active_beat_complete=False,
+        )
+
+    def active_beat_diagnostics(self) -> MappingProxyType[str, Any] | None:
+        """Return immutable diagnostics for the active incomplete beat."""
+        beat = self.current
+        if beat is None:
+            return None
+        satisfied = {
+            "exact_strings": [
+                literal
+                for literal in beat.literals
+                if literal in self._progress.matched_literals
+            ],
+            "keywords": [
+                keyword
+                for keyword in beat.keywords
+                if keyword in self._progress.matched_keywords
+            ],
+        }
+        missing = {
+            "exact_strings": [
+                literal
+                for literal in beat.literals
+                if literal not in self._progress.matched_literals
+            ],
+            "keywords": [
+                keyword
+                for keyword in beat.keywords
+                if keyword not in self._progress.matched_keywords
+            ],
+        }
+        turns_on_beat = max(0, self._turn - self._beat_start_turn + 1)
+        return MappingProxyType(
+            {
+                "active_beat_index": beat.number,
+                "satisfied_cumulative_requirements": satisfied,
+                "missing_cumulative_requirements": missing,
+                "pending_local_predicates": list(beat.local_requirements()),
+                "beat_start_turn": self._beat_start_turn,
+                "delivered_turns_on_active_beat": turns_on_beat,
+            }
+        )
+
     def deliver(self) -> None:
         """Consume the current beat; the next message owes the next one."""
         if self.complete:
@@ -399,6 +601,9 @@ class ScriptProgress:
             )
         self._index += 1
         self._deferrals = 0
+        self._progress = BeatProgress()
+        if not self.complete:
+            self._beat_start_turn = self._turn + 1
 
     def defer(self) -> None:
         """Record a message that answered the agent and left the beat for later."""
@@ -432,9 +637,19 @@ def render_beat(beat: Beat | None) -> str:
 
 def render_literals(beat: Beat | None) -> str:
     """Render what the beat due now requires word for word, or :data:`NOTHING`."""
+    return render_remaining_literals(beat, progress=None)
+
+
+def render_remaining_literals(
+    beat: Beat | None, *, progress: BeatProgress | None
+) -> str:
+    """Render missing exact strings for the active beat."""
     if beat is None:
         return NOTHING
-    items = ((beat.verbatim,) if beat.verbatim else ()) + beat.literals
+    seen = frozenset() if progress is None else progress.matched_literals
+    items = ((beat.verbatim,) if beat.verbatim is not None else ()) + tuple(
+        literal for literal in beat.literals if literal not in seen
+    )
     if not items:
         return NOTHING
     return "\n".join(f"- {item}" for item in dict.fromkeys(items))
@@ -442,6 +657,61 @@ def render_literals(beat: Beat | None) -> str:
 
 def render_keywords(beat: Beat | None) -> str:
     """Render the content words the beat due now needs, or :data:`NOTHING`."""
+    return render_remaining_keywords(beat, progress=None)
+
+
+def render_remaining_keywords(
+    beat: Beat | None, *, progress: BeatProgress | None
+) -> str:
+    """Render missing cumulative keywords for the active beat."""
     if beat is None or beat.verbatim is not None or not beat.keywords:
         return NOTHING
-    return "\n".join(f"- {keyword}" for keyword in beat.keywords)
+    seen = frozenset() if progress is None else progress.matched_keywords
+    pending = [keyword for keyword in beat.keywords if keyword not in seen]
+    if not pending:
+        return NOTHING
+    return "\n".join(f"- {keyword}" for keyword in pending)
+
+
+def render_satisfied_cumulative(beat: Beat | None, *, progress: BeatProgress) -> str:
+    """Render cumulative requirements already satisfied for the active beat."""
+    if beat is None:
+        return NOTHING
+    items = [
+        *[
+            f"exact: {literal}"
+            for literal in beat.literals
+            if literal in progress.matched_literals
+        ],
+        *[
+            f"word: {keyword}"
+            for keyword in beat.keywords
+            if keyword in progress.matched_keywords
+        ],
+    ]
+    if not items:
+        return NOTHING
+    return "\n".join(f"- {item}" for item in items)
+
+
+def render_pending_local(beat: Beat | None) -> str:
+    """Render turn-local predicates still required for beat completion."""
+    if beat is None:
+        return NOTHING
+    local = beat.local_requirements()
+    if not local:
+        return NOTHING
+    return "\n".join(f"- {item}" for item in local)
+
+
+def _closing_keywords(keywords: Sequence[str]) -> tuple[str, ...]:
+    """Return closing speech-act words present in ``keywords``."""
+    return tuple(keyword for keyword in keywords if keyword in CLOSING_WORDS)
+
+
+def _local_words_requirement(words: Sequence[str]) -> str:
+    """Render one local keyword requirement for diagnostics/prompts."""
+    if len(words) == 1:
+        return f"the word {words[0]!r} in this message"
+    options = ", ".join(repr(word) for word in words)
+    return f"one of {options} in this message"

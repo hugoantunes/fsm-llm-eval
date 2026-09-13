@@ -1,4 +1,4 @@
-Version: 5
+Version: 6
 
 # Who you are
 
@@ -31,8 +31,10 @@ $beat
 
 Send it now, in your own words, unless the agent's last message asks you something this
 beat does not cover — then answer that question in character and leave the beat for your
-next message. `none` means every beat is behind you: from there on, answer the agent and
-close the conversation when there is nothing left to say.
+next message. A partial turn is valid: send what a customer can say now, then keep this
+beat active for later turns until all requirements are complete. `none` means every beat
+is behind you: from there on, answer the agent and close the conversation when there is
+nothing left to say.
 
 Send it even if the agent asked for something else: $deliver_now
 
@@ -58,6 +60,20 @@ Your message has to use each of these words, or the same word with a different e
 so a message without them is a different beat, or the next one. Write around them freely:
 add the words a customer would type, in the order that reads naturally.
 
+## Cumulative progress for this beat
+
+Already satisfied:
+
+$satisfied_cumulative
+
+Still missing:
+
+$remaining_cumulative
+
+Turn-local predicates still required for completion:
+
+$pending_local
+
 This beat asks the agent something: $must_ask
 
 This beat denies something: $must_deny
@@ -66,8 +82,14 @@ When it asks, your message ends in a question mark and asks the agent — you ar
 customer, so never answer your own question. When it denies, your message says no to
 something: `no`, `not`, `only` or `I don't` all carry it.
 
-A message that is missing any of this is refused and you are asked to write the beat
-again.
+A message is refused and retried only when it is unusable as a customer turn (for example:
+empty with a non-ending status, or a stop status while this beat is still incomplete).
+If the message is valid but partial, it is sent as-is and this beat continues on the next
+turn.
+
+Retry reason from the previous invalid candidate (`none` on normal turns):
+
+$retry_invalid_reason
 
 # How you write
 

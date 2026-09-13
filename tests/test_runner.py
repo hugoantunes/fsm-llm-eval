@@ -4,7 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from helpers import CONFIG, EXAMPLES_DIR, FSM_DIR, RunCanned, make_llm_call_record
+from helpers import (
+    CONFIG,
+    EXAMPLES_DIR,
+    FSM_DIR,
+    CannedJobLlm,
+    RunCanned,
+    make_llm_call_record,
+    user_reply,
+)
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
 from sim.events import EventError
@@ -188,6 +196,103 @@ def test_a_failed_dialogue_is_recorded_and_does_not_abort_the_run(
     assert ok.status == "ok"
     assert ok.records
     assert (run_dir / "manifest.json").exists()
+
+
+def test_invalid_candidate_retry_exhaustion_is_classified_as_instrument_failure(
+    run_dir: Path,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+) -> None:
+    scenario = Scenario(
+        id="happy_path_99",
+        category="happy_path",
+        intent="order_tracking",
+        user_persona="A customer.",
+        user_goal="Track the order.",
+        script=["Where is order NL-20260145?"],
+        reference_answer="Standard delivery takes 5 business days.",
+        required_facts=["F09"],
+        expected_final_state="closing",
+        success_criterion="The estimate is provided.",
+        max_turns=4,
+    )
+    config = load_models_config(CONFIG)
+    manifest = run_experiment(
+        scenarios=[scenario],
+        agents=("baseline",),
+        reps=1,
+        parallel=1,
+        resume=False,
+        run_dir=run_dir,
+        llm_factory=lambda _job: CannedJobLlm(
+            [user_reply("Done, bye.", status="goal_reached")] * 4
+        ),
+        kb=real_kb,
+        fsm=real_fsm,
+        config=config,
+        scenarios_dir=EXAMPLES_DIR,
+        exp_id="exp",
+    )
+
+    job = iter_jobs([scenario], agents=("baseline",), reps=1)[0]
+    log = _read_log(run_dir, job)
+    assert manifest.n_failed == 1
+    assert log.status == "failed"
+    assert log.failure_kind == "instrument"
+    assert log.failure_reason == "invalid_candidate_retry_exhausted"
+    assert log.failure_metadata["retry_count"] == 4
+
+
+def test_max_turns_with_incomplete_beat_is_failed_simulation(
+    run_dir: Path,
+    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec,
+) -> None:
+    scenario = Scenario(
+        id="happy_path_98",
+        category="happy_path",
+        intent="order_tracking",
+        user_persona="A customer.",
+        user_goal="Track the order.",
+        script=["NL-20260145 user@example.com cancelled?"],
+        reference_answer="Standard delivery takes 5 business days.",
+        required_facts=["F09"],
+        expected_final_state="closing",
+        success_criterion="The estimate is provided.",
+        max_turns=4,
+    )
+    config = load_models_config(CONFIG)
+    run_experiment(
+        scenarios=[scenario],
+        agents=("baseline",),
+        reps=1,
+        parallel=1,
+        resume=False,
+        run_dir=run_dir,
+        llm_factory=lambda _job: CannedJobLlm(
+            [
+                user_reply("NL-20260145"),
+                user_reply("user@example.com"),
+                user_reply("still cancelled"),
+                user_reply("still cancelled"),
+            ]
+        ),
+        kb=real_kb,
+        fsm=real_fsm,
+        config=config,
+        scenarios_dir=EXAMPLES_DIR,
+        exp_id="exp",
+    )
+
+    job = iter_jobs([scenario], agents=("baseline",), reps=1)[0]
+    log = _read_log(run_dir, job)
+    assert log.status == "failed"
+    assert log.failure_kind == "simulation"
+    assert log.failure_reason == "max_turns_with_incomplete_beat"
+    assert log.termination_reason == "max_turns"
+    assert log.active_beat_complete is False
+    assert "active_beat_index" in log.failure_metadata
+    assert "missing_cumulative_requirements" in log.failure_metadata
 
 
 def test_two_scenarios_two_agents_one_rep_write_four_dialogue_files(

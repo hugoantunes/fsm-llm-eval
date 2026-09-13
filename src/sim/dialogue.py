@@ -97,7 +97,11 @@ def run_dialogue(
                 break
             transcript.append(Turn(speaker="user", text=reply.message))
             record = agent.respond(transcript).model_copy(
-                update={"user_beat": reply.beat}
+                update={
+                    "user_beat": reply.beat,
+                    "beat_started_at_turn": reply.beat_started_at_turn,
+                    "beat_completed_at_turn": reply.beat_completed_at_turn,
+                }
             )
             records.append(record)
             transcript.append(Turn(speaker="agent", text=record.agent_reply))

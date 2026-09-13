@@ -118,18 +118,23 @@ strings it spells out (order numbers, e-mails, the canary), the content words it
 question where it asks one, a denial where it denies, and the whole beat verbatim when it plants a
 canary. A beat is consumed only by a message that meets that contract. The dialogue may not end
 while a beat is still owed. A clarification may postpone a beat (`MAX_DEFERRALS` = 2); after that
-the prompt insists. Misses are retried (`BEAT_RETRIES` = 3, `INJECTION_RETRIES` = 8 on a canary
-beat) with a bumped seed. What still fails is sent as `continue` so the beat stays owed — except a
-failed injection that still carries the token, which is refused rather than planted as a fake
-attack.
+the prompt insists. Candidate retries (`BEAT_RETRIES` = 3, `INJECTION_RETRIES` = 8 on a canary
+beat) are now only for **invalid** simulated-user candidates (unusable output or contradictory stop
+status), with a bumped seed per attempt. Valid partial turns are committed immediately, cumulative
+beat progress is carried across turns, and turn-local predicates are checked only on the completing
+turn. Retry exhaustion raises `invalid_candidate_retry_exhausted` (instrument failure). A dialogue
+that reaches `max_turns` with an incomplete active beat is explicitly classified as
+`max_turns_with_incomplete_beat` (failed simulation), with persisted beat diagnostics.
 
 The contract is checked without a second model: a judge in the simulator loop would make the
 instrument depend on the thing T-16 is validating.
 
-`TurnRecord.user_beat` is the audit trail. `scripts/script_adherence.py` (`just adherence`) re-checks
-a run from the JSONL alone: every beat arrived, in order, the recorded messages still meet the
-contract, and an injection was delivered as written, not merely as a token. A dialogue that fails
-is an instrument failure, not a data point. T-16 draws from a run that has passed this gate.
+`TurnRecord.user_beat` is the audit trail, with recorded beat span provenance
+(`beat_started_at_turn`, `beat_completed_at_turn`). `scripts/script_adherence.py` (`just adherence`)
+re-checks a run from the JSONL alone: every beat arrived, in order, cumulative requirements hold
+across the recorded span, local predicates hold on the completing turn, and an injection was
+delivered as written, not merely as a token. A dialogue that fails this gate is not a data point.
+T-16 draws from a run that has passed this gate.
 
 The example scenarios in `data/scenarios/examples/` were rewritten as customer utterances, because
 the contract is read off the beat's own words and a stage direction ("Greet the agent and ask…")
@@ -138,13 +143,13 @@ edited.
 
 | Artifact | Change |
 |---|---|
-| `data/prompts/simulated_user.md` | v1 → v5: the beat due now is marked; literals, content words, ask/deny flags |
+| `data/prompts/simulated_user.md` | v1 → v6: beat progress context (satisfied/remaining cumulative + pending local predicates) on normal turns; retry-only invalid-candidate reason |
 | `src/sim/script.py` | new: beat contract and `ScriptProgress` |
-| `src/sim/user.py` | a beat is consumed only by a message that meets its contract; stopping is refused while a beat is owed |
-| `src/sim/dialogue.py` | records `user_beat` on the turn that delivered it |
-| `src/sim/schemas.py` | `TurnRecord.user_beat` |
+| `src/sim/user.py` | valid partial turns are committed; retries apply only to invalid candidates; retry exhaustion raises instrument failure |
+| `src/sim/dialogue.py` | records `user_beat` and beat span provenance on the turn that completed the beat |
+| `src/sim/schemas.py` | `TurnRecord.user_beat` plus beat span and structured failure/termination fields |
 | `data/scenarios/examples/` | scripts rewritten as customer utterances (v1 untouched) |
-| `scripts/script_adherence.py` | new: deterministic gate on a run (`just adherence`) |
+| `scripts/script_adherence.py` | deterministic gate on a run (`just adherence`) using recorded beat spans (cumulative + local checks) |
 
 The original pilot was superseded after identifying simulated-user script-adherence failures. The runtime was revised to track and validate mandatory beats explicitly. The corrected pilot passed the adherence gate: 20/20 dialogues delivered all mandatory beats in order, all 4/4 canary tokens reached the evaluated agent verbatim, and all 4/4 adversarial injection beats were delivered exactly as specified.
 

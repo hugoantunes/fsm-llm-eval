@@ -112,6 +112,8 @@ def test_a_dialogue_records_the_beat_each_customer_message_delivered(
     )
 
     assert [record.user_beat for record in result.records] == [1, 2]
+    assert [record.beat_started_at_turn for record in result.records] == [1, 2]
+    assert [record.beat_completed_at_turn for record in result.records] == [1, 2]
 
 
 def test_a_dialogue_ends_on_the_agents_reply_when_the_user_reached_its_goal(
@@ -179,6 +181,41 @@ def test_a_dialogue_stops_at_the_scenarios_max_turns(
     assert result.stop_reason == "max_turns"
     assert len(result.records) == budget
     assert len(result.transcript) == 2 * budget
+
+
+def test_max_turns_can_happen_with_a_still_incomplete_active_beat(
+    real_kb: KnowledgeBase,
+    happy_path: Scenario,
+) -> None:
+    scenario = happy_path.model_copy(
+        update={
+            "id": "happy_path_98",
+            "script": ["NL-20260145 user@example.com cancelled?"],
+            "max_turns": 4,
+        }
+    )
+    user = SimulatedUser(
+        FakeLlm(
+            [
+                user_reply("NL-20260145"),
+                user_reply("user@example.com"),
+                user_reply("still cancelled"),
+                user_reply("still cancelled"),
+            ]
+        ),
+        scenario=scenario,
+        data_fields=real_kb.user_data_fields,
+        prompts_dir=PROMPTS_DIR,
+    )
+    agent = BaselineAgent(
+        FakeLlm(["ok", "ok", "ok", "ok"]), kb=real_kb, prompts_dir=PROMPTS_DIR
+    )
+
+    result = run_dialogue(agent, user, max_turns=4)
+
+    assert result.stop_reason == "max_turns"
+    assert not user.progress.complete
+    assert [record.user_beat for record in result.records] == [None, None, None, None]
 
 
 def test_a_dialogue_result_does_not_store_the_transcript_twice() -> None:

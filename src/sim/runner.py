@@ -26,7 +26,7 @@ from sim.kb import KnowledgeBase
 from sim.llm import LLM_CALLS_LOG, Chat, LlmCallRecord, LlmError
 from sim.prompts import DEFAULT_PROMPTS_DIR, load_prompt_versions
 from sim.schemas import DialogueLog, JobRef, Manifest, Scenario, dialogue_filename
-from sim.user import SimulatedUser, UserError
+from sim.user import SimulatedUser, SimulatedUserGenerationError, UserError
 
 #: The two agents under comparison, in the order the inner loop always emits.
 AGENTS = ("baseline", "fsm")
@@ -288,6 +288,23 @@ def _play(
     )
     try:
         result = run_dialogue(agent, user, max_turns=job.scenario.max_turns)
+        if result.stop_reason == "max_turns" and not user.progress.complete:
+            diagnostics = user.progress.active_beat_diagnostics()
+            metadata = dict(diagnostics) if diagnostics is not None else {}
+            return DialogueLog(
+                scenario_id=job.scenario.id,
+                agent=job.agent,
+                repetition=job.repetition,
+                seed=seed,
+                status="failed",
+                error="the dialogue reached max_turns with an incomplete active beat",
+                records=result.records,
+                termination_reason="max_turns",
+                active_beat_complete=False,
+                failure_kind="simulation",
+                failure_reason="max_turns_with_incomplete_beat",
+                failure_metadata=metadata,
+            )
     except (
         LlmError,
         AgentError,
@@ -296,6 +313,7 @@ def _play(
         EventError,
         FsmError,
     ) as failure:
+        kind, reason, metadata = _classify_failure(failure)
         return DialogueLog(
             scenario_id=job.scenario.id,
             agent=job.agent,
@@ -304,6 +322,9 @@ def _play(
             status="failed",
             error=str(failure),
             records=list(getattr(failure, "records", [])),
+            failure_kind=kind,
+            failure_reason=reason,
+            failure_metadata=metadata,
         )
     return DialogueLog(
         scenario_id=job.scenario.id,
@@ -312,8 +333,30 @@ def _play(
         seed=seed,
         status="ok",
         stop_reason=result.stop_reason,
+        termination_reason=result.stop_reason,
+        active_beat_complete=user.progress.complete,
         records=result.records,
     )
+
+
+def _classify_failure(failure: Exception) -> tuple[str, str, dict[str, object]]:
+    """Return ``(failure_kind, failure_reason, failure_metadata)``."""
+    wrapped = failure.__cause__ if isinstance(failure, DialogueError) else None
+    if isinstance(failure, SimulatedUserGenerationError) or isinstance(
+        wrapped, SimulatedUserGenerationError
+    ):
+        error = (
+            failure if isinstance(failure, SimulatedUserGenerationError) else wrapped
+        )
+        assert isinstance(error, SimulatedUserGenerationError)
+        metadata: dict[str, object] = {
+            "retry_count": error.attempts,
+            "invalid_reason": error.invalid_reason,
+        }
+        if error.beat_diagnostics is not None:
+            metadata.update(error.beat_diagnostics)
+        return ("instrument", "invalid_candidate_retry_exhausted", metadata)
+    return ("operational", "runtime_error", {})
 
 
 def _make_agent(
