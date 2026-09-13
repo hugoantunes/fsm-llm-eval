@@ -123,20 +123,47 @@ Locked for subsequent runs (including pre-flight and Pilot v2):
 This supersedes the same-day DECISOES row that kept `qwen3.5:4b` after an
 earlier A/B on residual cases.
 
-## Pre-flight, Pilot v1 / v2, and the open denial contract
+## Pre-flight, Pilot v1 / v2, and the denial contract
 
 The 120-dialogue full-scenario pre-flight is QA, not a result
 (`docs/pilot.md`). Pilot v1 is historical and not pooled with Pilot v2. Pilot
 v2 has not started.
 
-The two `happy_path_09` instrument failures (baseline and FSM) are a
-**denial-detector** miss: the beat requires that nothing has shipped yet;
-wording such as `"before it ships"` is semantically a shipment negation but
-was not recognised, so retries exhausted. Intended narrow acceptances include
-`before it ships`, `before the order ships`, `it hasn't shipped yet`, `it has
-not shipped yet`, `nothing has shipped`, `nothing shipped`, `the order hasn't
-gone out yet`. Do not accept `after it ships`, `when it ships`, `it ships
-tomorrow`, `it already shipped`, `once it ships`, `the shipment is on the
-way`. Diagnosed, not yet applied. Until that patch, targeted repro, controls,
-`just check`, a fresh 120-run pre-flight, and a pass/fail on remaining
-simulation-only failures, Pilot v2 does not start.
+The two `happy_path_09` instrument failures (baseline and FSM) on the 114/6
+pre-flight were a **denial-detector** miss: beat 1 already required a denial
+(`nothing shipped`); the simulated user wrote `"before it ships"`, which the
+old predicate (`DENIALS` / `n't` only) did not treat as a denial, so the beat
+never completed and closing retries raised `invalid_candidate_retry_exhausted`.
+The same opening also failed to carry the cumulative keyword `shipped` until
+inflection stemming (`ships` / `shipped`) was in place.
+
+The applied predicate still honours classic denials, and additionally treats
+**current pre-shipment** language as a denial. It is not
+`contains("before") ∧ shipment-word`. True constructions:
+
+- `before` followed by a present/future shipment form (`ship`, `ships`,
+  `shipping`, `dispatch`), skipping fillers such as `it` / `the` / `order`
+- `before` + present auxiliary + past participle (`before it is shipped`)
+- upcoming shipment: those present forms plus `will` or `tomorrow`, unless
+  blocked by `after` / `when` / `once` / `already`
+- existing denials: `hasn't shipped`, `has not shipped`, `nothing shipped`,
+  `hasn't gone out`, and the rest of `DENIALS` / `n't`
+
+False: `after` / `when` / `once it ships`, `it already shipped`, `it has
+shipped`, `the shipment is on the way`, `before Friday` (`before` alone is
+not enough), `before it shipped` (simple past, not current non-occurrence).
+`delivery` / `delivered` are out: `before delivery` does not mean the order
+has not dispatched.
+
+Targeted repro after the patch (`runs/hp09_repro_shipment_not_yet`, same
+scenario / rep / derived seed `1872900963` / models): both agents `ok`, beat 1
+completed on the `"before it ships"` turn, beats 2–3 followed,
+`just adherence` 2/2, no `invalid_candidate_retry_exhausted`. Controls
+`edge_02` (explicit denial), `happy_path_01` (no denial predicate),
+`happy_path_10` (already dispatched, not a denial): 6/6 ok, `just adherence`
+6/6. `just check` green.
+
+The 114/6 full-scenario pre-flight remains the **pre-patch** QA artifact
+(census in `docs/run_cleanup_2026-09-13.md`; raw `runs/` directory was
+deleted). A fresh 120-dialogue pre-flight has not been run. Until that rerun
+and a pass/fail on remaining simulation-only failures, Pilot v2 does not start.

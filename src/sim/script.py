@@ -427,16 +427,59 @@ def _stem(word: str) -> str:
     return word
 
 
+#: Present/future shipment words. Past ``shipped`` / ``dispatched`` are not here:
+#: they only count as not-yet when a present auxiliary makes them passive
+#: (``before it is shipped``), not when they are simple past (``before it shipped``).
+_PRESENT_SHIPMENT = frozenset(("ship", "ships", "shipping", "dispatch"))
+_PAST_SHIPMENT = frozenset(("shipped", "dispatched"))
+_PRESENT_AUX = frozenset(("am", "is", "are", "be", "being"))
+_SHIPMENT_BLOCKERS = frozenset(("after", "when", "once", "already"))
+_FUTURE_TIME = frozenset(("tomorrow",))
+_BEFORE_SKIP = FUNCTION_WORDS | frozenset(("order",))
+
+
 def _denies(text: str) -> bool:
-    """Whether ``text`` says no to something, or restricts what it asks for."""
+    """Whether ``text`` denies something or says shipment has not happened yet."""
     words = _words(text)
     if bool(set(words) & DENIALS) or "n't" in text.lower():
         return True
-    return "before" in words and any(
-        _same_word(target, word)
-        for target in ("shipped", "dispatch", "delivery")
-        for word in words
-    )
+    return _shipment_has_not_happened(words)
+
+
+def _shipment_has_not_happened(words: tuple[str, ...]) -> bool:
+    """Whether ``words`` describe a current pre-shipment state."""
+    return _before_present_shipment(words) or _upcoming_shipment(words)
+
+
+def _before_present_shipment(words: tuple[str, ...]) -> bool:
+    """Whether ``before`` is followed by a present/future shipment construction."""
+    try:
+        start = words.index("before")
+    except ValueError:
+        return False
+    saw_present_aux = False
+    for word in words[start + 1 :]:
+        if word in _PRESENT_AUX:
+            saw_present_aux = True
+            continue
+        if word in _PRESENT_SHIPMENT:
+            return True
+        if word in _PAST_SHIPMENT:
+            return saw_present_aux
+        if word in _BEFORE_SKIP:
+            continue
+        return False
+    return False
+
+
+def _upcoming_shipment(words: tuple[str, ...]) -> bool:
+    """Whether shipment is scheduled ahead, so it has not happened yet."""
+    present = set(words)
+    if present & _SHIPMENT_BLOCKERS:
+        return False
+    if not present & _PRESENT_SHIPMENT:
+        return False
+    return "will" in present or bool(present & _FUTURE_TIME)
 
 
 def _literals(

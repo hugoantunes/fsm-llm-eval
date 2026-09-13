@@ -202,7 +202,7 @@ The partial pre-fix run was kept as `runs/full_scenario_preflight_pre_fix_fail_2
 removed from disk; census in [`docs/run_cleanup_2026-09-13.md`](run_cleanup_2026-09-13.md)). A
 fresh `runs/full_scenario_preflight/` was started so the two termination semantics were not mixed.
 
-Corrected pre-flight: **120/120**, 114 ok, 6 failed.
+Corrected pre-flight (pre-denial-patch artifact): **120/120**, 114 ok, 6 failed.
 
 - simulation / `max_turns_with_incomplete_beat`: `adversarial_07` baseline, `adversarial_12`
   baseline, `adversarial_19` baseline, `happy_path_18` baseline
@@ -212,8 +212,15 @@ The premature-`goal_reached` bug did not recur. `adversarial_07` is the example 
 incomplete beat is not automatically an instrument bug: under the same scenario/seed/model,
 baseline never asked for the missing e-mail and beat 1 never completed; FSM asked for it, the
 user supplied `walt.reed@example.com`, and the script progressed. Those cases stay in the
-experiment. The `happy_path_09` pair is treated as a denial-contract defect (see
-[`docs/decisions_and_limitations.md`](decisions_and_limitations.md)). Pilot v2 has not started.
+experiment.
+
+The `happy_path_09` pair was a denial-contract miss (`"before it ships"` not recognised as
+shipment-not-yet). The predicate now recognises current pre-shipment constructions; targeted
+repro of both agents is `ok` with `just adherence` 2/2
+([`docs/decisions_and_limitations.md`](decisions_and_limitations.md)). That 114/6 run stays the
+pre-patch QA record (raw directory later deleted; census in
+[`docs/run_cleanup_2026-09-13.md`](run_cleanup_2026-09-13.md)). A fresh 120-dialogue pre-flight
+has not been started. Pilot v2 has not started.
 
 ## Cost per dialogue
 

@@ -218,12 +218,14 @@ def test_happy_path_09_opening_paraphrase_satisfies_beat_one(
     v1_scenarios: dict[str, Scenario], real_kb: KnowledgeBase
 ) -> None:
     beat = beats_of(v1_scenarios["happy_path_09"], real_kb.user_data_fields)[0]
-
-    assert beat.satisfied_by(
+    message = (
         "I need to cancel order NL-20260616 for elena.vasquez@example.com "
         "before it ships, and I want a refund to the original method-how long "
         "does that take?"
     )
+
+    assert "a denial" not in beat.local_faults_in(message)
+    assert beat.satisfied_by(message)
 
 
 def test_a_beat_that_asks_something_requires_a_question(
@@ -255,14 +257,20 @@ def test_a_beat_that_denies_something_requires_a_denial(
     [
         "before it ships",
         "before the order ships",
+        "before it is shipped",
+        "before dispatch",
         "it hasn't shipped yet",
         "it has not shipped yet",
+        "the order hasn't shipped",
         "nothing has shipped",
         "nothing shipped",
         "the order hasn't gone out yet",
+        "it hasn't gone out yet",
+        "it ships tomorrow",
+        "it will ship tomorrow",
     ],
 )
-def test_shipment_not_yet_phrases_satisfy_the_denial_predicate(
+def test_shipment_not_yet_phrases_satisfy_denial_predicate(
     real_kb: KnowledgeBase, text: str
 ) -> None:
     beat = beats_of(brief("not"), real_kb.user_data_fields)[0]
@@ -277,13 +285,15 @@ def test_shipment_not_yet_phrases_satisfy_the_denial_predicate(
     [
         "after it ships",
         "when it ships",
-        "it ships tomorrow",
-        "it already shipped",
         "once it ships",
+        "it already shipped",
+        "it has shipped",
         "the shipment is on the way",
+        "before Friday",
+        "before it shipped",
     ],
 )
-def test_non_negated_shipment_phrases_do_not_satisfy_the_denial_predicate(
+def test_non_denial_shipment_phrases_do_not_satisfy_denial_predicate(
     real_kb: KnowledgeBase, text: str
 ) -> None:
     beat = beats_of(brief("not"), real_kb.user_data_fields)[0]

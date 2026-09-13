@@ -21,8 +21,9 @@ everything the models read or write are in English; the thesis glosses names in 
 > `results/judge_validation/exp_pilot/` (do not redraw). Agreement and labeler
 > reports are computed; *Results* is filled. Pilot v1 is historical and not
 > pooled with Pilot v2. Full-scenario pre-flight (120 dialogues) is QA, not
-> evidence; `happy_path_09` denial-contract is the open blocker. Metrics:
-> [`docs/metrics.md`](docs/metrics.md).
+> evidence. The `happy_path_09` denial-contract miss is patched (targeted
+> baseline+FSM repro `ok`, `just adherence` 2/2); a fresh 120-run pre-flight
+> has not been started. Metrics: [`docs/metrics.md`](docs/metrics.md).
 
 ## Requirements
 
