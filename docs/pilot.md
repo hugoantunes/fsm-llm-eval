@@ -174,7 +174,7 @@ The original pilot was superseded after identifying simulated-user script-adhere
 T-16 annotates that corrected run: dialogue-level validation is a census of all 20 ok dialogues; response-level validation is a blinded sample of 30/76 eligible agent responses.
 
 That original 11/09 / first-corrected-pilot raw directory was later deleted by accident and is not
-recoverable. T-16 does not need a rerun: `results/judge_validation_v1/exp_pilot/` still holds the
+recoverable. T-16 does not need a rerun: `results/judge_validation/pilot_v1/` still holds the
 blinded packet (all 20 transcripts, scenario briefs, success criteria, reference answers, sampled
 responses), `sample.json` (76 eligible, 38+38, the 30-response draw, identities, seed, hashes), and
 [`docs/parity.md`](parity.md) records the configuration. What was lost was the operational
@@ -458,42 +458,40 @@ checksums, and `sim eval --run <dest>/exp_pilot` scored the 20 dialogues **with 
 judged. The network hop and the Pro's `authorized_keys` are still untested; `ssh-copy-id` to the Pro
 is the one remaining step before T-17.
 
-## The measurement risk T-16 has to close
+## The measurement risk T-16 closed on Pilot v2
 
-The stage labeler is the weakest instrument in the pipeline, and the flow columns rest on it.
-The figures in this section are from the **11/09 instrument**, not the T-16 number. Remeasure
-turn accuracy and the `valid_flow_path` downward bias on the corrected eval before deciding
-on a labeler v2; do not quote 23/38 as the T-16 figure.
+The stage labeler remains the weakest instrument in the pipeline, and the flow
+columns rest on it. Pilot v2 is the closing frame for this decision:
+`runs/pilot_v2/`, 20/20 `ok`, `just adherence` 20/20, human sheets frozen under
+`results/judge_validation/pilot_v2/`.
 
-**Turn-level accuracy against the FSM's true `state_after` (11/09): 23/38 = 0.605.** Dominant
-confusions on that run:
+Revision-1 measurement on Pilot v2 (`just validate-labeler runs/pilot_v2`):
 
-| n | true | labelled |
-|---|---|---|
-| 3 | `intent_classification` | `solution` |
-| 3 | `intent_classification` | `confirmation` |
-| 2 | `identification` | `data_collection` |
-| 1 | `solution` | `data_collection` |
-| 1 | `confirmation` | `out_of_scope` |
-| 1 | `identification` | `intent_classification` |
+- turn-level match against FSM `true_state_after`: **25/39 = 0.641**
+- `valid_flow_path` agreement: **8/10**
+- downward bias (`gold=True`, `labelled=False`): **2/10**
 
-The labeler reads the agent's reply and hears the *topic* the agent is discussing, not the stage it
-is in: an agent that states a price while still classifying the request gets labelled `solution`.
+All 14 revision-1 mismatches on the FSM side grouped into one narrow contract
+issue: the prompt tends to classify the assistant's speech act/topic rather than
+the FSM procedure stage after auto-advance.
 
-**Path-level, this mattered more than 0.605 suggested on that run.** Exact path match was 2/10.
-On the derived column, the labelled path and the gold path agreed on `valid_flow_path` in only
-**5 of 10** FSM dialogues — and all five disagreements ran the same way, gold `True` and labelled
-`False`. The labeler jumps ahead, which manufactures apparent multi-stage jumps that the k ≤ 2
-bound then rejects. That was a systematic downward bias, not noise. T-16 remeasures it on the
-corrected eval.
+A candidate stage-labeler revision 2 was tested in a sidecar
+(`runs/pilot_v2_labeler_v2/`) with frozen Pilot v2 dialogues only. This was
+post-hoc/resubstitution evidence, not independent validation, because the
+contract revision was written after inspecting revision-1 errors.
 
-The bias applies to both agents, since the labeler is the same instrument run over each agent's turn
-identically, so the paired comparison is partly protected. But there is no gold for the baseline,
-so the magnitude cannot be checked on that side. **`valid_flow_path` and `flow_adherence` therefore
-carry no inferential weight**, which is why `flow_adherence` is out of `PRIMARY_METRICS`. T-16
-quantifies this in `docs/judge_validation.md` and records the decision on whether a labeler prompt
-change is worth it before the `v1` tag freezes it. Re-labelling the full experiment is cheap if it is: 360 × 6.12 s
-≈ 37 min, and nothing else has to re-run.
+Revision-2 development check (`just validate-labeler runs/pilot_v2_labeler_v2`):
+
+- turn-level match: **28/39 = 0.718**
+- `valid_flow_path` agreement: **7/10**
+- downward bias (`gold=True`, `labelled=False`): **3/10**
+
+The candidate improved turn match but worsened the harmful path-level bias.
+Decision: **keep stage-labeler revision 1**.
+
+The limitation remains: flow diagnostics depend on a weak instrument, and there
+is no baseline-side gold path to calibrate error magnitude. `flow_adherence`
+stays outside `PRIMARY_METRICS`.
 
 ## Exploratory direction
 

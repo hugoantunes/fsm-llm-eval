@@ -19,7 +19,7 @@ on that run. The logical run path is `runs/exp_pilot`. The manifest `exp_id` of 
 
 The **11/09 sample** is void: those dialogues dropped beats, so annotating them would validate the
 judge on an instrument failure. What is void is that draw, not the path `runs/exp_pilot`. The
-frozen files live under `results/judge_validation_v1/exp_pilot/`. **Do not redraw them.**
+frozen files live under `results/judge_validation/pilot_v1/`. **Do not redraw them.**
 
 The script reads `manifest.json` and the dialogue JSONL of the run and **nothing else**: not
 `metrics.csv`, not `metrics_turn.csv`, not `llm_calls.jsonl`. No judge output can steer which
@@ -51,7 +51,7 @@ the outcome, which is the one thing this exercise exists to rule out.
 
 ### Files
 
-Everything for this draw lives in `results/judge_validation_v1/exp_pilot/`.
+Everything for this draw lives in `results/judge_validation/pilot_v1/`.
 
 | File | What it is |
 |---|---|
@@ -144,7 +144,7 @@ can meet the criterion while stating the reference answer only partly.
    means nothing.
 5. Use `notes` whenever a call was close. The disagreements are what the write-up explains.
 
-The sheets under `results/judge_validation_v1/exp_pilot/` are filled and reviewed. Joining them to the
+The sheets under `results/judge_validation/pilot_v1/` are filled and reviewed. Joining them to the
 judge output of `runs/exp_pilot` is allowed after that lock. The raw `runs/exp_pilot` tree is
 gone; the sheets and packet remain.
 
@@ -203,7 +203,7 @@ The judge is not retuned to raise agreement. The same `gemma4:12b` judge is used
 Computed on the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_id`
 `exp_pilot_fixes_20260913_final_v1`) with:
 
-- `uv run python scripts/validate_judge.py agree --run runs/exp_pilot --sample results/judge_validation_v1/exp_pilot`
+- `uv run python scripts/validate_judge.py agree --run runs/exp_pilot --sample results/judge_validation/pilot_v1`
 - `uv run python scripts/validate_judge.py labeler --run runs/exp_pilot`
 
 ### Agreement table
@@ -231,7 +231,7 @@ Measured from `metrics_turn.csv` on the same corrected run:
 - Downward bias count (`gold=True`, `labelled=False`): 3/10 dialogues
 
 The topic-vs-stage bias remains but is smaller than on the 11/09 instrument run.
-No stage-labeler retune is applied in T-16.
+At the `v1` freeze point, no stage-labeler retune was applied.
 
 ### Frozen rubric versions
 
@@ -288,7 +288,8 @@ They are reported and excluded from forced turn-level labels by design.
 | `fact_ids_stated` (exact-set mismatch) | response sample | 10 | `A03`, `A05`, `A08`, `A09`, `A12`, `A15`, `A17`, `A22`, `A24`, `A27` |
 
 Join IDs to scenario/agent/turn in `results/judge_validation/pilot_v2/sample.json`.
-The three `task_completed` disagreements are all `edge_19`. No judge retune.
+The three `task_completed` disagreements are all `edge_19`.
+The judge was not retuned using this validation sample.
 
 ### Stage labeler on Pilot v2
 
@@ -299,4 +300,36 @@ Measured from `metrics_turn.csv` on `runs/pilot_v2`:
 - `valid_flow_path` agreement between gold and labelled paths: 8/10 = 0.800
 - Downward bias count (`gold=True`, `labelled=False`): 2/10 dialogues
 
-No stage-labeler retune. `flow_adherence` stays out of `PRIMARY_METRICS`.
+Mismatch analysis on all 14 FSM mismatches (`labelled_stage != true_state_after`)
+confirms one narrow contract issue: revision 1 labels the assistant's speech act
+more than the procedure stage after FSM auto-advance. The eight grouped patterns
+are in `results/judge_validation/pilot_v2/labeler_v1/metrics_turn.csv` and in
+the side-by-side notes of this round.
+
+### Stage-labeler revision 2 candidate (development check only)
+
+Revision 2 was written after inspecting those 14 Pilot v2 errors. Its comparison
+on the same 39 turns is therefore post-hoc/resubstitution evidence, not
+independent validation.
+
+- Candidate relabel sidecar: `runs/pilot_v2_labeler_v2/`
+- Source run left frozen: `runs/pilot_v2/`
+- Command: `just relabel-stages runs/pilot_v2 runs/pilot_v2_labeler_v2`
+- Validation command: `just validate-labeler runs/pilot_v2_labeler_v2`
+
+Measured on the same 39 FSM turns:
+
+- Turn-level exact match: 28/39 = 0.718 (up from 25/39)
+- `valid_flow_path` agreement: 7/10 = 0.700 (down from 8/10)
+- Downward bias (`gold=True`, `labelled=False`): 3/10 (up from 2/10)
+
+The candidate fixed 4 revision-1 errors and introduced 1 new wrong label, but it
+made the harmful path-level bias worse. Adoption rule is not met.
+
+Decision: **KEEP STAGE-LABELER REVISION 1**.
+Experimental instrument remains v1.
+
+The stage-labeler revision-2 comparison is used as a regression/development check
+only. No independent holdout was used to estimate revision-2 accuracy. This
+limitation affects only the diagnostic stage-labeling and flow-adherence columns;
+`flow_adherence` stays out of `PRIMARY_METRICS`.

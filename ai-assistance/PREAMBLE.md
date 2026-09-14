@@ -28,7 +28,7 @@ That folder is on iCloud: if a file is unreadable it is probably evicted, so ask
 - `just test`: pytest without `integration` tests. `just test-all` includes them (needs Ollama with the models in `configs/models.yaml`). Extra arguments go to pytest: `just test tests/test_cli.py -k help`.
 - `just lint` / `just format`: ruff check and ruff format. `just check` = lint + test; it is the gate the hooks run.
 - `just run [exp_id] [scenarios] [reps] [parallel] [args...]` and `just eval runs/<exp_id>`: thin wrappers over `python -m sim run|eval` (T-14a, T-14b). Smoke defaults to `data/scenarios/examples`; the experiment is `data/scenarios/v1`.
-- `just stats <run>`: per-caller tokens and latency from `llm_calls.jsonl`. `just adherence [run]`: fail unless every dialogue delivered its script beats. `just judge-sample <run>`: draw the T-16 sample into `results/judge_validation` (requires the run directory; do not redraw the frozen T-16 sheets).
+- `just stats <run>`: per-caller tokens and latency from `llm_calls.jsonl`. `just adherence [run]`: fail unless every dialogue delivered its script beats. `just judge-sample <run>`: draw the T-16 sample into `results/judge_validation` (requires the run directory; do not redraw the frozen sheets in `results/judge_validation/pilot_v1/` and `pilot_v2/`).
 - `just generate-scenarios`: expand `plan.yaml`. Default `--out` is the next unused `data/scenarios/vN`; a directory that already has JSONL is refused. Do not overwrite frozen `v1`.
 - `just pull-models` / `just digests` / `just verify-models`: pull the models of `configs/models.yaml`, print their digests, fail on any digest mismatch (`scripts/models.py`).
 - Always go through `uv run ...`; add dependencies with `uv add` (or `uv add --group dev`), never pip.

@@ -15,15 +15,18 @@ everything the models read or write are in English; the thesis glosses names in 
 > Status: `sim run` / `sim eval` in place; v1 dataset frozen. Pilot v1 (T-15/T-16)
 > is historical: logical path `runs/exp_pilot` (manifest
 > `exp_pilot_fixes_20260913_final_v1`); sheets locked under
-> `results/judge_validation_v1/exp_pilot/` (do not redraw). The 11/09 sample is
+> `results/judge_validation/pilot_v1/` (do not redraw). The 11/09 sample is
 > void. Full-scenario pre-flight (2026-09-14, `runs/full_scenario_preflight/`)
 > passed as QA: 116/120 ok ([`docs/pilot.md`](docs/pilot.md)). Pilot v2
 > (`runs/pilot_v2/`) is closed as instrument validation: 20/20 ok,
 > `just adherence` 20/20, 4/4 canary, 4/4 injection; eval written; sheets
 > locked under `results/judge_validation/pilot_v2/` (do not redraw). Agreement
 > and disagreements are in [`docs/judge_validation.md`](docs/judge_validation.md)
-> *Pilot v2 validation round*. Pilot v1 is not pooled with Pilot v2. Do not
-> start `runs/exp_final/` until the freeze. Metrics:
+> *Pilot v2 validation round*. Stage-labeler revision 2 was tested in a sidecar
+> (`runs/pilot_v2_labeler_v2/`) as a post-hoc development check and rejected:
+> revision 1 is kept (`docs/judge_validation.md`). Pilot v1 is not pooled with
+> Pilot v2. **T-16 CLOSED — ready to freeze final configuration.** Do not start
+> `runs/exp_final/` in this step. Metrics:
 > [`docs/metrics.md`](docs/metrics.md).
 
 ## Requirements
@@ -105,7 +108,7 @@ After a run, check that every dialogue delivered its script beats, then score it
 without re-playing the dialogues. Judge and labeler calls go through the same
 prompt-hash cache, so a second eval of the same directory is free when the
 rubrics have not changed. The T-16 sheets under
-`results/judge_validation_v1/exp_pilot/` are frozen (census of all 20 ok
+`results/judge_validation/pilot_v1/` are frozen (census of all 20 ok
 dialogues; blinded sample of 30/76 eligible agent responses). Pilot v2 sheets
 under `results/judge_validation/pilot_v2/` are frozen (census of 20; blinded
 sample of 30/78). Do not redraw either. Draw a sample only from a run that
@@ -198,7 +201,7 @@ Parts that do not exist yet are marked with the ticket that creates them.
 | `data/scenarios/` | golden dataset: `examples/` (T-05), `plan.yaml` (authoring source), and frozen `v1/` (T-06). Do not edit `v1/` |
 | `configs/` | `models.yaml`: models, digests, `num_ctx`, fixed parameters |
 | `runs/` | output of `sim run` / `sim eval`: dialogues, manifest, LLM cache, `metrics.csv`, `metrics_turn.csv`. Contents git-ignored; moved between machines by `rsync` |
-| `results/` | `metrics.csv` (T-18, audited copy), `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-19, T-20; CSVs git-ignored, regenerated from `runs/`); `judge_validation/` after the T-16 draw (hand annotations are primary data) |
+| `results/` | `metrics.csv` (T-18, audited copy), `descriptive.csv`, `tests.csv`, `tables/`, `figures/` (T-19, T-20; CSVs git-ignored, regenerated from `runs/`); `judge_validation/pilot_v1/` and `judge_validation/pilot_v2/` (hand annotations are primary data) |
 | `notebooks/` | `analysis.ipynb`: regenerates tables and figures from `metrics.csv` (T-20) |
 | `scripts/` | `ollama_env.sh`, `models.py`, `measure_latency.py`, `run_stats.py`, `script_adherence.py` (T-11), `judge_validation_sample.py` (T-16), `generate_scenarios.py` (T-06; default out is the next unused `vN`, never overwrite `v1`) |
 | `docs/` | `setup.md`, `metrics.md`, `taxonomy.md`, `fsm.md`, `decisions_and_limitations.md`, `pilot.md`, `judge_validation.md`, `parity.md`; later the appendices (T-16 to T-22) |

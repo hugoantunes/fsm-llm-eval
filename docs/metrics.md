@@ -174,7 +174,7 @@ sample of 30/76 eligible agent responses (`fact_ids_stated`, `claim_support`),
 beats ([`docs/judge_validation.md`](judge_validation.md)). The path
 `runs/exp_pilot` is the logical directory of the corrected pilot (manifest
 `exp_id` `exp_pilot_fixes_20260913_final_v1`); do not redraw the frozen sheets
-under `results/judge_validation_v1/exp_pilot/`. A second instrument-validation
+under `results/judge_validation/pilot_v1/`. A second instrument-validation
 round on Pilot v2 lives under `results/judge_validation/pilot_v2/` (seed
 `20260914`, 30/78 eligible responses; do not redraw). Agreement tables are in
 [`docs/judge_validation.md`](judge_validation.md). A human grades the same rubric

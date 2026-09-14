@@ -224,8 +224,9 @@ __marimo__/
 runs/*
 !runs/.gitkeep
 
-# Result CSVs are regenerated from runs/ (T-14b, T-18, T-19). The T-16 sheet is
-# the exception: hand annotations are primary data and cannot be regenerated.
+# Result CSVs are regenerated from runs/ (T-14b, T-18, T-19). The T-16 sheets
+# under results/judge_validation/pilot_v1/ and pilot_v2/ are the exception:
+# hand annotations are primary data and cannot be regenerated.
 results/**/*.csv
 !results/judge_validation/*.csv
 !results/judge_validation/**/*.csv

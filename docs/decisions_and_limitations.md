@@ -184,7 +184,16 @@ eval written. Same five scenarios as T-15. Simulated user `qwen3.5:9b`. Sheets
 locked under `results/judge_validation/pilot_v2/` (seed `20260914`, 30/78).
 Agreement: `task_completed` 0.850 / κ 0.667; `accuracy` 0.750 / κw 0.569;
 `claim_support` 0.733 / κ 0.533; `fact_ids` exact-set 0.667, micro F1 0.824
-(`docs/judge_validation.md`). Labeler: 25/39 turn match, 8/10 `valid_flow_path`.
-No judge or labeler retune. Not pooled with Pilot v1 or T-17. T-16 sheets live
-at `results/judge_validation_v1/exp_pilot/`. Next: configuration freeze, then
-prepare empty `runs/exp_final/` without starting it.
+(`docs/judge_validation.md`). Labeler revision 1: 25/39 turn match, 8/10
+`valid_flow_path`, 2/10 downward bias.
+
+A stage-labeler revision-2 prompt was tested in a sidecar run
+(`runs/pilot_v2_labeler_v2/`) after inspecting Pilot v2 revision-1 errors.
+Its 39-turn comparison is post-hoc/resubstitution evidence, not independent
+validation. Revision 2 improved turn match to 28/39 but worsened the harmful
+diagnostic bias (`valid_flow_path` 7/10, downward bias 3/10), so it was
+rejected and revision 1 was kept.
+
+Not pooled with Pilot v1 or T-17. T-16 sheets live at
+`results/judge_validation/pilot_v1/`. The judge was not retuned.
+Experimental instrument remains v1.

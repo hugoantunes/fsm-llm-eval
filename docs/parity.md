@@ -9,7 +9,7 @@ from the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_id`
 The 11/09 sample is void. This directory after the adherence gate is the T-16 frame.
 Dialogue-level judge validation is a census of all 20 ok dialogues. Response-level
 validation is a blinded sample of 30/76 eligible agent responses. Frozen T-16
-sheets: `results/judge_validation_v1/exp_pilot/`. See
+sheets: `results/judge_validation/pilot_v1/`. See
 [`docs/judge_validation.md`](judge_validation.md).
 Pilot v2 is a later 9B-simulated-user frame (`runs/pilot_v2`, 30/78, seed
 `20260914`); agreement and disagreements are in the same file, under

@@ -79,13 +79,17 @@ judge-sample run_dir *args:
     uv run python scripts/judge_validation_sample.py --run {{run_dir}} {{args}}
 
 # Compute T-16 agreement from frozen sheets and one run directory
-# Pilot v2: just validate-judge runs/pilot_v2 results/judge_validation/pilot_v2
-validate-judge run_dir="runs/exp_pilot" sample_dir="results/judge_validation_v1/exp_pilot":
+# Default: Pilot v1. Pilot v2: just validate-judge runs/pilot_v2 results/judge_validation/pilot_v2
+validate-judge run_dir="runs/exp_pilot" sample_dir="results/judge_validation/pilot_v1":
     uv run python scripts/validate_judge.py agree --run {{run_dir}} --sample {{sample_dir}}
 
 # Measure stage-labeler accuracy and flow-path agreement on one run
 validate-labeler run_dir="runs/exp_pilot":
     uv run python scripts/validate_judge.py labeler --run {{run_dir}}
+
+# Relabel one frozen run into a sidecar with stage-labeler only
+relabel-stages source_run="runs/pilot_v2" target_run="runs/pilot_v2_labeler_v2":
+    uv run python scripts/relabel_stages.py --source {{source_run}} --target {{target_run}}
 
 # Remove caches and coverage output
 clean:
