@@ -8,8 +8,12 @@ from the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_id`
 
 The 11/09 sample is void. This directory after the adherence gate is the T-16 frame.
 Dialogue-level judge validation is a census of all 20 ok dialogues. Response-level
-validation is a blinded sample of 30/76 eligible agent responses. See
+validation is a blinded sample of 30/76 eligible agent responses. Frozen T-16
+sheets: `results/judge_validation_v1/exp_pilot/`. See
 [`docs/judge_validation.md`](judge_validation.md).
+Pilot v2 is a later 9B-simulated-user frame (`runs/pilot_v2`, 30/78, seed
+`20260914`); agreement and disagreements are in the same file, under
+`results/judge_validation/pilot_v2/`. Do not mix the two token tables.
 
 The same `gemma4:12b` judge is used in T-16 and T-17. Rubrics are not cheapened to speed
 eval. `flow_adherence` stays out of `PRIMARY_METRICS`.
@@ -70,3 +74,23 @@ Run: 72.1 s/dialogue. Eval: 266.2 s/dialogue.
 The 11/09 cost table in [`docs/pilot.md`](pilot.md) remains the machine-budget record
 of the superseded instrument (three eval passes on an append-only log). Do not mix the
 two tables.
+
+## Token account (Pilot v2)
+
+From `just stats runs/pilot_v2` (2026-09-14). Simulated user is `qwen3.5:9b`.
+Means are over that caller's lines in `llm_calls.jsonl`. Latency is uncached
+calls only.
+
+| caller | n | mean prompt tokens | mean output tokens | mean latency (s) |
+|---|---|---|---|---|
+| `baseline` | 39 | 2276.5 | 51.8 | 17.19 |
+| `fsm` | 39 | 2123.4 | 48.1 | 12.29 |
+| `classifier` | 28 | 1195.9 | 31.8 | 9.24 |
+| `simulated_user` | 78 | 1494.0 | 40.8 | 19.43 |
+| `stage_labeler` | 20 | 610.5 | 36.0 | 9.39 |
+| `judge_facts` | 20 | 2849.0 | 603.0 | 183.76 |
+| `judge_global` | 20 | 1355.6 | 78.3 | 44.18 |
+
+**Prompt tokens per agent turn (this frame).** Baseline: 2276.5. FSM: 2123.4
+(agent) + 1195.9 (classifier) = 3319.3. Run: 72.9 s/dialogue. Eval: 237.3
+s/dialogue.

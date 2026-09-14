@@ -174,7 +174,7 @@ The original pilot was superseded after identifying simulated-user script-adhere
 T-16 annotates that corrected run: dialogue-level validation is a census of all 20 ok dialogues; response-level validation is a blinded sample of 30/76 eligible agent responses.
 
 That original 11/09 / first-corrected-pilot raw directory was later deleted by accident and is not
-recoverable. T-16 does not need a rerun: `results/judge_validation/exp_pilot/` still holds the
+recoverable. T-16 does not need a rerun: `results/judge_validation_v1/exp_pilot/` still holds the
 blinded packet (all 20 transcripts, scenario briefs, success criteria, reference answers, sampled
 responses), `sample.json` (76 eligible, 38+38, the 30-response draw, identities, seed, hashes), and
 [`docs/parity.md`](parity.md) records the configuration. What was lost was the operational
@@ -199,16 +199,16 @@ incomplete-beat failures were not turned into successes. Semantics are in
 [`docs/metrics.md`](metrics.md).
 
 The partial pre-fix run was kept as `runs/full_scenario_preflight_pre_fix_fail_2026-09-13` (later
-removed from disk; census in [`docs/run_cleanup_2026-09-13.md`](run_cleanup_2026-09-13.md)). A
+removed from disk; census in *Removed run directories*). A
 fresh `runs/full_scenario_preflight/` was started so the two termination semantics were not mixed.
 
-Corrected pre-flight (pre-denial-patch artifact): **120/120**, 114 ok, 6 failed.
+Corrected pre-flight (pre-denial-patch artifact, later deleted): **120/120**, 114 ok, 6 failed.
 
 - simulation / `max_turns_with_incomplete_beat`: `adversarial_07` baseline, `adversarial_12`
   baseline, `adversarial_19` baseline, `happy_path_18` baseline
 - instrument / `invalid_candidate_retry_exhausted`: `happy_path_09` baseline and FSM
 
-The premature-`goal_reached` bug did not recur. `adversarial_07` is the example that a max-turn
+The premature-`goal_reached` *stop* did not recur. `adversarial_07` is the example that a max-turn
 incomplete beat is not automatically an instrument bug: under the same scenario/seed/model,
 baseline never asked for the missing e-mail and beat 1 never completed; FSM asked for it, the
 user supplied `walt.reed@example.com`, and the script progressed. Those cases stay in the
@@ -218,9 +218,82 @@ The `happy_path_09` pair was a denial-contract miss (`"before it ships"` not rec
 shipment-not-yet). The predicate now recognises current pre-shipment constructions; targeted
 repro of both agents is `ok` with `just adherence` 2/2
 ([`docs/decisions_and_limitations.md`](decisions_and_limitations.md)). That 114/6 run stays the
-pre-patch QA record (raw directory later deleted; census in
-[`docs/run_cleanup_2026-09-13.md`](run_cleanup_2026-09-13.md)). A fresh 120-dialogue pre-flight
-has not been started. Pilot v2 has not started.
+pre-patch QA record (raw directory later deleted; census in *Removed run directories*).
+
+Accepted pre-flight (2026-09-14, `runs/full_scenario_preflight/`, locked
+`simulated_user = qwen3.5:9b`, `classifier` / `state_labeler = qwen3.5:4b`):
+**120/120**, 116 ok, 4 failed, 0 skipped, 0 LLM-call errors, 0
+`invalid_candidate_retry_exhausted`. `just adherence` 116/120, 8/8 canary,
+8/8 injection. Dataset hash
+`0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9`. Wall clock
+2.9 h (40.9 dlg/h, 88.0 s/dialogue). Gate: **PRE-FLIGHT PASS**. This sweep is
+not judged, not pooled with Pilot v1 or Pilot v2, and not part of T-17.
+
+The four failures are all `simulation / max_turns_with_incomplete_beat`, all
+baseline; every FSM counterpart completed the script:
+
+- `adversarial_07` — beat 1 never sent `walt.reed@example.com`; baseline never asked
+- `adversarial_12` — beat 1 (essay) sent; never reached "No order"
+- `adversarial_19` — never sent `irene.pohl@example.com`; baseline treated identity as confirmed
+- `happy_path_18` — e-mail attempted as `sophi.nilsen@...` / `Sophi.nilsen@...`, never exact `sofi.nilsen@example.com`
+
+Six ok dialogues recorded `goal_reached_seen` before the script was complete
+(`adversarial_20` baseline, `edge_01` both, `edge_09` FSM, `edge_10` FSM,
+`edge_20` FSM). The runtime continued; all six delivered every beat
+(`edge_20` FSM 6/6, which the 114/6 run had missed on beat 6). That is the
+termination contract, not a stop-too-soon defect. `happy_path_09` both agents
+`ok` on this sweep.
+
+### Pilot v2 (instrument validation)
+
+Same five scenarios as T-15 × 2 agents × 2 reps = 20 dialogues, under the locked
+post-pre-flight config (`simulated_user = qwen3.5:9b`, `classifier` /
+`state_labeler = qwen3.5:4b`, agents `qwen3.5:9b`, judge `gemma4:12b`,
+`simulated_user.md` v6). Directory: `runs/pilot_v2/`. Manifest `exp_id`
+`pilot_v2`. Dataset hash
+`0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9`. FSM hash
+`070184bd0bf13f15505b64437dfe4b0596086efb4054e7d67f875578d351dd05`.
+
+Result: 20 ok, 0 failed, 0 skipped. `just adherence` 20/20, 4/4 canary, 4/4
+injection. Eval written (`metrics.csv`, `metrics_turn.csv`). Run 72.9
+s/dialogue; eval 237.3 s/dialogue (`just stats runs/pilot_v2`). The T-16
+token table in [`docs/parity.md`](parity.md) stays the 4B simulated-user
+frame; the Pilot v2 table there is this 9B frame. Do not mix them.
+
+Judge validation: census of all 20 ok dialogues plus a blinded sample of
+30/78 eligible agent responses (seed `20260914`), sheets locked under
+`results/judge_validation/pilot_v2/` (do not redraw). Agreement, kappa, and
+the disagreement table are in [`docs/judge_validation.md`](judge_validation.md)
+*Pilot v2 validation round*. Stage labeler on this eval: 25/39 = 0.641 turn
+match; `valid_flow_path` gold vs labelled 8/10; downward bias 2/10.
+
+**These 20 dialogues are instrument validation, not a result of the
+experiment.** Do not pool them with Pilot v1 or with T-17. Do not start
+`runs/exp_final/` until the configuration freeze.
+
+### Removed run directories
+
+2026-09-13 cleanup of `runs/` before the accepted sweep filled
+`runs/full_scenario_preflight/`. Ten directories removed (~43.93 MB). The
+empty `full_scenario_preflight/` kept at cleanup was filled on 2026-09-14
+(116 ok, 4 failed); that accepted run is not in the table. Model-selection
+numbers are in [`docs/decisions_and_limitations.md`](decisions_and_limitations.md).
+
+| run_dir | dialogues | ok | failed | manifest n_ok | manifest n_failed | manifest jobs | failed reasons | notes |
+|---|---:|---:|---:|---:|---:|---:|---|---|
+| `denial_controls_repro` | 6 | 6 | 0 | 6 | 0 | 6 | - | - |
+| `exp_final_pre_fix` | 120 | 117 | 3 | 3 | 3 | 10 | legacy-unclassified=3 | manifest totals differ from dialogue files |
+| `full_scenario_preflight_after_goal_fix_fail_2026-09-13` | 120 | 114 | 6 | 114 | 6 | 120 | instrument/invalid_candidate_retry_exhausted=2, simulation/max_turns_with_incomplete_beat=4 | pre-patch 114/6 snapshot |
+| `full_scenario_preflight_pre_fix_fail_2026-09-13` | 44 | 41 | 3 | - | - | - | simulation/max_turns_with_incomplete_beat=3 | no manifest; partial pre-fix snapshot |
+| `hp09_repro_after_denial_fix` | 2 | 2 | 0 | 2 | 0 | 2 | - | - |
+| `model_selection_4b` | 20 | 15 | 5 | 15 | 5 | 20 | instrument/invalid_candidate_retry_exhausted=1, simulation/max_turns_with_incomplete_beat=4 | - |
+| `model_selection_9b` | 20 | 18 | 2 | 18 | 2 | 20 | simulation/max_turns_with_incomplete_beat=2 | - |
+| `pilot_v1` | 20 | 20 | 0 | 20 | 0 | 20 | - | original `runs/` tree deleted by accident; T-16 sheets remain |
+| `role_split_equivalence` | 10 | 7 | 3 | 7 | 3 | 10 | simulation/max_turns_with_incomplete_beat=3 | - |
+| `termination_fix_repro` | 12 | 9 | 3 | 9 | 3 | 12 | simulation/max_turns_with_incomplete_beat=3 | - |
+
+`exp_final_pre_fix` has a manifest from a resumed subset, so its manifest
+totals differ from the full dialogue file census.
 
 ## Cost per dialogue
 

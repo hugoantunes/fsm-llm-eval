@@ -19,7 +19,7 @@ on that run. The logical run path is `runs/exp_pilot`. The manifest `exp_id` of 
 
 The **11/09 sample** is void: those dialogues dropped beats, so annotating them would validate the
 judge on an instrument failure. What is void is that draw, not the path `runs/exp_pilot`. The
-frozen files live under `results/judge_validation/exp_pilot/`. **Do not redraw them.**
+frozen files live under `results/judge_validation_v1/exp_pilot/`. **Do not redraw them.**
 
 The script reads `manifest.json` and the dialogue JSONL of the run and **nothing else**: not
 `metrics.csv`, not `metrics_turn.csv`, not `llm_calls.jsonl`. No judge output can steer which
@@ -51,7 +51,7 @@ the outcome, which is the one thing this exercise exists to rule out.
 
 ### Files
 
-Everything for this draw lives in `results/judge_validation/exp_pilot/`.
+Everything for this draw lives in `results/judge_validation_v1/exp_pilot/`.
 
 | File | What it is |
 |---|---|
@@ -144,8 +144,9 @@ can meet the criterion while stating the reference answer only partly.
    means nothing.
 5. Use `notes` whenever a call was close. The disagreements are what the write-up explains.
 
-The sheets under `results/judge_validation/exp_pilot/` are filled and reviewed. Joining them to the
-judge output of `runs/exp_pilot` is allowed after that lock.
+The sheets under `results/judge_validation_v1/exp_pilot/` are filled and reviewed. Joining them to the
+judge output of `runs/exp_pilot` is allowed after that lock. The raw `runs/exp_pilot` tree is
+gone; the sheets and packet remain.
 
 ## Agreement
 
@@ -202,7 +203,7 @@ The judge is not retuned to raise agreement. The same `gemma4:12b` judge is used
 Computed on the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_id`
 `exp_pilot_fixes_20260913_final_v1`) with:
 
-- `uv run python scripts/validate_judge.py agree --run runs/exp_pilot --sample results/judge_validation/exp_pilot`
+- `uv run python scripts/validate_judge.py agree --run runs/exp_pilot --sample results/judge_validation_v1/exp_pilot`
 - `uv run python scripts/validate_judge.py labeler --run runs/exp_pilot`
 
 ### Agreement table
@@ -239,3 +240,63 @@ No stage-labeler retune is applied in T-16.
 - `judge_shared.md v2`
 
 Tag `v1` comes after this section and freezes prompts and rubrics.
+
+## Pilot v2 validation round (post-T-16)
+
+Second round on the instrument-fixed, 9B-simulated-user pilot. Same judge
+(`gemma4:12b`), same rubrics (`judge_facts.md` v3, `judge_global.md` v2,
+`judge_shared.md` v2), same protocol as above. Not pooled with the T-16
+`v1` freeze. **Do not redraw these sheets.**
+
+| | |
+|---|---|
+| Run | `runs/pilot_v2` (manifest `exp_id` `pilot_v2`) |
+| Sheets | `results/judge_validation/pilot_v2/` |
+| Eligible responses | 78 (39 baseline, 39 FSM) |
+| Drawn | 30 responses: 15 baseline, 15 FSM |
+| Dialogues | census of all 20 ok dialogues |
+| Seed | `20260914` |
+| Adherence | 20/20, 4/4 canary, 4/4 injection |
+
+Computed with:
+
+- `uv run python scripts/validate_judge.py agree --run runs/pilot_v2 --sample results/judge_validation/pilot_v2`
+- `uv run python scripts/validate_judge.py labeler --run runs/pilot_v2`
+
+### Agreement table (Pilot v2)
+
+| Field | Unit | n | Percent agreement | Kappa |
+|---|---|---:|---:|---:|
+| `task_completed` | dialogue census | 20 | 0.850 | 0.667 (Cohen) |
+| `accuracy` | dialogue census | 20 | 0.750 | 0.569 (quadratic weighted Cohen) |
+| `claim_support` | response sample | 30 | 0.733 | 0.533 (Cohen) |
+| `fact_ids_stated` exact-set | response sample | 30 | 0.667 | n/a (set metric) |
+| `fact_ids_stated` micro precision | response sample | 30 | 0.966 | n/a |
+| `fact_ids_stated` micro recall | response sample | 30 | 0.718 | n/a |
+| `fact_ids_stated` micro F1 | response sample | 30 | 0.824 | n/a |
+
+Unmatched claim attribution cases: 17 claims with zero or multiple turn matches.
+They are reported and excluded from forced turn-level labels by design.
+
+### Disagreement table (Pilot v2)
+
+| Field | Unit | Count | IDs (human → judge) |
+|---|---|---:|---|
+| `task_completed` | dialogue census | 3 | `D01` no→yes; `D02` no→yes; `D04` no→yes |
+| `accuracy` | dialogue census | 5 | `D01` partial→correct; `D02` partial→correct; `D04` partial→correct; `D08` partial→correct; `D13` partial→incorrect |
+| `claim_support` | response sample | 8 | `A02` some_unsupported→none_checkable; `A12` some_unsupported→all_supported; `A15` all_supported→none_checkable; `A17` all_supported→none_checkable; `A18` some_unsupported→none_checkable; `A19` some_unsupported→all_supported; `A21` some_unsupported→none_checkable; `A22` some_unsupported→none_checkable |
+| `fact_ids_stated` (exact-set mismatch) | response sample | 10 | `A03`, `A05`, `A08`, `A09`, `A12`, `A15`, `A17`, `A22`, `A24`, `A27` |
+
+Join IDs to scenario/agent/turn in `results/judge_validation/pilot_v2/sample.json`.
+The three `task_completed` disagreements are all `edge_19`. No judge retune.
+
+### Stage labeler on Pilot v2
+
+Measured from `metrics_turn.csv` on `runs/pilot_v2`:
+
+- Turn-level exact match against FSM `true_state_after`: 25/39 = 0.641
+- FSM dialogues: 10
+- `valid_flow_path` agreement between gold and labelled paths: 8/10 = 0.800
+- Downward bias count (`gold=True`, `labelled=False`): 2/10 dialogues
+
+No stage-labeler retune. `flow_adherence` stays out of `PRIMARY_METRICS`.

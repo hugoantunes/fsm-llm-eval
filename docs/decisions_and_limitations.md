@@ -126,8 +126,7 @@ earlier A/B on residual cases.
 ## Pre-flight, Pilot v1 / v2, and the denial contract
 
 The 120-dialogue full-scenario pre-flight is QA, not a result
-(`docs/pilot.md`). Pilot v1 is historical and not pooled with Pilot v2. Pilot
-v2 has not started.
+(`docs/pilot.md`). Pilot v1 is historical and not pooled with Pilot v2.
 
 The two `happy_path_09` instrument failures (baseline and FSM) on the 114/6
 pre-flight were a **denial-detector** miss: beat 1 already required a denial
@@ -164,6 +163,28 @@ completed on the `"before it ships"` turn, beats 2–3 followed,
 6/6. `just check` green.
 
 The 114/6 full-scenario pre-flight remains the **pre-patch** QA artifact
-(census in `docs/run_cleanup_2026-09-13.md`; raw `runs/` directory was
-deleted). A fresh 120-dialogue pre-flight has not been run. Until that rerun
-and a pass/fail on remaining simulation-only failures, Pilot v2 does not start.
+(census in `docs/pilot.md`; raw `runs/` directory was deleted).
+
+Accepted pre-flight (2026-09-14, `runs/full_scenario_preflight/`): 116 ok, 4
+failed, `just adherence` 116/120, 8/8 canary, 8/8 injection, zero instrument
+failures. Gate **PRE-FLIGHT PASS**. The four remaining stalls are the same
+baseline `max_turns_with_incomplete_beat` cases as the 114/6 run
+(`adversarial_07`, `adversarial_12`, `adversarial_19`, `happy_path_18`); each
+FSM counterpart completed. They are interaction-level (baseline does not
+elicit a required identity literal, or the 9B mistypes one), not runtime
+defects, and stay in the experiment. `happy_path_09` both agents `ok` on the
+full sweep. Six ok dialogues saw `goal_reached` before the last beat; the
+runtime continued and delivered the script (`edge_20` FSM 6/6). Pilot v2 may
+start from this configuration; it is not pooled with this sweep.
+
+## Pilot v2 closed as instrument validation (2026-09-14)
+
+`runs/pilot_v2/`: 20/20 ok, `just adherence` 20/20, 4/4 canary, 4/4 injection,
+eval written. Same five scenarios as T-15. Simulated user `qwen3.5:9b`. Sheets
+locked under `results/judge_validation/pilot_v2/` (seed `20260914`, 30/78).
+Agreement: `task_completed` 0.850 / κ 0.667; `accuracy` 0.750 / κw 0.569;
+`claim_support` 0.733 / κ 0.533; `fact_ids` exact-set 0.667, micro F1 0.824
+(`docs/judge_validation.md`). Labeler: 25/39 turn match, 8/10 `valid_flow_path`.
+No judge or labeler retune. Not pooled with Pilot v1 or T-17. T-16 sheets live
+at `results/judge_validation_v1/exp_pilot/`. Next: configuration freeze, then
+prepare empty `runs/exp_final/` without starting it.

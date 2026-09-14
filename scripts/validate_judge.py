@@ -649,7 +649,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     agree_parser.add_argument(
         "--sample",
         type=Path,
-        default=Path("results/judge_validation/exp_pilot"),
+        default=Path("results/judge_validation_v1/exp_pilot"),
         help="directory with sample.json and the two annotation sheets",
     )
     agree_parser.add_argument(

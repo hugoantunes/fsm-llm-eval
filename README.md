@@ -12,18 +12,19 @@ plan, the ticket board (T-01 to T-24), the decisions table and the session log l
 `~/Documents/mba/projeto/` (`TICKETS.md`, `DECISOES.md`, `PROGRESSO.md`), outside this repository. The experiment, this repository and
 everything the models read or write are in English; the thesis glosses names in Portuguese.
 
-> Status: `sim run` / `sim eval` in place; v1 dataset frozen. Corrected pilot (T-15)
-> at `runs/exp_pilot` (manifest `exp_pilot_fixes_20260913_final_v1`) passed
-> `just adherence` (20/20, 4/4 canary, 4/4 injection). The 11/09 sample is void.
-> T-16 protocol: census of all 20 ok dialogues plus a blinded sample of 30/76
-> eligible agent responses — [`docs/judge_validation.md`](docs/judge_validation.md),
-> [`docs/parity.md`](docs/parity.md). Sheets locked under
-> `results/judge_validation/exp_pilot/` (do not redraw). Agreement and labeler
-> reports are computed; *Results* is filled. Pilot v1 is historical and not
-> pooled with Pilot v2. Full-scenario pre-flight (120 dialogues) is QA, not
-> evidence. The `happy_path_09` denial-contract miss is patched (targeted
-> baseline+FSM repro `ok`, `just adherence` 2/2); a fresh 120-run pre-flight
-> has not been started. Metrics: [`docs/metrics.md`](docs/metrics.md).
+> Status: `sim run` / `sim eval` in place; v1 dataset frozen. Pilot v1 (T-15/T-16)
+> is historical: logical path `runs/exp_pilot` (manifest
+> `exp_pilot_fixes_20260913_final_v1`); sheets locked under
+> `results/judge_validation_v1/exp_pilot/` (do not redraw). The 11/09 sample is
+> void. Full-scenario pre-flight (2026-09-14, `runs/full_scenario_preflight/`)
+> passed as QA: 116/120 ok ([`docs/pilot.md`](docs/pilot.md)). Pilot v2
+> (`runs/pilot_v2/`) is closed as instrument validation: 20/20 ok,
+> `just adherence` 20/20, 4/4 canary, 4/4 injection; eval written; sheets
+> locked under `results/judge_validation/pilot_v2/` (do not redraw). Agreement
+> and disagreements are in [`docs/judge_validation.md`](docs/judge_validation.md)
+> *Pilot v2 validation round*. Pilot v1 is not pooled with Pilot v2. Do not
+> start `runs/exp_final/` until the freeze. Metrics:
+> [`docs/metrics.md`](docs/metrics.md).
 
 ## Requirements
 
@@ -103,10 +104,12 @@ just run exp data/scenarios/examples 3 2 --resume
 After a run, check that every dialogue delivered its script beats, then score it
 without re-playing the dialogues. Judge and labeler calls go through the same
 prompt-hash cache, so a second eval of the same directory is free when the
-rubrics have not changed. The T-16 sheets under `results/judge_validation/exp_pilot/`
-are frozen (census of all 20 ok dialogues; blinded sample of 30/76 eligible agent
-responses). Do not redraw them. Draw a sample only from a run that passed
-`just adherence`, never from the 11/09 instrument:
+rubrics have not changed. The T-16 sheets under
+`results/judge_validation_v1/exp_pilot/` are frozen (census of all 20 ok
+dialogues; blinded sample of 30/76 eligible agent responses). Pilot v2 sheets
+under `results/judge_validation/pilot_v2/` are frozen (census of 20; blinded
+sample of 30/78). Do not redraw either. Draw a sample only from a run that
+passed `just adherence`, never from the 11/09 instrument:
 
 ```bash
 just adherence runs/<exp_id>

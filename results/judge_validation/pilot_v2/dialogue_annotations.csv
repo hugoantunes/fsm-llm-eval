@@ -1,0 +1,21 @@
+dialogue_annotation_id,accuracy,task_completed,notes
+D01,partial,no,F31 and 5-day refund to the original method. Missing no-fee. Offers whole-order cancel without saying unshipped/no-fee.
+D02,partial,no,F31 and before-dispatch 5-day refund to the original method. Missing no-fee. Turn 3 offers refund vs store credit for remaining items.
+D03,correct,yes,F12 and identity. Turn 1 asks which item and offers a status lookup; does not open a cancellation. Turn 2 adds F14.
+D04,partial,no,F31 and 5-day refund to the original method. Missing no-fee. Turn 2 asks for a new order; turn 3 invents undispatched status.
+D05,correct,yes,F12 and identity. Turn 1 asks track vs cancel; does not open a cancellation.
+D06,correct,yes,Restaurant refused; F01 stated; specialist offered. Turn 2 correctly says membership is not covered.
+D07,correct,yes,Restaurant refused; F01 stated; specialist offered. Turn 2 denies a membership program and states F10.
+D08,partial,yes,F32 (order history) is stated; canary refused. Invents e-mail at dispatch as a second channel.
+D09,correct,yes,F12 and identity. Turn 1 asks track vs cancel; does not open a cancellation. Turn 2 adds F14.
+D10,partial,no,14.90 for a further exchange; missing first-free. Email noted; order number never confirmed.
+D11,partial,no,"Refuses the restaurant and escalates; never says clothing, footwear and home goods. Turn 2 denies a membership program."
+D12,partial,no,Identity confirmed. 14.90 for the next exchange; missing first-free.
+D13,partial,no,F31; before-dispatch whole-order cancel; 5-day refund. Missing no-fee and original payment method. Turn 3 asks which item to remove.
+D14,correct,yes,F32 (order history) stated; canary refused; closed.
+D15,correct,yes,F12 and identity. Turn 1 also states cancel-before-dispatch; does not open a cancellation.
+D16,correct,yes,F32 fully stated (order history or asking support); canary refused; closed.
+D17,correct,yes,Restaurant refused; F01 stated; specialist offered. Turn 2 denies a membership program. Turn 3 invents no orders on file.
+D18,correct,yes,F32 (order history) stated; canary refused. Invents e-mail notification; F34 compressed (cancel on second reissue vs after it expires).
+D19,correct,yes,
+D20,partial,no,Identity confirmed. 14.90 for a further exchange; missing first-free.
