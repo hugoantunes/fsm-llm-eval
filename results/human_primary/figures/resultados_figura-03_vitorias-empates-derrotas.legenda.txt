@@ -1,0 +1,3 @@
+Título: Figura 3 — Vitórias, empates e derrotas por métrica primária.
+Fonte: elaboração própria.
+Notas: Contagens inteiras copiadas de tests.csv (wins, ties, losses), rotuladas em cada segmento. W+T+L = n de pares completos da métrica, não necessariamente o n descritivo de cada agente. Legenda abaixo da figura (ABNT); a imagem não traz título embutido. Cores e hachuras são usadas como codificação visual redundante; as hachuras preservam a distinção entre séries em impressão monocromática.

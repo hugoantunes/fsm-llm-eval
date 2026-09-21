@@ -1,0 +1,21 @@
+{
+  "ollama_version_observed": "0.33.3",
+  "num_ctx_configured": 8192,
+  "stage_labeler_prompt_version": "v1",
+  "event_classifier_prompt_version": "v4",
+  "labeler_model_tag_observed": "qwen3.5:9b",
+  "labeler_model_digest_observed": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
+  "labeler_temperature_configured": 0.7,
+  "labeler_seed_configured": 42,
+  "labeler_n_calls": 20,
+  "labeler_mean_prompt_tokens": 610.5,
+  "labeler_mean_output_tokens": 36.1,
+  "labeler_mean_latency_s": 5.93,
+  "classifier_model_tag_observed": "qwen3.5:9b",
+  "classifier_model_digest_observed": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
+  "classifier_temperature_configured": 0.7,
+  "classifier_n_llm_fallback_turns": 28,
+  "classifier_unique_prompt_hashes": 28,
+  "classifier_uncached_calls": 34,
+  "classifier_mean_uncached_latency_s": 10.35
+}

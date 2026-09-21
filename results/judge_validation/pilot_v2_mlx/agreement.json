@@ -1,0 +1,34 @@
+{
+  "dialogue": {
+    "n": 20,
+    "task_completed": {
+      "n": 20,
+      "percent": 0.9,
+      "kappa": 0.782608695652174
+    },
+    "accuracy": {
+      "n": 20,
+      "percent": 0.8,
+      "weighted_kappa": 0.658119658119658
+    }
+  },
+  "response": {
+    "n": 30,
+    "claim_support": {
+      "n": 30,
+      "percent": 0.7,
+      "kappa": 0.4999999999999999
+    },
+    "fact_ids": {
+      "n": 30,
+      "exact_match_rate": 0.6333333333333333,
+      "precision": 0.896551724137931,
+      "recall": 0.6666666666666666,
+      "f1": 0.7647058823529411,
+      "true_positive": 26,
+      "false_positive": 3,
+      "false_negative": 13
+    },
+    "unmatched_claims": 27
+  }
+}

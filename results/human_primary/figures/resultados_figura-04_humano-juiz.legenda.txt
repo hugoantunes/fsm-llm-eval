@@ -1,0 +1,3 @@
+Título: Figura 4 — Concordância humano vs juiz por comparação.
+Fonte: elaboração própria.
+Notas: Alturas = acordo percentual copiado de agreement.json. n anotado em cada barra. IDs de fato usam a taxa de conjunto exato nos 241 diálogos reconstruídos de forma unívoca; 107 diálogos ficaram de fora dessa comparação, não do recenseamento humano. Kappa e micro F1 estão na Tabela 4, não nesta figura. Legenda abaixo da figura (ABNT); a imagem não traz título embutido. Cores e hachuras são usadas como codificação visual redundante; as hachuras preservam a distinção entre séries em impressão monocromática.

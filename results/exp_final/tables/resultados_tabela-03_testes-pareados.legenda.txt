@@ -1,0 +1,3 @@
+Título: Tabela 3 — Testes pareados (Wilcoxon, Holm, permutação) e vitórias/empates/derrotas das métricas primárias.
+Fonte: elaboração própria, a partir de results/exp_final/tests.csv.
+Notas: população semantic_primary, estrato overall. Holm só na família primária. Rank-biserial de Kerby; diferença = FSM - baseline. Para suporte das afirmações, n = 59 (pares completos). Não pareados = 1 (adversarial_12, estrutural). claim_support_pairs_excluded_either_na = 1 é o residual de cenários sem par completo, não uma segunda lista de pares com NA. NA de diálogo está na Tabela 1. Vitórias/empates/derrotas copiados de tests.csv; W+T+L = n da métrica. Composição ABNT: título acima, fonte e notas abaixo; sem linhas verticais.

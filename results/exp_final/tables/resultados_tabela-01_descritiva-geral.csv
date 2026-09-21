@@ -1,0 +1,7 @@
+Métrica,Agente,n cenários,Média,DP,IC 95% inf.,IC 95% sup.,NA (%),Pares completos,Sem par completo
+Tarefa concluída,Baseline,59,"0,760","0,368","0,661","0,847",—,—,—
+Tarefa concluída,FSM,60,"0,753","0,353","0,658","0,839",—,—,—
+F1 dos fatos esperados,Baseline,59,"0,489","0,180","0,442","0,533",—,—,—
+F1 dos fatos esperados,FSM,60,"0,439","0,216","0,384","0,493",—,—,—
+Suporte das afirmações,Baseline,59,"0,943","0,108","0,914","0,967","0,0000%",59,1
+Suporte das afirmações,FSM,60,"0,948","0,079","0,927","0,967","0,5714%",59,1

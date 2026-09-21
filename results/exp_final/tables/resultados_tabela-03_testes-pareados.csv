@@ -1,0 +1,4 @@
+Métrica,n,n não nulo,Não pareados,p Wilcoxon,p Holm,p permutação,Rank-biserial,Diferença média,IC 95% inf.,IC 95% sup.,Vitórias,Empates,Derrotas
+Tarefa concluída,59,20,1,"0,717","1,000","0,765","-0,090","-0,011","-0,085","0,065",9,39,11
+F1 dos fatos esperados,59,52,1,"0,004","0,013","0,009","-0,454","-0,059","-0,103","-0,017",15,7,37
+Suporte das afirmações,59,36,1,"0,975","1,000","0,762","0,006","0,004","-0,021","0,031",20,23,16

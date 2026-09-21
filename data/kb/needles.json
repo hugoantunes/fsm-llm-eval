@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "_comment": "Specific, non-obvious facts (T-01). A model that answers from the general shape of e-commerce policy gets these wrong; only a model that actually read the KB gets them right. probe_question seeds the is_needle scenarios of T-06.",
+  "needles": [
+    {
+      "fact_id": "F13",
+      "why": "the standard 5-8 day estimate is the obvious answer; the extra 5 days for extended-delivery areas is not",
+      "probe_question": "I live in one of the extended-delivery areas you list at checkout. My order shipped on Monday, when should it arrive?"
+    },
+    {
+      "fact_id": "F18",
+      "why": "everyone expects the 30-day window of F17; promotional items get 7 days instead",
+      "probe_question": "I bought a jacket on sale and it was delivered three weeks ago. Can I still exchange it?"
+    },
+    {
+      "fact_id": "F21",
+      "why": "return shipping being free is the common assumption; only the first exchange of an order is",
+      "probe_question": "I already exchanged this order once for a bigger size and the size is still wrong. What does another exchange cost me?"
+    },
+    {
+      "fact_id": "F30",
+      "why": "F26 says cancellation is free before dispatch, so the 24-hour production cut-off for personalised items contradicts the obvious rule",
+      "probe_question": "I ordered a personalised mug two days ago and it has not shipped yet. Cancel it, please."
+    },
+    {
+      "fact_id": "F34",
+      "why": "the number of reissues allowed is arbitrary and cannot be guessed",
+      "probe_question": "My payment slip expired again. This is the third one I need. Can you issue it?"
+    },
+    {
+      "fact_id": "F35",
+      "why": "a reissued slip keeping the original promotional price is unusual and cannot be inferred",
+      "probe_question": "My slip expired and the item costs more now. Will the new slip charge me the new price?"
+    }
+  ]
+}

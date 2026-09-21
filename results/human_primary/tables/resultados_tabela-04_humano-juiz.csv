@@ -1,0 +1,5 @@
+Comparação,n,Acordo %,Cohen kappa,Micro F1,Observação
+Tarefa concluída,348,"89,4%","0,729",—,0 incerto excluído
+Suporte (rótulo de diálogo),348,"45,4%","0,102",—,sem casamento atômico de afirmações
+IDs de fato (conjunto exato),241,"2,1%",—,—,107 omitidos (chamadas ambíguas do juiz)
+IDs de fato (micro),241,—,—,"0,479",TP 242; FP 496; FN 30

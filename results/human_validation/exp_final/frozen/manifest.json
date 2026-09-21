@@ -1,0 +1,12 @@
+{
+  "population_source": "results/exp_final/metrics.csv",
+  "n_dialogues": 348,
+  "n_assistant_responses": 1306,
+  "n_scenarios": 60,
+  "n_paired_scenarios": 59,
+  "seed": 20260920,
+  "generated_at": "2026-09-20T19:50:45Z",
+  "frozen_v1_hash": "0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9",
+  "metrics_sha256": "29fe9712d8e4eaa29676daa795c9663dc5955ef6237bed59a8e6eb6a880d6e2b",
+  "transcripts_sha256": "cbc85cedbdbbd6541ea01728e31d0628722babf2ba8a89dc1c5798d259d4acd5"
+}

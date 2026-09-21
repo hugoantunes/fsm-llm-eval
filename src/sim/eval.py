@@ -1,0 +1,571 @@
+"""Evaluate a ``sim run`` directory into ``metrics.csv`` (T-14b).
+
+Reads the dialogue JSONL of T-14a, scores each ok log with the two judge calls
+of T-12 and the deterministic evaluators of T-13, and writes one row per
+dialogue. P/R/F1 come from :func:`sim.metrics.fact_scores` on claims the judge
+already validated. Re-eval of the same directory is identical: the client of
+T-07 caches by prompt hash and the judge seed is the one in the config.
+
+Ordinary eval scores ``status=ok`` only. A sidecar path may add an explicit
+failed-log allowlist without mutating the original JSONL or the frozen-gate
+CSVs of the run directory.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+import logging
+import random
+import threading
+from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from io import StringIO
+from pathlib import Path
+from typing import Any
+
+from pydantic import ValidationError
+
+from sim.adjudication import (
+    SIDECAR_ADJUDICATION,
+    AdjudicationError,
+    FailedInclusionAllowlist,
+    resolve_included_failed,
+)
+from sim.adjudication import (
+    load_failed_inclusion_allowlist as _load_inclusion,
+)
+from sim.config import ModelsConfig, Role
+from sim.evaluators import (
+    EvaluatorError,
+    LabelledTurn,
+    StageLabeler,
+    fact_id_leak,
+    flow_scores,
+    injection_succeeded,
+    labelled_turns,
+    llm_latency_s,
+    n_turns,
+    policy_violation,
+    stage_label_accuracy,
+    turn_latency_s,
+)
+from sim.fsm import DEFAULT_FSM_DIR, FsmSpec
+from sim.io import atomic_write
+from sim.judge import Judge, JudgeSchemaError
+from sim.kb import KnowledgeBase
+from sim.llm import Chat, LlmCallError
+from sim.metrics import ACCURACY_SCORE, METRICS, fact_scores
+from sim.prompts import DEFAULT_PROMPTS_DIR
+from sim.runner import hash_dataset, hash_fsm
+from sim.schemas import (
+    DialogueLog,
+    JobRef,
+    Manifest,
+    Scenario,
+    load_scenarios,
+)
+
+logger = logging.getLogger(__name__)
+
+METRICS_CSV = "metrics.csv"
+METRICS_TURN_CSV = "metrics_turn.csv"
+UNSCORED_CSV = "unscored.csv"
+INCLUSION_JSON = "inclusion.json"
+IDENTITY = ("scenario_id", "agent", "repetition")
+METRICS_FIELDS = (*IDENTITY, *METRICS)
+UNSCORED_FIELDS = (*IDENTITY, "reason")
+TURN_FIELDS = tuple(LabelledTurn.model_fields)
+SIDECAR_PROVENANCE_FIELDS = (
+    "runtime_status",
+    "failure_kind",
+    "failure_reason",
+    "adjudication",
+    "adjudication_date",
+    "inclusion_source",
+)
+SIDECAR_METRICS_FIELDS = (*METRICS_FIELDS, *SIDECAR_PROVENANCE_FIELDS)
+STATUS_OK_INCLUSION = "status_ok"
+
+
+def sidecar_out_dir(run_dir: Path) -> Path:
+    """Return the default sidecar directory: a sibling named ``<run>_semantic``."""
+    return run_dir.parent / f"{run_dir.name}_semantic"
+
+
+class EvalError(RuntimeError):
+    """The eval cannot start or a log cannot be scored; the message says why."""
+
+
+@dataclass(frozen=True)
+class EvalProgress:
+    """Snapshot of eval-job progress for the CLI bar.
+
+    ``completed`` counts ``score()`` jobs that terminated normally and produced
+    a ``_Graded``, including ``_Graded(row=None)`` from ``JudgeSchemaError``.
+    ``active`` is workers currently inside ``score()``, which may still be in
+    judge or labeler LLM calls while ``completed`` is unchanged. The snapshot
+    is emitted in the worker before ``as_completed()`` observes the Future.
+    """
+
+    completed: int
+    active: int
+    total: int
+
+
+Progress = Callable[[EvalProgress], None]
+
+
+@dataclass(frozen=True)
+class EvalResult:
+    """How many dialogues were scored, already failed, or the judge could not grade."""
+
+    n_scored: int
+    n_failed: int
+    n_unscored: int
+    n_included_failed: int = 0
+
+
+def load_failed_inclusion_allowlist(path: Path) -> FailedInclusionAllowlist:
+    """Load and validate a generated failed-inclusion artifact."""
+    try:
+        return _load_inclusion(path)
+    except AdjudicationError as failure:
+        raise EvalError(str(failure)) from failure
+
+
+@dataclass(frozen=True)
+class _Graded:
+    """One finished dialogue: its row and turns, or the reason the judge failed it."""
+
+    log: DialogueLog
+    row: dict[str, Any] | None
+    turns: list[LabelledTurn]
+    reason: str | None
+
+
+def evaluate_run(
+    run_dir: Path,
+    *,
+    llm: Chat,
+    kb: KnowledgeBase,
+    fsm: FsmSpec,
+    config: ModelsConfig,
+    prompts_dir: Path = DEFAULT_PROMPTS_DIR,
+    fsm_dir: Path = DEFAULT_FSM_DIR,
+    parallel: int = 1,
+    on_progress: Progress | None = None,
+    include_failed_from: Path | None = None,
+    out_dir: Path | None = None,
+) -> EvalResult:
+    """Score eligible dialogues under ``run_dir`` and write the metrics CSVs.
+
+    ``parallel`` scores that many dialogues at once. It is a machine choice and
+    never a measurement one: each dialogue is graded on its own, the seeds come
+    from the config rather than from the position in the queue, and the CSV rows
+    are ordered by the manifest, so the files do not depend on which thread
+    finished first.
+
+    ``on_progress`` is observational. Each snapshot's ``completed`` is dialogue
+    evaluations that produced a ``_Graded`` (including unscored
+    ``JudgeSchemaError``); ``active`` workers may still be inside judge or
+    labeler calls, so ``--parallel 1`` can sit at ``N/total`` while an uncached
+    dialogue is being evaluated. The worker emits the snapshot before
+    ``as_completed()`` observes the Future.
+
+    Ordinary eval writes ``metrics.csv`` into ``run_dir`` for ``status=ok``
+    logs only. ``include_failed_from`` is an explicit allowlist of failed
+    dialogue ids. ``out_dir`` defaults to :func:`sidecar_out_dir` so the
+    original artifacts and frozen-gate CSVs stay untouched. Passing ``out_dir``
+    equal to ``run_dir`` is refused.
+    """
+    if parallel < 1:
+        raise EvalError(f"--parallel must be at least 1, not {parallel}")
+    allowlist, metrics_dir = _resolve_sidecar(
+        include_failed_from, out_dir=out_dir, run_dir=run_dir
+    )
+    manifest = _load_manifest(run_dir)
+    scenarios_dir = Path(manifest.scenarios_dir)
+    _check_recorded_hash(
+        hash_dataset(scenarios_dir),
+        manifest.dataset_hash,
+        artifact="scenarios",
+        path=scenarios_dir,
+    )
+    _check_recorded_hash(
+        hash_fsm(fsm_dir),
+        manifest.fsm_hash,
+        artifact="the FSM",
+        path=fsm_dir,
+    )
+    scenarios = {
+        scenario.id: scenario
+        for scenario in load_scenarios(scenarios_dir, kb=kb, fsm=fsm)
+    }
+    judge_seed = _seed(config, "judge")
+    labeler_seed = _seed(config, "state_labeler")
+    judge = Judge(llm, kb=kb, prompts_dir=prompts_dir, seed=judge_seed)
+    labeler = StageLabeler(llm, spec=fsm, prompts_dir=prompts_dir, seed=labeler_seed)
+    logs = _load_logs(run_dir)
+    n_failed = sum(1 for log in logs if log.status == "failed")
+    if allowlist is not None and allowlist.exp_id != manifest.exp_id:
+        raise EvalError(
+            f"inclusion artifact exp_id={allowlist.exp_id!r} does not match "
+            f"run exp_id={manifest.exp_id!r}"
+        )
+    try:
+        included_failed = (
+            resolve_included_failed(logs, allowlist) if allowlist is not None else []
+        )
+    except AdjudicationError as failure:
+        raise EvalError(str(failure)) from failure
+    eligible = [log for log in logs if log.status == "ok"] + included_failed
+    scored: dict[tuple[str, str, int], dict[str, Any]] = {}
+    turns_by_key: dict[tuple[str, str, int], list[LabelledTurn]] = {}
+    unscored: dict[tuple[str, str, int], dict[str, Any]] = {}
+    random.Random(judge_seed).shuffle(eligible)
+    pairs = [
+        (log, _scenario_of(log, scenarios, manifest.scenarios_dir)) for log in eligible
+    ]
+
+    progress_lock = threading.Lock()
+    completed = 0
+    active = 0
+    total = len(pairs)
+
+    def emit_snapshot() -> None:
+        if on_progress is None:
+            return
+        on_progress(EvalProgress(completed=completed, active=active, total=total))
+
+    def score(pair: tuple[DialogueLog, Scenario]) -> _Graded:
+        log, scenario = pair
+        try:
+            row, turns = _score(
+                log, scenario, judge=judge, labeler=labeler, kb=kb, fsm=fsm
+            )
+        except (JudgeSchemaError, EvaluatorError, LlmCallError) as failure:
+            return _Graded(log=log, row=None, turns=[], reason=str(failure))
+        if allowlist is not None:
+            assert include_failed_from is not None
+            row = {
+                **row,
+                **_sidecar_provenance(
+                    log, allowlist, source=include_failed_from, run_dir=run_dir
+                ),
+            }
+        return _Graded(log=log, row=row, turns=turns, reason=None)
+
+    def tracked_score(pair: tuple[DialogueLog, Scenario]) -> _Graded:
+        nonlocal active, completed
+        with progress_lock:
+            active += 1
+            emit_snapshot()
+        succeeded = False
+        try:
+            result = score(pair)
+            succeeded = True
+            return result
+        finally:
+            with progress_lock:
+                active -= 1
+                if succeeded:
+                    completed += 1
+                emit_snapshot()
+
+    with ThreadPoolExecutor(max_workers=parallel) as pool:
+        futures = [pool.submit(tracked_score, pair) for pair in pairs]
+        for future in as_completed(futures):
+            graded = future.result()
+            key = _key(graded.log)
+            if graded.row is None:
+                unscored[key] = {
+                    "scenario_id": graded.log.scenario_id,
+                    "agent": graded.log.agent,
+                    "repetition": graded.log.repetition,
+                    "reason": graded.reason,
+                }
+                logger.warning(
+                    "%s/%s/%s unscored: %s",
+                    graded.log.scenario_id,
+                    graded.log.agent,
+                    graded.log.repetition,
+                    graded.reason,
+                )
+            else:
+                scored[key], turns_by_key[key] = graded.row, graded.turns
+    keys = _csv_keys(manifest.jobs, scored)
+    fieldnames = SIDECAR_METRICS_FIELDS if allowlist is not None else METRICS_FIELDS
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    _write_csv(metrics_dir / METRICS_CSV, fieldnames, [scored[key] for key in keys])
+    _write_csv(
+        metrics_dir / METRICS_TURN_CSV,
+        TURN_FIELDS,
+        [turn.model_dump() for key in keys for turn in turns_by_key[key]],
+    )
+    _write_csv(
+        metrics_dir / UNSCORED_CSV,
+        UNSCORED_FIELDS,
+        [unscored[key] for key in _csv_keys(manifest.jobs, unscored)],
+    )
+    if allowlist is not None:
+        _write_inclusion_record(
+            metrics_dir / INCLUSION_JSON,
+            allowlist=allowlist,
+            source=include_failed_from,
+            run_dir=run_dir,
+            included_failed=included_failed,
+            n_ok=sum(1 for log in eligible if log.status == "ok"),
+            n_scored=len(keys),
+        )
+    return EvalResult(
+        n_scored=len(keys),
+        n_failed=n_failed,
+        n_unscored=len(unscored),
+        n_included_failed=len(included_failed),
+    )
+
+
+def _resolve_sidecar(
+    include_failed_from: Path | None,
+    *,
+    out_dir: Path | None,
+    run_dir: Path,
+) -> tuple[FailedInclusionAllowlist | None, Path]:
+    """Return ``(allowlist, metrics_dir)`` for ordinary or sidecar eval."""
+    if include_failed_from is None:
+        if out_dir is not None:
+            raise EvalError("--out is only valid with --include-failed-from")
+        return None, run_dir
+    destination = sidecar_out_dir(run_dir) if out_dir is None else out_dir
+    if destination.resolve() == run_dir.resolve():
+        raise EvalError("--out must be a directory distinct from the original run")
+    return load_failed_inclusion_allowlist(include_failed_from), destination
+
+
+def _sidecar_provenance(
+    log: DialogueLog,
+    allowlist: FailedInclusionAllowlist,
+    *,
+    source: Path,
+    run_dir: Path,
+) -> dict[str, object]:
+    """Return sidecar provenance columns for one scored log."""
+    if log.dialogue_id not in set(allowlist.ids):
+        return {
+            "runtime_status": log.status,
+            "failure_kind": log.failure_kind,
+            "failure_reason": log.failure_reason,
+            "adjudication": None,
+            "adjudication_date": None,
+            "inclusion_source": STATUS_OK_INCLUSION,
+        }
+    return {
+        "runtime_status": log.status,
+        "failure_kind": log.failure_kind,
+        "failure_reason": log.failure_reason,
+        "adjudication": SIDECAR_ADJUDICATION,
+        "adjudication_date": None,
+        "inclusion_source": _inclusion_source_label(source, run_dir),
+    }
+
+
+def _inclusion_source_label(source: Path, run_dir: Path) -> str:
+    """Prefer a run-relative path for sidecar inclusion provenance."""
+    try:
+        return source.resolve().relative_to(run_dir.resolve()).as_posix()
+    except ValueError:
+        return str(source)
+
+
+def _write_inclusion_record(
+    path: Path,
+    *,
+    allowlist: FailedInclusionAllowlist,
+    source: Path | None,
+    run_dir: Path,
+    included_failed: Sequence[DialogueLog],
+    n_ok: int,
+    n_scored: int,
+) -> None:
+    """Write sidecar inclusion provenance next to the sidecar CSVs."""
+    payload = {
+        "allowlist_path": (
+            _inclusion_source_label(source, run_dir) if source is not None else None
+        ),
+        "allowlist": allowlist.model_dump(),
+        "run_dir": str(run_dir),
+        "n_ok": n_ok,
+        "n_included_failed": len(included_failed),
+        "n_scored": n_scored,
+        "included_ids": [log.dialogue_id for log in included_failed],
+    }
+    atomic_write(path, json.dumps(payload, indent=2) + "\n")
+
+
+def _score(
+    log: DialogueLog,
+    scenario: Scenario,
+    *,
+    judge: Judge,
+    labeler: StageLabeler,
+    kb: KnowledgeBase,
+    fsm: FsmSpec,
+) -> tuple[dict[str, Any], list[LabelledTurn]]:
+    """Return one metrics row and the turn rows for ``log``."""
+    verdict = judge.evaluate(log.transcript, scenario)
+    if scenario.is_needle and verdict.facts.needle_recovered is None:
+        raise EvalError(
+            f"{log.scenario_id} is a needle scenario but the judge returned "
+            "needle_recovered=null. The facts call must answer yes or no when "
+            "the needle placeholder is a fact ID"
+        )
+    scores = fact_scores(required=scenario.required_facts, claims=verdict.facts.claims)
+    labels = labeler.label(log)
+    flow = flow_scores(labels, scenario.expected_final_state, fsm)
+    label_accuracy = stage_label_accuracy(labels, log)
+    global_judgement = verdict.global_judgement
+    return (
+        {
+            "scenario_id": log.scenario_id,
+            "agent": log.agent,
+            "repetition": log.repetition,
+            "fact_precision": scores.fact_precision,
+            "fact_recall": scores.fact_recall,
+            "fact_f1": scores.fact_f1,
+            "claim_support": scores.claim_support,
+            "unsupported_claim_rate": scores.unsupported_claim_rate,
+            "n_checkable_claims": scores.n_checkable_claims,
+            "needle_recovered": (
+                verdict.facts.needle_recovered if scenario.is_needle else None
+            ),
+            "accuracy_score": ACCURACY_SCORE[global_judgement.accuracy],
+            "relevance": global_judgement.relevance,
+            "task_completed": global_judgement.task_completed,
+            "offensive_content": global_judgement.offensive_content,
+            "injection_succeeded": injection_succeeded(log, scenario),
+            "policy_violation": policy_violation(log, scenario, kb),
+            "n_turns": n_turns(log),
+            "n_stage_transitions": flow.n_stage_transitions,
+            "n_self_loops": flow.n_self_loops,
+            "llm_latency_s": llm_latency_s(log),
+            "turn_latency_s": turn_latency_s(log),
+            "ended_in_expected_state": flow.ended_in_expected_state,
+            "valid_flow_path": flow.valid_flow_path,
+            "flow_adherence": flow.flow_adherence,
+            "stage_label_accuracy": label_accuracy,
+            "fact_id_leak": fact_id_leak(log),
+        },
+        labelled_turns(log, labels),
+    )
+
+
+def _check_recorded_hash(
+    found: str, recorded: str, *, artifact: str, path: Path
+) -> None:
+    """Fail unless ``found`` is the hash the run recorded for ``artifact``."""
+    if found == recorded:
+        return
+    raise EvalError(
+        f"{artifact} in {path} hash to {found}, but the run recorded {recorded}. "
+        "The files must be the ones the dialogues were played against; check out "
+        "the same commit on both machines"
+    )
+
+
+def _csv_keys(
+    jobs: Sequence[JobRef],
+    scored: Mapping[tuple[str, str, int], object],
+) -> list[tuple[str, str, int]]:
+    """Order scored rows by the manifest, then extras in file order."""
+    known = [(job.scenario_id, job.agent, job.repetition) for job in jobs]
+    listed = [key for key in known if key in scored]
+    extras = sorted(key for key in scored if key not in set(known))
+    return listed + extras
+
+
+def _load_manifest(run_dir: Path) -> Manifest:
+    """Load ``manifest.json``, which names the scenario directory to join against."""
+    path = run_dir / "manifest.json"
+    if not path.exists():
+        raise EvalError(
+            f"{path} is missing. sim eval reads the T-14a manifest to find the "
+            "scenarios that produced the dialogues"
+        )
+    try:
+        return Manifest.model_validate_json(path.read_text(encoding="utf-8"))
+    except ValidationError as invalid:
+        if any(
+            error["type"] == "missing" and error["loc"] == ("fsm_hash",)
+            for error in invalid.errors()
+        ):
+            raise EvalError(
+                f"{path} has no fsm_hash: this run predates the FSM hash. "
+                "Delete the directory and re-run sim run; sim eval cannot score "
+                "a manifest it cannot identify"
+            ) from invalid
+        raise EvalError(
+            f"{path} does not match the manifest schema:\n{invalid}"
+        ) from invalid
+
+
+def _load_logs(run_dir: Path) -> list[DialogueLog]:
+    """Load every dialogue JSONL under ``run_dir/dialogues``."""
+    directory = run_dir / "dialogues"
+    if not directory.exists():
+        raise EvalError(
+            f"{directory} is missing. sim eval scores the JSONL files T-14a wrote"
+        )
+    return [
+        DialogueLog.model_validate_json(path.read_text(encoding="utf-8"))
+        for path in sorted(directory.glob("*.jsonl"))
+    ]
+
+
+def _scenario_of(
+    log: DialogueLog, scenarios: Mapping[str, Scenario], scenarios_dir: str
+) -> Scenario:
+    """Return the scenario ``log`` was played against, before any scoring starts."""
+    scenario = scenarios.get(log.scenario_id)
+    if scenario is None:
+        raise EvalError(
+            f"{log.scenario_id} is not in {scenarios_dir}. Eval joins "
+            "each log to its scenario by id; a missing scenario cannot be scored"
+        )
+    return scenario
+
+
+def _key(log: DialogueLog) -> tuple[str, str, int]:
+    """The identity columns that pair a log with a manifest job."""
+    return (log.scenario_id, log.agent, log.repetition)
+
+
+def _seed(config: ModelsConfig, role: Role) -> int:
+    """Return the configured seed for ``role``, which makes re-eval identical."""
+    seed = config.spec(role).seed
+    if seed is None:
+        raise EvalError(
+            f"configs/models.yaml must set models.{role}.seed; eval uses it so "
+            "a re-run of the same dialogues is identical"
+        )
+    return seed
+
+
+def _write_csv(
+    path: Path, fieldnames: Sequence[str], rows: Sequence[Mapping[str, Any]]
+) -> None:
+    """Write ``rows`` atomically so a reader never sees a half file."""
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="raise")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({field: _csv_cell(row[field]) for field in fieldnames})
+    atomic_write(path, buffer.getvalue())
+
+
+def _csv_cell(value: object) -> str:
+    """Render one CSV cell: empty for NA, otherwise ``str(value)``."""
+    if value is None:
+        return ""
+    return str(value)

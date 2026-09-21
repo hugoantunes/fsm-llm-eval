@@ -1,0 +1,3 @@
+Título: Figura C — Máquina de estados da FSM.
+Fonte: elaboração própria.
+Notas: Nomes conforme data/fsm/machine.yaml. Identificadores em inglês são os da implementação; o glossário em português vai entre parênteses. As transições a partir de qualquer estado (out_of_scope_request e farewell) saem da caixa «qualquer estado», não como uma seta por estado. Guardas: order_and_email_present e required_data_collected. closing e out_of_scope são estados de aceitação, não estados terminais. Legenda abaixo da figura (ABNT); a imagem não traz título embutido.

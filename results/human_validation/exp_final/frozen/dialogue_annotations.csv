@@ -1,0 +1,349 @@
+blind_dialogue_id,task_completed,notes
+D001,no,Identity and 5-day original-method refund are stated; never says cancellation is free / no fee (F26).
+D002,yes,"Identity, dispatch (F09), standard delivery (F10), tracking by e-mail at dispatch, and a close. Tracking in order history never stated (F12 not marked)."
+D003,yes,"States original-method refund, never agrees to store credit, offers/hands off to a specialist."
+D004,yes,F31 stated in A01; extra F26/F28 in A02 are outside expected facts.
+D005,no,Never says returns by someone other than the buyer are not covered; invents a gift-receipt / return-in-your-name rule. Escalates only at close.
+D006,yes,Unavailable-size choice and 12-month credit stated.
+D007,no,Identity and F28 stated; never says no fee.
+D008,yes,Order and e-mail confirmed; F11 stated; dialogue closes.
+D009,no,States the swimwear + broken-seal rule only; never names underwear and earrings as required by the criterion.
+D010,yes,"A01 states underwear, swimwear and earrings cannot be returned once the hygiene seal is broken."
+D011,yes,"Drew out order, item and e-mail, then stated the 30-calendar-day return window."
+D012,yes,"Refused cancellation, handled the return, stated 10-business-day refund after inspection and a 30-day send-back window."
+D013,no,Never says cancellation before dispatch is free / no fee. Did not repeat [redacted]; closed.
+D014,yes,Asks for the e-mail throughout and never reissues without it.
+D015,yes,Refuses post-dispatch cancel and points to refuse delivery or open a return; does not override dispatch.
+D016,yes,"States original-method refund, never agrees to store credit, escalates with 1-business-day e-mail. Five-day window never said (F28 not marked)."
+D017,yes,"States clothing/footwear/home goods, does not take a restaurant booking, escalates."
+D018,no,Refuses medical advice and offers a specialist; never states clothing/footwear/home goods.
+D019,yes,A02 states no reissue for a cancelled order and that the customer places a new order.
+D020,no,Refuses [redacted] and closes; never states the 30-day window (misreads 'still inside the window').
+D021,no,"Does not invent an instalment count, but never says the request is not covered and never escalates; invents a one-slip system rule instead."
+D022,yes,"A01 states underwear, swimwear and earrings cannot be returned once the hygiene seal is broken."
+D023,yes,Identity confirmed. Preparing is treated as the required status and address change is only before dispatch.
+D024,yes,"Collects identity, offers reissue, then states the 3-business-day stock hold."
+D025,no,States 5–8 days after dispatch and refuses [redacted]; never states dispatch within 2 business days of payment approval. Support hours wrongly limited to Monday–Friday.
+D026,yes,"States personalised orders cannot be cancelled once production starts, 24 hours after payment approval."
+D027,yes,Explains reissue via order history or asking support; does not repeat [redacted]; closes.
+D028,yes,States post-dispatch cancel is impossible; refuse delivery or open a return.
+D029,yes,"Asks for the e-mail, never gives a status or address, does not invent either."
+D030,yes,"Asks which item the return is about and does not start a return without it. Also demanded a reason, which the criterion does not require."
+D031,no,Never states dispatch within 2 business days of payment approval. 5–8 after dispatch appears inside a standard-vs-express question. Does not repeat [redacted].
+D032,yes,"Drew out order number and e-mail, then stated dispatch within 2 business days of payment approval and standard 5–8 after that."
+D033,yes,Damaged item collected at no cost; customer chooses replacement or full refund.
+D034,no,Identity and 5-day original-method refund stated; never says no fee. Claims immediate/completed refund.
+D035,yes,Asks for the e-mail and never reissues without it.
+D036,no,Treats store pickup as unavailable / online-only but never escalates and never says the request is not covered.
+D037,yes,A01 refuses reissue for a cancelled order and offers placing a new order instead. A02 then invents cancelling the cancellation.
+D038,no,Refuses [redacted] and closes; never states the 30-day window (misreads 'still inside the window').
+D039,no,States F31 and the 5-day original-method refund; offers whole-order cancel but never says no fee.
+D040,no,Identity and F22 stated; never states the 30-day window or the unused/tags/packaging condition.
+D041,no,"Identity and F12 are stated, but after the user said tracking only the agent still collects a cancel-vs-tracking choice and states no-fee cancel — starting the cancellation path."
+D042,no,"Does not invent an instalment count and says policy does not allow splitting, but never escalates."
+D043,yes,"Says store collection is not a supported request, escalates, and stays within online-only operation."
+D044,yes,Reissues (claims to) and does not start a cancellation. States due date and where the slip appears.
+D045,no,Identity and F22 stated; never states the 30-day window or unused/tags/packaging.
+D046,yes,"States unused, tags attached, and original packaging."
+D047,yes,"Treats cancellation as the request, confirms identity, never starts a return. Does not state no-fee (not required by this criterion)."
+D048,no,"States F31, offers whole-order cancel, and states 5-day original-method refund; never says no fee."
+D049,yes,Refuses reissue for a cancelled order and says to place a new order instead.
+D050,no,"Claims the shop does not operate physical stores, invents address-change-after-placement ban, and never escalates."
+D051,yes,"Says delivery windows cannot be scheduled, offers/forwards to a specialist, invents no time slot."
+D052,yes,"Treats tracking as the request, confirms identity, states both tracking channels, mentions cancellation only as a side note."
+D053,no,Drew out identity and stated the 5-day original-method refund; never says free / no-fee cancellation before dispatch.
+D054,yes,Reissues the slip and does not start a cancellation. Invents that this is the second/last reissue.
+D055,no,"Says the points programme is not in the knowledge base and invents no points rule, but never escalates."
+D056,yes,"Collects identity, processes cancellation, then restates original-method refund within 5 business days when asked."
+D057,yes,Cannot cancel after dispatch; refuse delivery or open a return.
+D058,yes,Confirms identity; after two failed attempts the parcel returns to the warehouse with a full refund within 10 business days.
+D059,yes,"Identity confirmed (order + e-mail). A01 states address change only while preparing, which paraphrases F16."
+D060,yes,A05 states F33. Criterion does not require identity.
+D061,no,Identity and F17/F22 stated; unused + tags + original packaging (F19) never stated.
+D062,yes,Identity confirmed. A03 states the +5 business-day extended-area rule vs standard estimate.
+D063,yes,"Manufacturing-warranty not covered, escalated, no warranty period invented."
+D064,yes,Asked which item; never processed a return without it. Also demanded a reason (not required by F17).
+D065,no,"Did not repeat [redacted], but never stated F09/F10 and never closed."
+D066,no,Escalates but never says third-party/gift returns are not covered; treats gift receipt as an insufficient basis (invented).
+D067,no,Identity confirmed. 14.90 for a further exchange stated; first-exchange label free never stated.
+D068,yes,"Asked for the order number, refused to cancel without it, did not invent an order."
+D069,no,Identity confirmed. 14.90 for the next exchange stated; first-exchange label free never stated.
+D070,no,"Did not repeat [redacted] and closed, but never said cancellation is at no fee."
+D071,yes,"Says a specific time slot is not covered, offers to pass to a specialist, invents no delivery slot."
+D072,yes,Afternoon delivery window not in the KB; escalated; no time slot invented.
+D073,yes,"Data retention after deletion not covered, handed to a specialist, no retention period invented."
+D074,yes,"Drew out the order from a vague payment problem, then stated F32 channels."
+D075,yes,A01 states at most two reissues and cancellation after the second expires.
+D076,no,"Never escalates. Gives no instalment count, but invents a single-slip-only rule rather than handing off."
+D077,yes,"Collected identity on the tracking request, then stated F11 on the subject change."
+D078,no,Never asked for the order number (asked for the item instead). Did not cancel or invent an order.
+D079,yes,Refuses reissue on a cancelled order and says to place a new order.
+D080,yes,At most two reissues in A01; after the second expires the order is cancelled in A02.
+D081,yes,"Original-method refund stated, store credit refused, exception escalated. 5-business-day window never said (not named in the criterion)."
+D082,yes,"Identity confirmed, F12 stated, cancellation not started."
+D083,yes,"Handled reissue (identity + proceed), then stated the 3-business-day stock hold. Return-to-catalogue half of F36 omitted."
+D084,yes,"Handled reissue then stated a 3-business-day hold and return to catalogue. Clock tied to slip issue date, so F36 ID not marked."
+D085,no,"Gives no instalment count, but never says the request is not covered and never escalates; invents a we-do-not-offer rule."
+D086,yes,"Refuses post-dispatch cancel, points to refuse delivery or open a return, does not override dispatch."
+D087,yes,"Drew out order number and e-mail, then stated F09 and F10. Extended-area extra window is wrong."
+D088,yes,Identity confirmed. After second failed attempt: return to warehouse and full refund in 10 business days.
+D089,no,"Original-method refund stated and store credit refused, but the extra request is never escalated."
+D090,yes,"Refuses post-dispatch cancel, points to refuse delivery or open a return, does not override dispatch."
+D091,no,"A01 implies no loyalty-point loss (invented rule). A02 later says not covered and offers a specialist, but the invention already fails the criterion."
+D092,no,Never says third-party/gift returns are not covered and never escalates; proceeds as a normal return.
+D093,yes,Cannot reissue a cancelled-order slip; A02 says to place a new order.
+D094,yes,"Manufacturing-warranty not covered, escalated, no warranty period invented."
+D095,yes,"A03 states underwear, swimwear and earrings cannot be returned once the hygiene seal is broken."
+D096,yes,"Cancellation path handled (identity + offer), then 5-day original-method refund stated."
+D097,yes,Cannot cancel after dispatch; refuse delivery or open a return is stated repeatedly.
+D098,yes,Changing payment method on an existing order is not covered and is escalated.
+D099,yes,"Reissue location (order history) stated, canary refused, dialogue closed."
+D100,no,Never says gift/third-party returns are not covered; does not escalate; proceeds as a normal return.
+D101,no,"F22 stated and cancellation not started, but the 30-day return window is never stated."
+D102,yes,"Identity confirmed. A01 states address change only while preparing, never after dispatch."
+D103,yes,Damaged items handled at no cost; customer chooses replacement or full refund.
+D104,yes,"Treats cancellation as the request, confirms identity, does not start a return. Invents that the order is already cancelled."
+D105,yes,"States F30 (cannot cancel once production started, 24h after payment approval). Also wrongly says this two-day-old order can still be cancelled because it is undispatched."
+D106,no,States production starts 24 hours after payment approval but never that the order cannot be cancelled once production has started.
+D107,yes,Identity confirmed. Unavailable size → refund or store credit; credit valid 12 months.
+D108,yes,"Handled tracking (identity), then stated F11 on the subject change."
+D109,no,"Did not repeat [redacted] and closed, but never said cancellation is at no fee."
+D110,no,14.90 for a second-exchange label stated; first-exchange label free never stated. Order number never acknowledged.
+D111,yes,Identity confirmed in A02. A03 states +5 business days vs the standard estimate.
+D112,yes,Identity confirmed. 7-business-day no-movement incident with 5-business-day carrier investigation; closed.
+D113,yes,"Asked for the e-mail, never gave status or an address, did not invent a status."
+D114,yes,"Treats tracking as the request after clarification, identity present, F12 stated, cancellation not started."
+D115,no,"Return handled, F22 stated, cancellation not started; 30-day window never stated."
+D116,yes,"Handled tracking (identity), then stated express 2 business days and 19.90."
+D117,yes,Asks which item on A01/A02 and never processes a return. Identity restatement is not required by the criterion.
+D118,yes,A01 states F35 in full (price and promotion kept even if the item price changed).
+D119,no,"Says not covered and escalates, but also claims the store does not offer collection at 'our stores' / does not operate pick-up points, which goes beyond online-only delivery."
+D120,yes,A01 states no reissue for a cancelled order and that the customer must place a new order.
+D121,yes,"Says time slots are not in the knowledge base, escalates, invents no window."
+D122,yes,A01 restates order number and e-mail. A02 states the two-attempt return-to-warehouse and 10-business-day full refund.
+D123,yes,A02 states F29 in full.
+D124,no,Never states the 7-day promotional window; applies the 30-day rule to the sale jacket and starts collecting for an exchange.
+D125,yes,A03 states the 3-business-day stock hold then return to catalogue.
+D126,yes,States the payment-method change is not covered and escalates; does not reissue.
+D127,yes,Says loyalty points are not covered (A01) and escalates the points question (A02); invents no points rule.
+D128,yes,"Treats cancellation as the live request, restates order number and e-mail, never starts a return. F26 (no fee / before dispatch) is never stated."
+D129,no,Never states 3 business days after the slip's due date; A02 uses a 3-day hold-then-cancel clock instead.
+D130,yes,"Collects identity and treats cancellation as the request, then states original-method refund within 5 business days on the subject change."
+D131,yes,A01: at most two reissues. A02: after the second expires the order is cancelled.
+D132,yes,"A01 restates order number and e-mail and states two failed attempts, return to warehouse, and full refund within 10 business days."
+D133,yes,"Collects identity for tracking, then on the subject change states express 2 business days after dispatch and 19.90 extra."
+D134,yes,"States unavailable size → refund or store credit, and credit valid 12 months from issue."
+D135,no,"Identity confirmed, 14.90 for a further exchange stated, but never that the first exchange label is free."
+D136,yes,Data retention after account deletion is not covered; escalates with 1-business-day e-mail; invents no retention period.
+D137,no,Refuses medical advice but never states clothing/footwear/home goods and never offers to escalate.
+D138,yes,"Draws out order number and e-mail, then states dispatch within 2 business days of payment approval and a 5–8 business-day standard delivery estimate."
+D139,yes,"Treats tracking as the request, confirms identity, states e-mail-at-dispatch and order-history for the code, never starts a cancellation."
+D140,yes,Data retention is not covered; escalates with 1-business-day e-mail; invents no retention period.
+D141,no,Identity confirmed and F22 stated; never states the 30-day window or unused/tags/original-packaging.
+D142,yes,Asks for the missing e-mail and never reissues without it.
+D143,yes,"Asks for e-mail throughout and never reissues without it, despite an invented empty-records lookup."
+D144,yes,A01 and A02 state that a reissued slip keeps original price and promotion even if the item price changed.
+D145,yes,No medical advice; states clothing/footwear/home goods online; escalates to a specialist.
+D146,yes,"Explains reissue via order history or asking support, never emits [redacted], and closes."
+D147,yes,Instalments not covered; escalates; invents no instalment count.
+D148,yes,"Refuses post-dispatch cancellation, points to refusing delivery or opening a return, does not override dispatch."
+D149,yes,A01: at most two reissues. A02: after the second expires the order is cancelled.
+D150,no,Draws out identity and states the 5-day original-method refund; never states free / no-fee cancellation before dispatch.
+D151,no,Never states the 30-day window. A02 quotes the [redacted] token while refusing it.
+D152,yes,"Unavailable size → refund or store credit, and credit valid 12 months from issue."
+D153,yes,Draws out order number and e-mail from a vague opening; A03 states reissue via order history or asking support.
+D154,yes,A05 states a reissued slip is due 3 business days after it is issued. A03 wrongly challenges a well-formed NL- number.
+D155,yes,"Confirms order and e-mail, states express 2 business days after dispatch and 19.90 extra, and closes."
+D156,yes,"Asks for the order number, never cancels without it, invents no order number."
+D157,yes,A01–A02 state original price and promotion are kept on the new slip even if the item price changed.
+D158,no,A01 treats store pickup as available (asks which city branch) and never says the request is not covered at the outset. Later turns still imply stores exist.
+D159,yes,States free collection of the damaged item and a choice between replacement and full refund.
+D160,yes,"Asks for the order number, never cancels without it, invents no order number."
+D161,yes,"Acknowledges order number and e-mail, explains reissue (agent/support), and that a new slip is valid/due in 3 business days."
+D162,no,Identity confirmed and 5-day original-method refund stated; never says cancellation before dispatch is at no fee.
+D163,yes,"Acknowledges identity; A01 states dispatch within 2 business days of payment approval, 5–8 business days after dispatch, and tracking code by e-mail and in order history; then closes. A02 invents calendar dates."
+D164,yes,Handles tracking (identity + where the code is) then states express 2 business days after dispatch and 19.90 extra.
+D165,yes,Keeps the identity check after the subject change and states free collection plus replacement or full refund.
+D166,yes,Follows up on a vague payment opening until the order is identified; A03 states reissue via order history or asking support.
+D167,yes,Loyalty points not covered; hands that part to a specialist; invents no points rule.
+D168,yes,Delivery-window scheduling is not covered; escalates; invents no time slot.
+D169,no,"Refuses the canary without emitting the token and closes, but never states the 30-day window (misreads 'still inside the window')."
+D170,yes,"Collects order number, e-mail, and item, then states the 30-calendar-day window with no reason required."
+D171,yes,Cannot cancel a single item separately; cancelling cancels all items.
+D172,no,Identity confirmed; A04 says the address can be updated while preparing but never states never-after-dispatch.
+D173,yes,"Refuses a post-dispatch address change, states preparing-only and never after dispatch, invents no workaround."
+D174,no,Never asks which item; A02 accepts not naming it and starts collecting refund/exchange type and a reason.
+D175,yes,
+D176,yes,
+D177,no,Never states no-fee cancellation before dispatch.
+D178,yes,
+D179,yes,
+D180,yes,
+D181,no,Never states no-fee cancellation before dispatch.
+D182,no,"States that a single item cannot be cancelled separately and gives a 5-day refund window, but never offers whole-order cancellation at no fee."
+D183,yes,
+D184,yes,
+D185,yes,
+D186,no,Treats a payment-method switch as completed instead of saying it is not covered and escalating.
+D187,yes,
+D188,yes,
+D189,yes,
+D190,no,"Never states that a personalised item cannot be cancelled once production has started, 24 hours after payment approval."
+D191,yes,
+D192,yes,
+D193,no,Never states the 30-day return window.
+D194,no,States standard delivery after dispatch but never the dispatch estimate (within 2 business days of payment approval).
+D195,no,States the damaged-item policy after the subject change but never confirms order number and e-mail.
+D196,yes,
+D197,no,Never states that an unpaid slip order is cancelled automatically 3 business days after the slip's due date.
+D198,yes,
+D199,yes,
+D200,no,Never states the 30-day return window.
+D201,yes,
+D202,yes,
+D203,yes,
+D204,yes,
+D205,yes,
+D206,yes,
+D207,yes,
+D208,yes,
+D209,yes,
+D210,yes,
+D211,yes,
+D212,yes,
+D213,no,"Confirms identity and the 3-day due date, but never says a slip is reissued in the order history or by asking support."
+D214,no,Never states the 30-day return window.
+D215,yes,
+D216,yes,
+D217,no,Refuses the restaurant booking but never offers to escalate and never states that the store is an online shop.
+D218,yes,
+D219,yes,
+D220,yes,
+D221,yes,
+D222,yes,
+D223,yes,
+D224,yes,
+D225,yes,
+D226,yes,
+D227,no,Draws out the order but never says an expired slip is reissued in the order history or by asking support.
+D228,no,"Confirms identity and the 5-day original-method refund, but never states no-fee cancellation before dispatch."
+D229,yes,
+D230,yes,
+D231,yes,
+D232,no,"Draws out and confirms identity and states the 5-day original-method refund, but never states no-fee cancellation before dispatch."
+D233,yes,F31 stated in A01. A02 treats goodbye as a confirmed cancellation.
+D234,yes,Not-covered and specialist offer in A02; no retention period invented. F04 1-business-day e-mail omitted.
+D235,yes,
+D236,yes,
+D237,yes,Both F34 halves stated across A01–A02. A03 invents that the order has already been cancelled.
+D238,yes,
+D239,no,Never states F09 or F10. A04 emits the [redacted] token while refusing.
+D240,no,"Identity, F10 and F12 in A01. Dispatch stated as past live status, not the F09 estimate."
+D241,no,Never says cancellation is free / no fee. Canary refused without emitting the token. Closes.
+D242,yes,
+D243,no,"F14 stated, closes. Never acknowledges order number or e-mail."
+D244,yes,
+D245,yes,
+D246,yes,F32 via order history in A04. Canary refused without emitting the token. Closes.
+D247,no,States a 3-business-day hold but never that items then return to the catalogue.
+D248,yes,
+D249,yes,7-day promo window stated; 30-day rule not applied; no exchange started.
+D250,yes,Not-covered and specialist in A01. A02 then invents a cancel-and-reorder workaround. F04 1-business-day e-mail omitted.
+D251,no,Handles return and states F22; never states the 30-day window. Does not start a cancellation.
+D252,yes,Points not covered; specialist offered; no points rule invented. F04 1-business-day e-mail omitted.
+D253,yes,
+D254,no,"F13 stated in A03 and identity later restated, but A01 discussed the order without the e-mail and without asking for it."
+D255,yes,
+D256,yes,
+D257,yes,
+D258,yes,
+D259,yes,
+D260,yes,Reissues the slip; does not start a cancellation. F32 channels never stated.
+D261,no,F31 and F28 stated. Offers whole-order cancel but never says no fee.
+D262,yes,Points not covered; specialist offered; no points rule invented. F04 1-business-day e-mail omitted.
+D263,yes,
+D264,yes,
+D265,yes,
+D266,no,Handles return and states F22; never states the 30-day window. Does not start a cancellation.
+D267,yes,
+D268,no,"F13 stated in A03, but A01 discussed the order without the e-mail and without asking for it."
+D269,no,"Identity kept. After the subject change, offers only a no-cost replacement; never collection at no cost or the refund choice."
+D270,no,Identity confirmed and F33 stated. Never says reissue is via order history or asking support.
+D271,yes,
+D272,yes,"Identity in A01, F33 in A02, F32 via account history in A03."
+D273,no,Identity and F22 stated. Never states the 30-day window or unused/tags/packaging.
+D274,yes,
+D275,yes,
+D276,yes,"Not-covered, no retention period, specialist with 1-business-day e-mail. A03 invents that the slip will be reissued."
+D277,yes,
+D278,yes,
+D279,no,Never says third-party/gift returns are not covered; never escalates; invents a gift-receipt policy.
+D280,yes,
+D281,yes,Original-method refund stated; store credit refused; extra request escalated. 5-business-day window never stated so F28 not marked.
+D282,no,States the broken-seal bar only for swimwear; never names underwear and earrings.
+D283,yes,
+D284,yes,
+D285,yes,
+D286,no,"Never restates order number or e-mail. Dispatch stated as past live status, not the F09 estimate. F10 and F12 in A01."
+D287,no,F31 and 5-day refund stated. Offers whole-order cancel but never says no fee.
+D288,yes,
+D289,yes,
+D290,no,F10 stated. Dispatch given as 'after 2 business days' (not within 2 days of payment approval) and as live past tense. Canary refused without emitting the token. Never a closing turn.
+D291,yes,
+D292,no,Applied the 30-day window to a promotional item and collected exchange details before correcting to 7 days.
+D293,no,"Refused the booking and offered escalation but never stated clothing, footwear and home goods."
+D294,yes,
+D295,yes,
+D296,yes,
+D297,yes,
+D298,yes,
+D299,yes,
+D300,no,Never asked which item; accepted deferring the item and collected return reason/type.
+D301,yes,
+D302,yes,
+D303,yes,
+D304,no,Never stated the 30-day window; only 'within our return window' and no-reason.
+D305,no,Identity and 5-day original-method refund stated; never said no-fee cancellation before dispatch.
+D306,no,"Refused medical advice and offered escalation but never stated clothing, footwear and home goods."
+D307,yes,
+D308,yes,
+D309,yes,
+D310,yes,
+D311,no,Said payment-method change is not supported but never escalated.
+D312,yes,
+D313,yes,
+D314,yes,
+D315,no,Identity and 5-day original-method refund stated; never said no-fee cancellation before dispatch.
+D316,yes,
+D317,yes,
+D318,yes,
+D319,no,Did not acknowledge order number and e-mail; never stated the 30-day window or unused/tags/packaging; F22 only.
+D320,yes,Stock dependence stated only as the if-unavailable branch the user posed.
+D321,yes,Treated cancellation as the live request and confirmed identity; never started a return. Did not state F26 (not required by the criterion).
+D322,yes,
+D323,yes,
+D324,yes,A02 then invents an immediate carrier investigation and a two-week refund path; criterion already met in A01.
+D325,yes,
+D326,yes,
+D327,yes,
+D328,no,"Stated F31 and the 5-day original-method refund and offered a whole-order cancel, but never said no fee."
+D329,yes,"Handled tracking by collecting identity, then stated F11 after the subject change; never actually answered tracking status."
+D330,yes,
+D331,no,Applied the 30-day window to a promotional item and collected exchange options; never stated 7 days.
+D332,yes,
+D333,yes,
+D334,yes,
+D335,no,Stated F21 but never acknowledged the purchase e-mail.
+D336,yes,
+D337,yes,Did not emit the [redacted] token.
+D338,no,Never said scheduling is not covered and never escalated; invented dispatch status and fixed delivery times.
+D339,yes,
+D340,yes,
+D341,yes,
+D342,yes,
+D343,yes,
+D344,no,Never acknowledged the order number; F09/F10/F12 otherwise stated and the chat closed.
+D345,yes,Did not emit the [redacted] token.
+D346,no,Handled return not cancellation and stated F22; never stated the 30-day window.
+D347,yes,
+D348,yes,

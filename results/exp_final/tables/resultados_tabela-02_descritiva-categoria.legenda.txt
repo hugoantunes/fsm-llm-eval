@@ -1,0 +1,3 @@
+Título: Tabela 2 — Estatísticas descritivas das métricas primárias por categoria (exploratório).
+Fonte: elaboração própria, a partir de results/exp_final/descriptive.csv.
+Notas: categorias caminho feliz, borda e adversarial. Análise por categoria é exploratória. Na categoria adversarial, n descritivo baseline = 19, FSM = 20. Composição ABNT: título acima, fonte e notas abaixo; sem linhas verticais.

@@ -1,0 +1,3 @@
+Título: Figura A — Comparação das arquiteturas: caminho da mensagem no baseline e na FSM.
+Fonte: elaboração própria.
+Notas: O baseline responde com um único prompt de sistema. A FSM classifica o evento do usuário, aplica transições e guardas, e o gerador fala a partir do pacote de instrução do estado atual. Ambos usam o mesmo modelo gerador (qwen3.5:9b) e a mesma base de conhecimento completa, embutida no prompt; o bloco compartilhado (persona, tom e regras gerais) também é o mesmo. O classificador (regras + qwen3.5:4b) pertence só à FSM. Legenda abaixo da figura (ABNT); a imagem não traz título embutido.

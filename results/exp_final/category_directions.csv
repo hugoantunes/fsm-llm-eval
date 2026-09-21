@@ -1,0 +1,17 @@
+metric,stratum,family,n,wins,ties,losses,direction,inverted,mean_diff,rank_biserial
+task_completed,overall,confirmatory,59,9,39,11,baseline,False,-0.01129943502825424,-0.09047619047619047
+task_completed,happy_path,exploratory,20,2,14,4,baseline,False,-0.0833333333334,-0.6190476190476191
+task_completed,edge,exploratory,20,3,14,3,baseline,False,-0.02500000000005,-0.2857142857142857
+task_completed,adversarial,exploratory,19,4,11,4,fsm,True,0.07894736842115789,0.4444444444444444
+fact_f1,overall,confirmatory,59,15,7,37,baseline,False,-0.05923683974525424,-0.45355587808417996
+fact_f1,happy_path,exploratory,20,5,1,14,baseline,False,-0.04345238095235,-0.5368421052631579
+fact_f1,edge,exploratory,20,3,3,14,baseline,False,-0.1127777777777,-0.7647058823529411
+fact_f1,adversarial,exploratory,19,7,3,9,baseline,False,-0.019493177387842103,-0.07352941176470588
+claim_support,overall,confirmatory,59,20,23,16,fsm,False,0.004091216379338983,0.006006006006006006
+claim_support,happy_path,exploratory,20,6,9,5,baseline,True,-0.007896825396849999,-0.19696969696969696
+claim_support,edge,exploratory,20,5,9,6,baseline,True,-0.01974867724865,-0.16666666666666666
+claim_support,adversarial,exploratory,19,9,5,5,fsm,False,0.04180483259426316,0.3142857142857143
+flow_adherence,overall,diagnostic,59,33,15,11,fsm,False,0.18644067796603392,0.5717171717171717
+flow_adherence,happy_path,diagnostic,20,15,4,1,fsm,False,0.30833333333325,0.9117647058823529
+flow_adherence,edge,diagnostic,20,8,5,7,fsm,False,0.0583333333333,0.175
+flow_adherence,adversarial,diagnostic,19,10,6,3,fsm,False,0.19298245614026316,0.5494505494505495

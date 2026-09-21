@@ -1,0 +1,7 @@
+# Human annotation freeze
+# utc=2026-09-20T21:11:58Z
+# copy of filled CSVs before unblinding / judge comparison
+
+5c2c06d59a136f6396d35600df7fc17f15229b0ec7b98f28c1320cf8291a786d  dialogue_annotations.csv
+69fb6b85a64ec2d302e128e6fa7d8836b57f61290de2fdfe7c3d6625db7d5a3c  response_annotations.csv
+18b37afaac8931690e03e1209a6a68cdb186efe6a5f38050d40a11db541e0e59  claims_annotations.csv

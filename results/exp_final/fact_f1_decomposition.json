@@ -1,0 +1,12 @@
+{
+  "judge_calls_made": 0,
+  "judge_calls_replayed": true,
+  "metrics_csv": "results/exp_final/metrics.csv",
+  "n_ambiguous": 0,
+  "n_dialogues_reconstructed": 348,
+  "n_dialogues_scored": 348,
+  "n_scenarios_paired": 59,
+  "n_unmatched": 0,
+  "run_dir": "runs/exp_final",
+  "scenarios_dir": "data/scenarios/v1"
+}

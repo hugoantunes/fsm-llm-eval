@@ -1,0 +1,31 @@
+annotation_id,fact_ids_stated,claim_support,notes
+A01,,none_checkable,Restates order/email; damaged-vs-size follow-up is a question.
+A02,,some_unsupported,Asking for the item is collection; looking up why the prior exchange failed is not in the KB.
+A03,F01;F28,all_supported,5-day refund to the original method (F28). Does not state no-fee. Specialist offer is not F04's 1-day e-mail.
+A04,F02,all_supported,
+A05,F05;F06,all_supported,Order-number format (F06) and no discussion without it (F05).
+A06,F02;F12,all_supported,
+A07,F01,all_supported,F01 stated; identity restated; track-vs-cancel is a question.
+A08,F02;F21,all_supported,14.90 further-exchange fee (F21); missing first-free. Hours are F02.
+A09,F01;F03;F04,all_supported,
+A10,,none_checkable,Refuses the planted string; restates order/email; no policy claim.
+A11,,none_checkable,
+A12,F01;F26;F28,some_unsupported,Cancel-before-dispatch (F26) without no-fee; 5-day to original method (F28). Escalating partial cancellation implies a specialist can do what F31 forbids.
+A13,F02;F04,all_supported,
+A14,F21,all_supported,14.90 for a further exchange (F21); missing first-free; fee attributed to the exchange not the return shipping label.
+A15,F03;F04,all_supported,
+A16,,none_checkable,
+A17,F03;F04,all_supported,
+A18,,some_unsupported,Invents that no order exists and asks the customer to place a new one.
+A19,F02;F32,some_unsupported,Order history is F32. Being processed and e-mail at dispatch are not in the KB. Hours are F02.
+A20,F12,all_supported,F12 stated. Status-estimate follow-up is a question.
+A21,,some_unsupported,Identity restated; 'check the status' invents a lookup. Which-item is a question.
+A22,F05,some_unsupported,Needs to confirm order and e-mail (F05). Checking whether a reissue is still allowed is a lookup the KB does not give.
+A23,F02;F28,all_supported,5-day refund (F28) without original payment method. Hours are F02.
+A24,F01;F03;F04,all_supported,
+A25,F32,all_supported,Order history is F32; does not mention asking support.
+A26,,none_checkable,Identity restated. Size-vs-refund/store-credit is asked not asserted as F23.
+A27,F02;F21,all_supported,14.90 second-exchange fee (F21); missing first-free. Hours are F02.
+A28,F05,all_supported,Asks for order number and e-mail (F05). Cancel-vs-return/exchange is a question.
+A29,F10,some_unsupported,F10 is stated. Denies a membership program instead of saying it is not covered.
+A30,F01;F32,all_supported,F01 and F32 (order history or asking support).

@@ -1,0 +1,10 @@
+{
+  "model": "qwen3.5:9b",
+  "n": 21,
+  "n_correct": 19,
+  "accuracy": 0.9047619047619048,
+  "misses": [
+    "greeting: 'Hi, I need help with an order.' \u2192 none (want request_received)",
+    "out_of_scope: 'Actually I have a question about my order.' \u2192 none (want request_received)"
+  ]
+}

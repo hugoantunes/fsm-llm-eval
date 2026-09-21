@@ -1,0 +1,7 @@
+{
+  "model": "qwen3.5:4b",
+  "n": 21,
+  "n_correct": 21,
+  "accuracy": 1.0,
+  "misses": []
+}

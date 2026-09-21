@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "_comment": "What the agent has to collect from the user before it can solve anything (T-01). required_for names the intent sections of knowledge_base.md and becomes the guard on leaving the data_collection state (T-02). pattern is the regex that spots the datum in a user turn; it is absent for free text, which no rule can detect, and the hybrid event detection of T-08 reads it from here so the same rule is never written twice.",
+  "fields": [
+    {
+      "key": "order_number",
+      "label": "Order number",
+      "pattern": "\\bNL-\\d{8}\\b",
+      "example": "NL-20260145",
+      "required_for": [
+        "order_tracking",
+        "exchange_return",
+        "cancellation",
+        "payment_reissue"
+      ]
+    },
+    {
+      "key": "email",
+      "label": "E-mail used in the purchase",
+      "pattern": "\\b[^@\\s]+@[^@\\s]+\\.[a-z]{2,}\\b",
+      "example": "customer@example.com",
+      "required_for": [
+        "order_tracking",
+        "exchange_return",
+        "cancellation",
+        "payment_reissue"
+      ]
+    },
+    {
+      "key": "item",
+      "label": "Which item of the order the request is about",
+      "example": "the blue jacket",
+      "required_for": [
+        "exchange_return"
+      ]
+    },
+    {
+      "key": "reason",
+      "label": "Reason for the return, exchange or cancellation",
+      "example": "the size is too small",
+      "required_for": [
+        "exchange_return",
+        "cancellation"
+      ]
+    },
+    {
+      "key": "preferred_resolution",
+      "label": "What the customer wants: exchange, refund or store credit",
+      "example": "an exchange for a larger size",
+      "required_for": [
+        "exchange_return"
+      ]
+    }
+  ]
+}

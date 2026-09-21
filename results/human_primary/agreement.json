@@ -1,0 +1,27 @@
+{
+  "grain": "dialogue",
+  "n_dialogues": 348,
+  "task_completed": {
+    "n": 348,
+    "n_uncertain_excluded": 0,
+    "percent_agreement": 0.8936781609195402,
+    "cohen_kappa": 0.7286292362164897
+  },
+  "fact_ids_stated": {
+    "n": 241,
+    "exact_match_rate": 0.02074688796680498,
+    "precision": 0.32791327913279134,
+    "recall": 0.8897058823529411,
+    "f1": 0.47920792079207924,
+    "true_positive": 242,
+    "false_positive": 496,
+    "false_negative": 30,
+    "n_omitted_ambiguous_judge_calls": 107
+  },
+  "claim_support_label": {
+    "n": 348,
+    "percent_agreement": 0.4540229885057471,
+    "cohen_kappa": 0.10213060659143679,
+    "alignment": "dialogue-level three-way label from n_checkable_claims and claim_support; no claim_id or claim_text matching"
+  }
+}

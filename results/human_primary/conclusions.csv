@@ -1,0 +1,4 @@
+metric,judge_direction,human_direction,judge_mean_diff,human_mean_diff,judge_wilcoxon_p_holm,human_wilcoxon_p_holm,same_direction,same_significance
+task_completed,baseline,baseline,-0.01129943502825424,-0.005649717514152543,1.0,1.0,True,True
+fact_f1,baseline,baseline,-0.05923683974525424,-0.0036409290646271185,0.013217751635148964,1.0,True,False
+claim_support,fsm,fsm,0.004091216379338983,0.04690287025405085,1.0,0.04763857690616527,True,False

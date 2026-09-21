@@ -1,0 +1,3 @@
+Título: Figura 2 — Médias por categoria e agente das métricas primárias.
+Fonte: elaboração própria.
+Notas: Alturas = médias congeladas de descriptive.csv (população humana primária). Barras de erro = IC 95% congelados das colunas ci_low e ci_high; T-20 não recalcula o IC. Análise por categoria exploratória. Na categoria adversarial, n descritivo baseline = 19, FSM = 20. Legenda abaixo da figura (ABNT); a imagem não traz título embutido. Cores e hachuras são usadas como codificação visual redundante; as hachuras preservam a distinção entre séries em impressão monocromática.

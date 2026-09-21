@@ -1,0 +1,3 @@
+Título: Tabela 4 — Concordância humano vs juiz (grão diálogo).
+Fonte: elaboração própria, a partir de results/human_primary/agreement.json.
+Notas: humano como referência. Tarefa concluída exclui incerto. Suporte é rótulo de diálogo em três vias derivado de n_checkable_claims e claim_support, sem casamento de claim_id nem de texto. IDs de fato: conjunto exato e micro P/R/F1 sobre os 241 diálogos cuja reconstrução do juiz foi unívoca; 107 diálogos omitidos porque duas chamadas judge_facts reproduzem a linha congelada de metrics.csv e discordam nos IDs previstos (GGUF vs MLX). Não adivinhar o conjunto. Composição ABNT: título acima, fonte e notas abaixo; sem linhas verticais.

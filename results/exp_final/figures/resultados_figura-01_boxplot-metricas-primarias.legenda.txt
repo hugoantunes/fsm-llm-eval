@@ -1,0 +1,3 @@
+Título: Figura 1 — Distribuição dos escores por cenário das métricas primárias, por agente.
+Fonte: elaboração própria.
+Notas: Cada ponto da caixa é um cenário (média das repetições não-NA, definição de escore de cenário do T-19). n plotado por agente (para as três métricas): Baseline = 59, FSM = 60. adversarial_12 existe só no FSM. Figura 01 é descritiva/visual; o n inferencial pareado vem de tests.csv (não forçar o mesmo n nas duas caixas). Transformada só de visualização; médias publicadas vêm de descriptive.csv. Legenda abaixo da figura (ABNT); a imagem não traz título embutido. Cores e hachuras são usadas como codificação visual redundante; as hachuras preservam a distinção entre séries em impressão monocromática.

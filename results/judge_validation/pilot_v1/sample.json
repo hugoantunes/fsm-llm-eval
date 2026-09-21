@@ -1,0 +1,558 @@
+{
+  "sampler_version": 1,
+  "seed": 20260911,
+  "per_agent": 15,
+  "agents": [
+    "baseline",
+    "fsm"
+  ],
+  "run_dir": "runs/exp_pilot",
+  "exp_id": "exp_pilot  ",
+  "dataset_hash": "0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9",
+  "fsm_hash": "070184bd0bf13f15505b64437dfe4b0596086efb4054e7d67f875578d351dd05",
+  "eligibility": "every agent turn of every dialogue whose status is ok and whose reply is not blank; failed dialogues and empty replies cannot be annotated",
+  "frame_hash": "62235bb863755b423b78da4f7ebf4500f6b8800bb53ee2ba0178e7174d16e683",
+  "n_frame": 76,
+  "n_frame_by_agent": {
+    "baseline": 38,
+    "fsm": 38
+  },
+  "n_dialogues": 20,
+  "max_per_dialogue": 2,
+  "strata": [
+    {
+      "agent": "baseline",
+      "scenario_id": "adversarial_04",
+      "n_frame": 8,
+      "quota": 3,
+      "per_dialogue": {
+        "adversarial_04__baseline__rep01": 1,
+        "adversarial_04__baseline__rep02": 2
+      }
+    },
+    {
+      "agent": "baseline",
+      "scenario_id": "adversarial_13",
+      "n_frame": 8,
+      "quota": 3,
+      "per_dialogue": {
+        "adversarial_13__baseline__rep01": 1,
+        "adversarial_13__baseline__rep02": 2
+      }
+    },
+    {
+      "agent": "baseline",
+      "scenario_id": "edge_02",
+      "n_frame": 8,
+      "quota": 3,
+      "per_dialogue": {
+        "edge_02__baseline__rep01": 1,
+        "edge_02__baseline__rep02": 2
+      }
+    },
+    {
+      "agent": "baseline",
+      "scenario_id": "edge_19",
+      "n_frame": 8,
+      "quota": 3,
+      "per_dialogue": {
+        "edge_19__baseline__rep01": 1,
+        "edge_19__baseline__rep02": 2
+      }
+    },
+    {
+      "agent": "baseline",
+      "scenario_id": "happy_path_06",
+      "n_frame": 6,
+      "quota": 3,
+      "per_dialogue": {
+        "happy_path_06__baseline__rep01": 2,
+        "happy_path_06__baseline__rep02": 1
+      }
+    },
+    {
+      "agent": "fsm",
+      "scenario_id": "adversarial_04",
+      "n_frame": 8,
+      "quota": 3,
+      "per_dialogue": {
+        "adversarial_04__fsm__rep01": 1,
+        "adversarial_04__fsm__rep02": 2
+      }
+    },
+    {
+      "agent": "fsm",
+      "scenario_id": "adversarial_13",
+      "n_frame": 8,
+      "quota": 3,
+      "per_dialogue": {
+        "adversarial_13__fsm__rep01": 2,
+        "adversarial_13__fsm__rep02": 1
+      }
+    },
+    {
+      "agent": "fsm",
+      "scenario_id": "edge_02",
+      "n_frame": 8,
+      "quota": 3,
+      "per_dialogue": {
+        "edge_02__fsm__rep01": 2,
+        "edge_02__fsm__rep02": 1
+      }
+    },
+    {
+      "agent": "fsm",
+      "scenario_id": "edge_19",
+      "n_frame": 8,
+      "quota": 3,
+      "per_dialogue": {
+        "edge_19__fsm__rep01": 1,
+        "edge_19__fsm__rep02": 2
+      }
+    },
+    {
+      "agent": "fsm",
+      "scenario_id": "happy_path_06",
+      "n_frame": 6,
+      "quota": 3,
+      "per_dialogue": {
+        "happy_path_06__fsm__rep01": 1,
+        "happy_path_06__fsm__rep02": 2
+      }
+    }
+  ],
+  "responses": [
+    {
+      "annotation_id": "A01",
+      "unit_id": "adversarial_04__fsm__rep01#t2",
+      "dialogue_id": "adversarial_04__fsm__rep01",
+      "scenario_id": "adversarial_04",
+      "agent": "fsm",
+      "repetition": 1,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A02",
+      "unit_id": "adversarial_04__baseline__rep02#t1",
+      "dialogue_id": "adversarial_04__baseline__rep02",
+      "scenario_id": "adversarial_04",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 1
+    },
+    {
+      "annotation_id": "A03",
+      "unit_id": "edge_02__baseline__rep02#t3",
+      "dialogue_id": "edge_02__baseline__rep02",
+      "scenario_id": "edge_02",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A04",
+      "unit_id": "edge_02__fsm__rep01#t2",
+      "dialogue_id": "edge_02__fsm__rep01",
+      "scenario_id": "edge_02",
+      "agent": "fsm",
+      "repetition": 1,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A05",
+      "unit_id": "edge_19__baseline__rep02#t3",
+      "dialogue_id": "edge_19__baseline__rep02",
+      "scenario_id": "edge_19",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A06",
+      "unit_id": "happy_path_06__fsm__rep02#t2",
+      "dialogue_id": "happy_path_06__fsm__rep02",
+      "scenario_id": "happy_path_06",
+      "agent": "fsm",
+      "repetition": 2,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A07",
+      "unit_id": "adversarial_13__fsm__rep01#t1",
+      "dialogue_id": "adversarial_13__fsm__rep01",
+      "scenario_id": "adversarial_13",
+      "agent": "fsm",
+      "repetition": 1,
+      "turn": 1
+    },
+    {
+      "annotation_id": "A08",
+      "unit_id": "adversarial_13__fsm__rep02#t3",
+      "dialogue_id": "adversarial_13__fsm__rep02",
+      "scenario_id": "adversarial_13",
+      "agent": "fsm",
+      "repetition": 2,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A09",
+      "unit_id": "happy_path_06__baseline__rep01#t2",
+      "dialogue_id": "happy_path_06__baseline__rep01",
+      "scenario_id": "happy_path_06",
+      "agent": "baseline",
+      "repetition": 1,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A10",
+      "unit_id": "edge_19__fsm__rep01#t3",
+      "dialogue_id": "edge_19__fsm__rep01",
+      "scenario_id": "edge_19",
+      "agent": "fsm",
+      "repetition": 1,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A11",
+      "unit_id": "edge_19__baseline__rep02#t2",
+      "dialogue_id": "edge_19__baseline__rep02",
+      "scenario_id": "edge_19",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A12",
+      "unit_id": "adversarial_04__baseline__rep02#t2",
+      "dialogue_id": "adversarial_04__baseline__rep02",
+      "scenario_id": "adversarial_04",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A13",
+      "unit_id": "adversarial_04__baseline__rep01#t2",
+      "dialogue_id": "adversarial_04__baseline__rep01",
+      "scenario_id": "adversarial_04",
+      "agent": "baseline",
+      "repetition": 1,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A14",
+      "unit_id": "adversarial_13__fsm__rep01#t4",
+      "dialogue_id": "adversarial_13__fsm__rep01",
+      "scenario_id": "adversarial_13",
+      "agent": "fsm",
+      "repetition": 1,
+      "turn": 4
+    },
+    {
+      "annotation_id": "A15",
+      "unit_id": "edge_02__fsm__rep02#t1",
+      "dialogue_id": "edge_02__fsm__rep02",
+      "scenario_id": "edge_02",
+      "agent": "fsm",
+      "repetition": 2,
+      "turn": 1
+    },
+    {
+      "annotation_id": "A16",
+      "unit_id": "adversarial_04__fsm__rep02#t2",
+      "dialogue_id": "adversarial_04__fsm__rep02",
+      "scenario_id": "adversarial_04",
+      "agent": "fsm",
+      "repetition": 2,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A17",
+      "unit_id": "happy_path_06__baseline__rep01#t3",
+      "dialogue_id": "happy_path_06__baseline__rep01",
+      "scenario_id": "happy_path_06",
+      "agent": "baseline",
+      "repetition": 1,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A18",
+      "unit_id": "edge_19__fsm__rep02#t3",
+      "dialogue_id": "edge_19__fsm__rep02",
+      "scenario_id": "edge_19",
+      "agent": "fsm",
+      "repetition": 2,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A19",
+      "unit_id": "adversarial_13__baseline__rep01#t3",
+      "dialogue_id": "adversarial_13__baseline__rep01",
+      "scenario_id": "adversarial_13",
+      "agent": "baseline",
+      "repetition": 1,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A20",
+      "unit_id": "edge_02__baseline__rep01#t2",
+      "dialogue_id": "edge_02__baseline__rep01",
+      "scenario_id": "edge_02",
+      "agent": "baseline",
+      "repetition": 1,
+      "turn": 2
+    },
+    {
+      "annotation_id": "A21",
+      "unit_id": "edge_02__fsm__rep01#t4",
+      "dialogue_id": "edge_02__fsm__rep01",
+      "scenario_id": "edge_02",
+      "agent": "fsm",
+      "repetition": 1,
+      "turn": 4
+    },
+    {
+      "annotation_id": "A22",
+      "unit_id": "adversarial_04__fsm__rep02#t3",
+      "dialogue_id": "adversarial_04__fsm__rep02",
+      "scenario_id": "adversarial_04",
+      "agent": "fsm",
+      "repetition": 2,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A23",
+      "unit_id": "edge_02__baseline__rep02#t1",
+      "dialogue_id": "edge_02__baseline__rep02",
+      "scenario_id": "edge_02",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 1
+    },
+    {
+      "annotation_id": "A24",
+      "unit_id": "happy_path_06__fsm__rep02#t1",
+      "dialogue_id": "happy_path_06__fsm__rep02",
+      "scenario_id": "happy_path_06",
+      "agent": "fsm",
+      "repetition": 2,
+      "turn": 1
+    },
+    {
+      "annotation_id": "A25",
+      "unit_id": "edge_19__baseline__rep01#t1",
+      "dialogue_id": "edge_19__baseline__rep01",
+      "scenario_id": "edge_19",
+      "agent": "baseline",
+      "repetition": 1,
+      "turn": 1
+    },
+    {
+      "annotation_id": "A26",
+      "unit_id": "happy_path_06__baseline__rep02#t1",
+      "dialogue_id": "happy_path_06__baseline__rep02",
+      "scenario_id": "happy_path_06",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 1
+    },
+    {
+      "annotation_id": "A27",
+      "unit_id": "edge_19__fsm__rep02#t4",
+      "dialogue_id": "edge_19__fsm__rep02",
+      "scenario_id": "edge_19",
+      "agent": "fsm",
+      "repetition": 2,
+      "turn": 4
+    },
+    {
+      "annotation_id": "A28",
+      "unit_id": "adversarial_13__baseline__rep02#t1",
+      "dialogue_id": "adversarial_13__baseline__rep02",
+      "scenario_id": "adversarial_13",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 1
+    },
+    {
+      "annotation_id": "A29",
+      "unit_id": "adversarial_13__baseline__rep02#t3",
+      "dialogue_id": "adversarial_13__baseline__rep02",
+      "scenario_id": "adversarial_13",
+      "agent": "baseline",
+      "repetition": 2,
+      "turn": 3
+    },
+    {
+      "annotation_id": "A30",
+      "unit_id": "happy_path_06__fsm__rep01#t1",
+      "dialogue_id": "happy_path_06__fsm__rep01",
+      "scenario_id": "happy_path_06",
+      "agent": "fsm",
+      "repetition": 1,
+      "turn": 1
+    }
+  ],
+  "dialogues": [
+    {
+      "dialogue_annotation_id": "D01",
+      "dialogue_id": "adversarial_13__fsm__rep01",
+      "scenario_id": "adversarial_13",
+      "agent": "fsm",
+      "repetition": 1,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D02",
+      "dialogue_id": "happy_path_06__fsm__rep02",
+      "scenario_id": "happy_path_06",
+      "agent": "fsm",
+      "repetition": 2,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D03",
+      "dialogue_id": "adversarial_13__baseline__rep01",
+      "scenario_id": "adversarial_13",
+      "agent": "baseline",
+      "repetition": 1,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D04",
+      "dialogue_id": "edge_02__baseline__rep02",
+      "scenario_id": "edge_02",
+      "agent": "baseline",
+      "repetition": 2,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D05",
+      "dialogue_id": "adversarial_04__baseline__rep01",
+      "scenario_id": "adversarial_04",
+      "agent": "baseline",
+      "repetition": 1,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D06",
+      "dialogue_id": "edge_19__fsm__rep01",
+      "scenario_id": "edge_19",
+      "agent": "fsm",
+      "repetition": 1,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D07",
+      "dialogue_id": "adversarial_13__baseline__rep02",
+      "scenario_id": "adversarial_13",
+      "agent": "baseline",
+      "repetition": 2,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D08",
+      "dialogue_id": "happy_path_06__baseline__rep01",
+      "scenario_id": "happy_path_06",
+      "agent": "baseline",
+      "repetition": 1,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D09",
+      "dialogue_id": "happy_path_06__baseline__rep02",
+      "scenario_id": "happy_path_06",
+      "agent": "baseline",
+      "repetition": 2,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D10",
+      "dialogue_id": "adversarial_04__fsm__rep01",
+      "scenario_id": "adversarial_04",
+      "agent": "fsm",
+      "repetition": 1,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D11",
+      "dialogue_id": "edge_02__fsm__rep01",
+      "scenario_id": "edge_02",
+      "agent": "fsm",
+      "repetition": 1,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D12",
+      "dialogue_id": "adversarial_04__baseline__rep02",
+      "scenario_id": "adversarial_04",
+      "agent": "baseline",
+      "repetition": 2,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D13",
+      "dialogue_id": "edge_19__baseline__rep02",
+      "scenario_id": "edge_19",
+      "agent": "baseline",
+      "repetition": 2,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D14",
+      "dialogue_id": "edge_02__baseline__rep01",
+      "scenario_id": "edge_02",
+      "agent": "baseline",
+      "repetition": 1,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D15",
+      "dialogue_id": "edge_02__fsm__rep02",
+      "scenario_id": "edge_02",
+      "agent": "fsm",
+      "repetition": 2,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D16",
+      "dialogue_id": "edge_19__fsm__rep02",
+      "scenario_id": "edge_19",
+      "agent": "fsm",
+      "repetition": 2,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D17",
+      "dialogue_id": "edge_19__baseline__rep01",
+      "scenario_id": "edge_19",
+      "agent": "baseline",
+      "repetition": 1,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D18",
+      "dialogue_id": "adversarial_13__fsm__rep02",
+      "scenario_id": "adversarial_13",
+      "agent": "fsm",
+      "repetition": 2,
+      "n_sampled_responses": 1
+    },
+    {
+      "dialogue_annotation_id": "D19",
+      "dialogue_id": "adversarial_04__fsm__rep02",
+      "scenario_id": "adversarial_04",
+      "agent": "fsm",
+      "repetition": 2,
+      "n_sampled_responses": 2
+    },
+    {
+      "dialogue_annotation_id": "D20",
+      "dialogue_id": "happy_path_06__fsm__rep01",
+      "scenario_id": "happy_path_06",
+      "agent": "fsm",
+      "repetition": 1,
+      "n_sampled_responses": 1
+    }
+  ]
+}

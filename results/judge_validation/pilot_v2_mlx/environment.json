@@ -1,0 +1,11 @@
+{
+  "model_tag_observed": "gemma4:12b-mlx",
+  "model_digest_observed": "ded7a27350032202d9e9b2a6071e8aa89959ab156771b5228f30863c741c4970",
+  "ollama_version_observed": "0.33.3",
+  "temperature_configured": 0.0,
+  "seed_configured": 42,
+  "num_ctx_configured": 8192,
+  "judge_facts_prompt_version": "v3",
+  "judge_global_prompt_version": "v2",
+  "judge_shared_prompt_version": "v2"
+}

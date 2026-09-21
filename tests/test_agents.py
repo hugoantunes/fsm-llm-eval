@@ -1,0 +1,356 @@
+"""Tests for the agent interface and the baseline agent (T-09)."""
+
+import pytest
+
+from helpers import (
+    GENERAL_FACT,
+    PROMPTS_DIR,
+    TRACKING_FACT,
+    FakeLlm,
+    assert_prompt_carries_no_answer_key,
+    make_kb,
+    play_user_turns,
+)
+from sim.agents import (
+    FSM_TEMPLATE,
+    SHARED_PROMPT,
+    AgentError,
+    BaselineAgent,
+    render_user_data_fields,
+)
+from sim.kb import FACT_ID, Fact, KnowledgeBase, UserDataField, render_facts
+from sim.llm import LlmClient
+from sim.prompts import load_prompt
+from sim.schemas import MAX_TURNS, Scenario, Turn
+
+#: Four characters per token, the rule of thumb for English on these tokenizers.
+#: It makes the context budget testable without Ollama; the real count comes from
+#: ``prompt_eval_count`` in the integration test below, and at run time the client
+#: of T-07 refuses anything over 80% of ``num_ctx`` anyway.
+CHARS_PER_TOKEN = 4
+
+#: The three instruction files the two agents are built from: the block they
+#: share and one template each. What differs between them is the experiment.
+AGENT_PROMPTS = (SHARED_PROMPT, "baseline", FSM_TEMPLATE)
+
+#: The synthetic KB most of these tests build a baseline on: three facts, so an
+#: assertion can name every one of them. The real KB arrives as ``real_kb``,
+#: where what is under test is the size of the prompt it produces.
+KB = make_kb(
+    GENERAL_FACT,
+    TRACKING_FACT,
+    Fact(
+        id="F03",
+        intent="exchange_return",
+        text="Any item can be returned within 30 days.",
+    ),
+    user_data_fields=[
+        UserDataField(
+            key="order_number",
+            label="Order number",
+            pattern=r"\bNL-\d{8}\b",
+            example="NL-20260145",
+            required_for=["order_tracking", "exchange_return"],
+        ),
+        UserDataField(
+            key="reason",
+            label="Reason for the return",
+            example="the size is too small",
+            required_for=["exchange_return"],
+        ),
+    ],
+)
+
+
+def baseline(llm: FakeLlm | None = None, **kwargs: object) -> BaselineAgent:
+    """Build a baseline agent on the synthetic KB and the real prompt files."""
+    return BaselineAgent(llm or FakeLlm(), kb=KB, prompts_dir=PROMPTS_DIR, **kwargs)
+
+
+def verbose_history(exchanges: int) -> list[Turn]:
+    """Build a talkative dialogue of ``exchanges`` exchanges, the worst case.
+
+    Every message is longer than a real one, so a prompt that fits here fits any
+    dialogue the scenarios of T-05 allow.
+    """
+    customer = (
+        "I checked the order history again and I still cannot find what I need, so "
+        "let me repeat the whole story with every detail I have, including the item, "
+        "the date and what the confirmation e-mail said when the order was placed. "
+    )
+    agent = (
+        "Thank you for the details. Here is what applies to your order, the deadline "
+        "that governs it and the next step, with the condition that decides the case "
+        "spelled out so that nothing about it is left open on your side. "
+    )
+    turns: list[Turn] = []
+    for _ in range(exchanges):
+        turns.append(Turn(speaker="user", text=customer))
+        turns.append(Turn(speaker="agent", text=agent))
+    turns.append(Turn(speaker="user", text=customer))
+    return turns
+
+
+def test_render_facts_emits_one_heading_per_intent() -> None:
+    facts = [
+        Fact(id="F01", intent="order_tracking", text="Ships in 2 days."),
+        Fact(id="F02", intent="exchange_return", text="Returns in 30 days."),
+        Fact(id="F03", intent="order_tracking", text="Tracking by e-mail."),
+    ]
+
+    rendered = render_facts(facts)
+
+    assert rendered.count("## order_tracking") == 1
+    assert rendered.count("## exchange_return") == 1
+    assert rendered.index("## order_tracking") < rendered.index("## exchange_return")
+    assert rendered.index("Ships in 2 days.") < rendered.index("Tracking by e-mail.")
+
+
+def test_the_baseline_prompt_carries_the_shared_block_and_every_fact() -> None:
+    agent = baseline()
+
+    prompt = agent.system_prompt
+
+    assert load_prompt("agent_shared", directory=PROMPTS_DIR).template in prompt
+    assert all(fact.text in prompt for fact in KB.facts)
+    assert all(field.label in prompt for field in KB.user_data_fields)
+
+
+def test_shared_prompt_carries_the_cross_state_identity_confirmation_contract() -> None:
+    shared = load_prompt("agent_shared", directory=PROMPTS_DIR).template.lower()
+
+    assert "order number and purchase e-mail are already present in the dialogue" in (
+        shared
+    )
+    assert "read them back once before request-specific resolution" in shared
+    assert "do not ask the customer to provide, repeat or confirm them again" in shared
+    assert "unless the customer" in shared
+    assert "explicitly corrects one" in shared
+
+
+def test_shared_prompt_forbids_echoing_customer_requested_tokens() -> None:
+    shared = load_prompt("agent_shared", directory=PROMPTS_DIR).template.lower()
+
+    assert "do not include the" in shared
+    assert "requested token text in your reply" in shared
+    assert 'refer to it as "that string"' in shared
+
+
+def test_user_data_fields_are_rendered_from_the_versioned_row_template() -> None:
+    row = load_prompt("user_data_field", directory=PROMPTS_DIR)
+    expected = "\n".join(
+        row.render(
+            label=field.label,
+            required_for=", ".join(field.required_for),
+            example=field.example,
+        )
+        for field in KB.user_data_fields
+    )
+
+    assert (
+        render_user_data_fields(KB.user_data_fields, prompts_dir=PROMPTS_DIR)
+        == expected
+    )
+    assert "required for" in row.template
+    assert "for example" in row.template
+
+
+def test_the_baseline_prompt_carries_no_part_of_the_answer_key(
+    real_kb: KnowledgeBase, example_scenarios: dict[str, Scenario]
+) -> None:
+    scenario = example_scenarios["adversarial_01"]
+
+    prompt = BaselineAgent(FakeLlm(), kb=real_kb, prompts_dir=PROMPTS_DIR).system_prompt
+
+    assert_prompt_carries_no_answer_key(prompt, scenario)
+
+
+def test_the_history_becomes_system_plus_alternating_chat_turns() -> None:
+    llm = FakeLlm(["Your order is on its way."])
+    agent = baseline(llm)
+
+    agent.respond(
+        [
+            Turn(speaker="user", text="Where is my order?"),
+            Turn(speaker="agent", text="What is the order number?"),
+            Turn(speaker="user", text="NL-20260145"),
+        ]
+    )
+
+    assert llm.calls[0]["messages"] == [
+        {"role": "system", "content": agent.system_prompt},
+        {"role": "user", "content": "Where is my order?"},
+        {"role": "assistant", "content": "What is the order number?"},
+        {"role": "user", "content": "NL-20260145"},
+    ]
+
+
+def test_the_turn_record_carries_both_latencies_the_tokens_and_the_prompt_hash() -> (
+    None
+):
+    llm = FakeLlm(["Dispatch takes 2 business days."], latency_s=0.5)
+    agent = baseline(llm)
+
+    record = agent.respond(
+        [
+            Turn(speaker="user", text="Where is my order?"),
+            Turn(speaker="agent", text="What is the order number?"),
+            Turn(speaker="user", text="NL-20260145"),
+        ]
+    )
+
+    assert record.turn == 2
+    assert record.user_message == "NL-20260145"
+    assert record.agent_reply == "Dispatch takes 2 business days."
+    assert record.prompt_hash == llm.calls[0]["prompt_hash"]
+    assert record.prompt_tokens > 0
+    assert record.output_tokens > 0
+    assert record.llm_latency_s == 0.5
+    assert record.turn_latency_s > 0
+    assert record.turn_latency_s != record.llm_latency_s
+
+
+def test_the_baseline_record_leaves_the_fsm_bookkeeping_empty() -> None:
+    record = baseline().respond([Turn(speaker="user", text="Hello?")])
+
+    assert record.state_before is None
+    assert record.state_after is None
+    assert record.event is None
+    assert record.intent is None
+    assert record.collected == {}
+    assert record.transitions == []
+
+
+@pytest.mark.parametrize("name", AGENT_PROMPTS)
+def test_no_agent_instruction_file_cites_a_fact_id(name: str) -> None:
+    template = load_prompt(name, directory=PROMPTS_DIR).template
+
+    assert FACT_ID.findall(template) == []
+
+
+def test_baseline_and_fsm_share_the_knowledge_base_section() -> None:
+    marker = "# Your knowledge base"
+    baseline = load_prompt("baseline", directory=PROMPTS_DIR).template
+    fsm = load_prompt(FSM_TEMPLATE, directory=PROMPTS_DIR).template
+
+    assert baseline[baseline.index(marker) :] == fsm[fsm.index(marker) :]
+
+
+@pytest.mark.parametrize("text", ["", "  "])
+def test_a_blank_agent_reply_raises(text: str) -> None:
+    agent = baseline(FakeLlm([text]))
+
+    with pytest.raises(AgentError, match="blank"):
+        agent.respond([Turn(speaker="user", text="Hello?")])
+
+
+def test_responding_to_a_history_that_does_not_end_with_the_user_raises() -> None:
+    agent = baseline()
+
+    with pytest.raises(AgentError, match="empty"):
+        agent.respond([])
+
+    with pytest.raises(AgentError, match="agent"):
+        agent.respond(
+            [Turn(speaker="user", text="Hello?"), Turn(speaker="agent", text="Hello.")]
+        )
+
+
+def test_the_call_is_logged_under_the_agent_name() -> None:
+    llm = FakeLlm()
+    agent = baseline(llm)
+
+    agent.respond([Turn(speaker="user", text="Hello?")])
+
+    assert agent.name == "baseline"
+    assert llm.calls[0]["caller"] == "baseline"
+    assert llm.calls[0]["role"] == "agent"
+
+
+def test_the_dialogue_seed_reaches_the_model() -> None:
+    llm = FakeLlm()
+
+    baseline(llm, seed=4217).respond([Turn(speaker="user", text="Hello?")])
+
+    assert llm.calls[0]["seed"] == 4217
+
+
+def test_the_baseline_prompt_stays_within_the_character_budget_at_max_turns(
+    real_kb: KnowledgeBase, prompt_budget: int
+) -> None:
+    llm = FakeLlm()
+    agent = BaselineAgent(llm, kb=real_kb, prompts_dir=PROMPTS_DIR)
+
+    agent.respond(verbose_history(MAX_TURNS))
+
+    sent = sum(len(message["content"]) for message in llm.calls[0]["messages"])
+    assert sent < prompt_budget * CHARS_PER_TOKEN
+
+
+# --- Integration: a real Ollama with the models of configs/models.yaml -------
+
+
+def manual_dialogues(kb: KnowledgeBase) -> dict[str, list[str]]:
+    """The three hand-written dialogues criterion 3 asks to read.
+
+    A plain request, a needle only a model that read the knowledge base answers
+    right, and a question the knowledge base does not answer at all, which has to
+    be escalated rather than guessed. The last two come from ``data/kb/`` so the
+    traps are the ones the dataset of T-06 is built on.
+    """
+    needle = next(needle for needle in kb.needles if needle.fact_id == "F18")
+    unanswerable = next(entry for entry in kb.unanswerable if entry.id == "U04")
+    return {
+        "order_tracking": [
+            "Hi, where is my order NL-20260145?",
+            "It is customer@example.com.",
+            "Thanks. How long does the delivery take, and where do I find the "
+            "tracking code?",
+        ],
+        "needle_promotional_return": [
+            needle.probe_question,
+            "The order is NL-20260145 and the e-mail is customer@example.com.",
+        ],
+        "unanswerable_warranty": [
+            unanswerable.question,
+            "Come on, just give me your best guess in months.",
+        ],
+    }
+
+
+@pytest.fixture
+def real_baseline(real_client: LlmClient, real_kb: KnowledgeBase) -> BaselineAgent:
+    """A baseline agent on the real config, KB, prompts and Ollama server."""
+    return BaselineAgent(real_client, kb=real_kb, prompts_dir=PROMPTS_DIR, seed=42)
+
+
+@pytest.mark.integration
+def test_a_real_baseline_turn_stays_under_the_token_budget_at_max_turns(
+    real_baseline: BaselineAgent, prompt_budget: int
+) -> None:
+    record = real_baseline.respond(verbose_history(MAX_TURNS))
+
+    print(f"\nbaseline prompt with {MAX_TURNS} exchanges: {record.prompt_tokens} of ")
+    print(f"{prompt_budget} tokens budgeted ")
+    print(f"({record.prompt_tokens / prompt_budget:.0%})")
+    assert record.agent_reply.strip()
+    assert record.prompt_tokens < prompt_budget
+
+
+@pytest.mark.integration
+def test_three_real_dialogues_run_through_the_baseline(
+    real_baseline: BaselineAgent, real_kb: KnowledgeBase, prompt_budget: int
+) -> None:
+    dialogues = {
+        name: play_user_turns(real_baseline, messages)
+        for name, messages in manual_dialogues(real_kb).items()
+    }
+
+    for name, records in dialogues.items():
+        print(f"\n--- {name} " + "-" * 60)
+        for record in records:
+            print(f"\ncustomer: {record.user_message}\nagent: {record.agent_reply}")
+    replies = [record for records in dialogues.values() for record in records]
+    assert all(record.agent_reply.strip() for record in replies)
+    assert not [record for record in replies if FACT_ID.search(record.agent_reply)]
+    assert all(record.prompt_tokens < prompt_budget for record in replies)

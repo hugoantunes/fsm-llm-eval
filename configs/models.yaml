@@ -1,0 +1,88 @@
+# Models and fixed parameters of the experiment (T-03 acceptance criterion).
+#
+# Decision history (DECISOES.md, T-03; rationale and measurements in docs/setup.md):
+#   2026-09-08  option A: qwen2.5:7b (agents), qwen2.5:3b (simulator), gemma3:12b (judge).
+#   2026-09-08  revised the same day after checking the Ollama library: Qwen 3.5 for the
+#               agents and the simulator, Gemma 4 12B for the judge. Sizes fixed by the
+#               footprint measurement (`ollama ps` at num_ctx 8192, OLLAMA_NUM_PARALLEL=2):
+#               qwen3.5:9b 5.7 GB + qwen3.5:4b 3.4 GB = 9.1 GB in the run phase, inside the
+#               Pro's ~11 GB GPU budget; gemma4:12b 8.6 GB on the Air.
+#   2026-09-13  simulated_user / classifier / state_labeler split; simulated_user locked
+#               to qwen3.5:9b (docs/decisions_and_limitations.md). T-16 parity table is
+#               still the 4B simulated-user frame.
+#   2026-09-15  T-17 eval judge tag `gemma4:12b-mlx` (nvfp4, MLX). T-16 / Pilot v2 remain
+#               `gemma4:12b` Q4_K_M. Different digest; judge cache from the GGUF tag misses.
+#
+# Digests: `just digests` on the first machine, paste here, commit; `just verify-models`
+# must pass on the other machine before any run. Without identical digests the
+# experiment is not reproducible across machines.
+#
+# Rules (TICKETS.md, T-03):
+#   - ONE model for both agents (baseline and fsm), same temperature and seed.
+#   - Split roles for simulated_user, classifier (T-08), and state_labeler (T-13).
+#     Defaults keep them on the same small model unless changed on purpose.
+#   - ONE judge from another family; the SAME one in T-16 (validation) and T-17 (experiment).
+#   - Explicit num_ctx: Ollama's default silently truncates the beginning of the prompt.
+#   - Every configured model role has a thinking mode: every call passes think=False.
+#
+# Every change here is an experiment decision: record it in DECISOES.md.
+
+ollama:
+  version: "0.33.3"             # `ollama --version`; Air and Pro both checked 2026-09-08
+  env:                          # applied by scripts/ollama_env.sh (details in docs/setup.md)
+    OLLAMA_MAX_LOADED_MODELS: 2 # agent and simulated user stay loaded together
+    OLLAMA_KEEP_ALIVE: -1       # never unload between turns
+    OLLAMA_NUM_PARALLEL: 2      # matches `sim run --parallel 2`. Qwen 3.5 serves one request per
+                                # model at a time (Ollama warns on every load), so the gain comes
+                                # from overlapping the 9B with the 4B, not from two agent calls.
+                                # Measured 1.4x even with a single model; see docs/setup.md
+    OLLAMA_CONTEXT_LENGTH: 8192 # server default = num_ctx; the client also sets it per call
+
+num_ctx: 8192                   # 16384 if RAM allows
+max_prompt_fraction: 0.8        # T-07: fail if prompt_eval_count > 0.8 x num_ctx
+
+client:                         # T-07: how sim.llm behaves when a call is slow or fails
+  timeout_s: 300                # HTTP read deadline for the run-phase roles. Killing a
+                                # legitimate 250–350 s judge call at 300 s and starting it
+                                # again is worse than letting it finish; the judge overlay
+                                # below is the Air-eval policy, not a change to sampling.
+  retries: 2                    # transport and timeout errors only; never a refused prompt
+  backoff_s: 2                  # seconds before the first retry, doubled after each one
+  by_role:
+    judge:
+      timeout_s: 600            # Air eval, this host/run: judge_facts median ~163 s,
+                                # p90 ~240 s, max successful ~297.5 s. Hardware/run
+                                # observations, not a universal latency guarantee.
+      retries: 1                # first attempt + one retry; Y = retries + 1
+
+models:
+  agent:                        # used by baseline AND fsm, no exceptions
+    name: "qwen3.5:9b"          # 9.7B, Q4_K_M; 6.6 GB download, 5.7 GB loaded (ctx 8192 x 2)
+    digest: "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7"
+    temperature: 0.7            # deployment-realistic sampling; identical for both agents
+    seed: 42                    # BASE seed: T-14a derives the per-dialogue seed from
+                                # (42, scenario_id, repetition) and gives both agents the same
+  simulated_user:
+    name: "qwen3.5:9b"          # 9.7B, Q4_K_M; 6.6 GB download, 5.7 GB loaded
+    digest: "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7"
+    temperature: 0.7            # T-11: the same sampling as the agents, so the customer varies
+                                # across the K repetitions the way a real one would
+    seed: 42                    # BASE seed, as for the agents: T-14a derives the per-dialogue
+                                # seed from (42, scenario_id, repetition) and passes the same
+                                # value with either agent, so both meet the same customer
+  classifier:
+    name: "qwen3.5:4b"
+    digest: "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd"
+    temperature: 0.7
+    seed: 42
+  state_labeler:
+    name: "qwen3.5:4b"
+    digest: "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd"
+    temperature: 0.7
+    seed: 42
+  judge:                        # a different family from the agents. T-16 used gemma4:12b;
+                                # T-17 eval uses this MLX tag (not the same blob).
+    name: "gemma4:12b-mlx"      # 12.4B, nvfp4 MLX; 7.7 GB download
+    digest: "ded7a27350032202d9e9b2a6071e8aa89959ab156771b5228f30863c741c4970"
+    temperature: 0              # a measuring instrument does not sample
+    seed: 42

@@ -1,0 +1,9 @@
+{
+  "n_turns": 39,
+  "n_rule": 11,
+  "n_llm": 28,
+  "n_llm_event_agree": 23,
+  "n_llm_event_change": 5,
+  "n_intent_classified": 5,
+  "n_intent_change": 0
+}

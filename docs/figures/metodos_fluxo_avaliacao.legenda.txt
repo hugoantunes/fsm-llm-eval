@@ -1,0 +1,3 @@
+Título: Figura B — Fluxo do experimento e da avaliação.
+Fonte: elaboração própria.
+Notas: Cenários congelados geram diálogos com os dois agentes e o mesmo usuário simulado. A avaliação automática (juiz cego, duas chamadas, mais avaliadores determinísticos) precedeu o censo humano. A avaliação humana cega dos 348 diálogos foi motivada pelas limitações observadas no juiz (concordância apenas moderada no piloto; cegueira de estilo não garantida). As anotações foram congeladas em 2026-09-20, antes do desvelamento e da comparação pareada. Legenda abaixo da figura (ABNT); a imagem não traz título embutido.

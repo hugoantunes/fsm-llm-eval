@@ -1,0 +1,4 @@
+Métrica,Direção juiz,Direção humano,Diferença juiz,Diferença humano,p Holm juiz,p Holm humano,Mesma direção,Mesma significância
+Tarefa concluída,Baseline,Baseline,"-0,011","-0,006","1,000","1,000",Sim,Sim
+F1 dos fatos esperados,Baseline,Baseline,"-0,059","-0,004","0,013","1,000",Sim,Não
+Suporte das afirmações,FSM,FSM,"0,004","0,047","1,000","0,048",Sim,Não

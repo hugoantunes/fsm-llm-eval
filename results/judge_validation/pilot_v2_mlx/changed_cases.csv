@@ -1,0 +1,9 @@
+unit,field,original,mlx
+D04,task_completed,yes,no
+D04,accuracy,correct,partial
+A05,claim_support,all_supported,none_checkable
+A05,fact_ids_stated,F06,
+A08,fact_ids_stated,F02,F02;F04;F21
+A12,claim_support,all_supported,none_checkable
+A12,fact_ids_stated,F01;F28,
+A29,fact_ids_stated,F10,F04;F10
