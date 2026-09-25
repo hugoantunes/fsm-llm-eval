@@ -1,0 +1,3 @@
+condition,n_calls,mean_prompt_tokens,max_prompt_tokens,over_budget,min_tokens_per_char,max_tokens_per_char,num_ctx,budget
+baseline,709,2293.4372355430182,2962,0,0.2397798105723306,0.24726950703532422,8192,6553
+fsm,711,2136.662447257384,2588,0,0.23969621191071594,0.2504863813229572,8192,6553

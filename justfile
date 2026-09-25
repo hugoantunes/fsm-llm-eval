@@ -130,6 +130,10 @@ freeze-contract-false-positives run_dir *ids:
 stats run_dir:
     uv run python scripts/run_stats.py {{run_dir}}
 
+# Prompt tokens per agent condition, to rule out truncation (thesis item 1.3)
+prompt-tokens run_dir="runs/exp_final":
+    uv run python scripts/prompt_tokens.py {{run_dir}}
+
 # Fail unless every dialogue of a run delivered its script beats in order (T-11)
 adherence run_dir="runs/exp_pilot":
     uv run python scripts/script_adherence.py --run {{run_dir}}

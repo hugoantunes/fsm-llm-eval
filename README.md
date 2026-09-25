@@ -112,6 +112,11 @@ the gate before eval.
 The T-17 experiment is **already executed**. `runs/exp_final/` is frozen
 historical evidence. **Do not replay** `runs/exp_final/`.
 
+`runs/` is git-ignored. The raw run (`llm_calls.jsonl`, `dialogues/`, manifest,
+adjudication; cache left out) is attached to the `v1.3` release as
+`exp_final.tar.gz`. Unpack it under `runs/` to rebuild every CSV in
+`results/exp_final/`.
+
 The original plan split machines: `run` on the MacBook Air M4 24 GB, `eval` on
 the MacBook Pro M5 16 GB. The documented fallback is what actually ran: **both
 `run` and evaluation on the Air**. The Pro only pulls `runs/` as backup.
