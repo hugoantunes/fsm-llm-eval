@@ -132,7 +132,7 @@ just appendices
 repository; it is not part of the delivery folder.
 
 `just figures results/human_primary` writes the human-census plates (tables 1–3)
-and the human vs judge comparison (tables 4–5, figure 4) from
+and the human vs judge comparison (tables 4–5, figures 4–5) from
 `results/human_primary/`. It does not edit `frozen/` human sheets.
 
 ## Delivery

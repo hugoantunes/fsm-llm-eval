@@ -17,9 +17,12 @@ from sim.reporting import (
     FIGURE_02_STEM,
     FIGURE_03_STEM,
     FIGURE_04_STEM,
+    FIGURE_05_STEM,
     FIGURE_HEIGHT_IN,
     FIGURE_WIDTH_IN,
     HUMAN_PRIMARY,
+    INSTRUMENT_FACECOLORS,
+    INSTRUMENT_MARKERS,
     PNG_DPI,
     TABLE_01_NAME,
     TABLE_03_NAME,
@@ -32,10 +35,12 @@ from sim.reporting import (
     _pyplot,
     build_boxplot,
     build_category_bars,
+    build_paired_forest,
     build_wtl_bars,
     format_as_percent,
     format_pt_br_number,
     frozen_ci_yerr,
+    paired_interval_rows,
     scenario_plot_values,
     write_comparison_artifacts,
     write_thesis_artifacts,
@@ -845,7 +850,12 @@ def test_figure_legends_sit_outside_the_axes(tmp_path: Path) -> None:
     results = _frozen_triple(tmp_path)
     descriptive = _read_table(results / "descriptive.csv")
     tests = _read_table(results / "tests.csv")
-    for fig in (build_category_bars(descriptive), build_wtl_bars(tests)):
+    _, human, judge = _write_forest_sources(tmp_path)
+    for fig in (
+        build_category_bars(descriptive),
+        build_wtl_bars(tests),
+        build_paired_forest(human, judge),
+    ):
         fig.set_size_inches(FIGURE_WIDTH_IN, FIGURE_HEIGHT_IN)
         fig.canvas.draw()
         renderer = fig.canvas.get_renderer()
@@ -858,6 +868,7 @@ def test_figure_legends_sit_outside_the_axes(tmp_path: Path) -> None:
             legend_box = legend.get_window_extent(renderer)
             for axis in fig.axes:
                 assert not legend_box.overlaps(axis.get_window_extent(renderer))
+        _pyplot().close(fig)
 
 
 def _relabel_population(results: Path, population: str) -> None:
@@ -967,3 +978,235 @@ def test_comparison_table_reports_107_omitted_fact_id_dialogues(
         encoding="utf-8"
     )
     assert "107" in figure_notes
+    assert not (results / "figures" / f"{FIGURE_05_STEM}.png").exists()
+
+
+def _primary_pair_tests(
+    *,
+    population: str,
+    task: tuple[float, float, float],
+    fact_f1: tuple[float, float, float],
+    support: tuple[float, float, float],
+) -> list[dict[str, object]]:
+    rows = []
+    for metric, values, n in (
+        ("task_completed", task, 59),
+        ("fact_f1", fact_f1, 59),
+        ("claim_support", support, 59),
+    ):
+        mean_diff, ci_low, ci_high = values
+        rows.append(
+            _empty_test(
+                population=population,
+                metric=metric,
+                n=n,
+                n_nonzero=n,
+                mean_diff=mean_diff,
+                ci_low=ci_low,
+                ci_high=ci_high,
+                wilcoxon_p=1.0,
+                wilcoxon_p_holm=1.0,
+                permutation_p=1.0,
+                rank_biserial=0.0,
+                wins=0,
+                ties=n,
+                losses=0,
+            )
+        )
+    return rows
+
+
+def _write_forest_sources(
+    tmp_path: Path,
+) -> tuple[Path, list[dict[str, str]], list[dict[str, str]]]:
+    """Human_primary tree plus sibling exp_final tests.csv for Figura 05."""
+    results = tmp_path / "human_primary"
+    results.mkdir()
+    judge_dir = tmp_path / "exp_final"
+    judge_dir.mkdir()
+    human_rows = _primary_pair_tests(
+        population=HUMAN_PRIMARY,
+        task=(-0.005649717514152543, -0.0988700564971695, 0.0847457627118644),
+        fact_f1=(-0.0036409290646271185, -0.06777206080170975, 0.05908079992825337),
+        support=(0.04690287025405085, 0.002646158002280932, 0.08990136388626652),
+    )
+    judge_rows = _primary_pair_tests(
+        population="semantic_primary",
+        task=(-0.01129943502825424, -0.08474576271188179, 0.06497175141245763),
+        fact_f1=(-0.05923683974525424, -0.10300488745396144, -0.016621379248516956),
+        support=(0.004091216379338983, -0.021341881204204237, 0.031111839745330078),
+    )
+    _write_csv(results / "tests.csv", TESTS_FIELDS, human_rows)
+    _write_csv(judge_dir / "tests.csv", TESTS_FIELDS, judge_rows)
+    (results / "agreement.json").write_text(
+        json.dumps(
+            {
+                "grain": "dialogue",
+                "n_dialogues": 348,
+                "task_completed": {
+                    "n": 348,
+                    "n_uncertain_excluded": 0,
+                    "percent_agreement": 0.89,
+                    "cohen_kappa": 0.73,
+                },
+                "fact_ids_stated": {
+                    "n": 241,
+                    "exact_match_rate": 0.02,
+                    "precision": 0.33,
+                    "recall": 0.89,
+                    "f1": 0.48,
+                    "true_positive": 242,
+                    "false_positive": 496,
+                    "false_negative": 30,
+                    "n_omitted_ambiguous_judge_calls": 107,
+                },
+                "claim_support_label": {
+                    "n": 348,
+                    "percent_agreement": 0.45,
+                    "cohen_kappa": 0.10,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return (
+        results,
+        _read_table(results / "tests.csv"),
+        _read_table(judge_dir / "tests.csv"),
+    )
+
+
+def test_paired_intervals_copy_six_frozen_cis(tmp_path: Path) -> None:
+    _, human, judge = _write_forest_sources(tmp_path)
+    rows = paired_interval_rows(human, judge)
+    assert len(rows) == 6
+    by_key = {(row["metric"], row["instrument"]): row for row in rows}
+    human_support = by_key[("claim_support", "human")]
+    assert human_support["mean_diff"] == pytest.approx(0.04690287025405085)
+    assert human_support["ci_low"] == pytest.approx(0.002646158002280932)
+    assert human_support["ci_high"] == pytest.approx(0.08990136388626652)
+    judge_f1 = by_key[("fact_f1", "judge")]
+    assert judge_f1["ci_high"] < 0
+    human_f1 = by_key[("fact_f1", "human")]
+    assert human_f1["ci_low"] < 0 < human_f1["ci_high"]
+    judge_support = by_key[("claim_support", "judge")]
+    assert judge_support["ci_low"] < 0 < judge_support["ci_high"]
+    assert human_support["ci_low"] > 0
+    assert [row["instrument"] for row in rows] == [
+        "judge",
+        "human",
+        "judge",
+        "human",
+        "judge",
+        "human",
+    ]
+
+
+def test_committed_forest_intervals_match_frozen_tests_csv() -> None:
+    human = _read_table(REPO_ROOT / "results" / "human_primary" / "tests.csv")
+    judge = _read_table(REPO_ROOT / "results" / "exp_final" / "tests.csv")
+    rows = paired_interval_rows(human, judge)
+    by_key = {(row["metric"], row["instrument"]): row for row in rows}
+    human_support = by_key[("claim_support", "human")]
+    assert human_support["n"] == 59
+    assert format_pt_br_number(human_support["ci_low"]) == "0,003"
+    assert format_pt_br_number(by_key[("fact_f1", "judge")]["ci_high"]) == "-0,017"
+    assert by_key[("fact_f1", "human")]["ci_low"] < 0
+    assert by_key[("fact_f1", "human")]["ci_high"] > 0
+
+
+def test_forest_is_single_panel_with_zero_line(tmp_path: Path) -> None:
+    pytest.importorskip("matplotlib")
+    _, human, judge = _write_forest_sources(tmp_path)
+    fig = build_paired_forest(human, judge)
+    assert len(fig.axes) == 1
+    axis = fig.axes[0]
+    assert fig.get_suptitle() == ""
+    assert axis.get_title() == ""
+    zero_lines = [
+        line
+        for line in axis.lines
+        if list(line.get_xdata()) == [0, 0] or tuple(line.get_xdata()) == (0, 0)
+    ]
+    assert zero_lines
+    _pyplot().close(fig)
+
+
+def test_forest_plots_frozen_means_as_x_positions(tmp_path: Path) -> None:
+    pytest.importorskip("matplotlib")
+    _, human, judge = _write_forest_sources(tmp_path)
+    rows = paired_interval_rows(human, judge)
+    fig = build_paired_forest(human, judge)
+    plotted = []
+    for container in fig.axes[0].containers:
+        plotted.extend(float(value) for value in container.lines[0].get_xdata())
+    expected = [row["mean_diff"] for row in rows]
+    assert sorted(plotted) == pytest.approx(sorted(expected))
+    _pyplot().close(fig)
+
+
+def test_forest_distinguishes_instruments_by_marker_and_color(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("matplotlib")
+    from matplotlib.colors import to_rgba
+
+    _, human, judge = _write_forest_sources(tmp_path)
+    fig = build_paired_forest(human, judge)
+    markers = {container.lines[0].get_marker() for container in fig.axes[0].containers}
+    colors = {
+        _rgb(to_rgba(container.lines[0].get_color()))
+        for container in fig.axes[0].containers
+    }
+    assert markers == set(INSTRUMENT_MARKERS.values())
+    assert colors == {_rgb(to_rgba(color)) for color in INSTRUMENT_FACECOLORS.values()}
+    assert INSTRUMENT_FACECOLORS["judge"] == AGENT_FACECOLORS["baseline"]
+    assert INSTRUMENT_FACECOLORS["human"] == AGENT_FACECOLORS["fsm"]
+    _pyplot().close(fig)
+
+
+def test_forest_annotates_human_support_lower_bound(tmp_path: Path) -> None:
+    pytest.importorskip("matplotlib")
+    _, human, judge = _write_forest_sources(tmp_path)
+    fig = build_paired_forest(human, judge)
+    labels = [text.get_text() for text in fig.axes[0].texts]
+    joined = " ".join(labels)
+    assert "0,003" in joined
+    assert "0,047" in joined
+    _pyplot().close(fig)
+
+
+def test_forest_yticks_name_metrics_once(tmp_path: Path) -> None:
+    pytest.importorskip("matplotlib")
+    _, human, judge = _write_forest_sources(tmp_path)
+    fig = build_paired_forest(human, judge)
+    labels = [text.get_text() for text in fig.axes[0].get_yticklabels()]
+    assert labels == [
+        "Tarefa concluída",
+        "F1 dos fatos esperados",
+        "Suporte das afirmações",
+    ]
+    _pyplot().close(fig)
+
+
+def test_comparison_writes_figura_05_from_sibling_judge_tests(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("matplotlib")
+    results, _, _ = _write_forest_sources(tmp_path)
+    write_comparison_artifacts(results)
+    png = results / "figures" / f"{FIGURE_05_STEM}.png"
+    pdf = results / "figures" / f"{FIGURE_05_STEM}.pdf"
+    notes = (results / "figures" / f"{FIGURE_05_STEM}.legenda.txt").read_text(
+        encoding="utf-8"
+    )
+    assert png.is_file()
+    assert pdf.is_file()
+    assert "Figura 5" in notes
+    assert "IC 95%" in notes
+    assert "tests.csv" in notes
+    assert "não recalcula" in notes
+    assert "zero" in notes.lower()
+    assert "0,003" in notes
+    assert "n = 59" in notes
+    assert "marcadores" in notes.lower() or "círculo" in notes.lower()

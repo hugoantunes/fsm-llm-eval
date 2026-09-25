@@ -305,7 +305,8 @@ the metrics row but disagree on predicted IDs. The human census was chosen as
 the narrative reference for the thesis conclusion after freeze and unblind;
 the judge remains the original confirmatory instrument and is reported as
 comparison. Do not edit `frozen/`.
-Regenerate plates with `just figures results/human_primary`.
+Regenerate plates with `just figures results/human_primary` (tables 1–5,
+figures 1–5, including the paired-difference forest).
 
 ## Judge call 1 — facts and claims
 

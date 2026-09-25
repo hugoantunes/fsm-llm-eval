@@ -1,3 +1,3 @@
 Título: Tabela 5 — Direção e significância Holm, juiz vs humano.
 Fonte: elaboração própria, a partir de results/human_primary/conclusions.csv.
-Notas: diferença = FSM - baseline. Significância = p Holm < 0,05 na família primária (três métricas). A escolha do humano como referência narrativa da conclusão é posterior ao congelamento e ao desvelamento. Composição ABNT: título acima, fonte e notas abaixo; sem linhas verticais.
+Notas: diferença = FSM - baseline. Significância = p Holm < 0,05 na família primária (três métricas). A escolha do humano como referência narrativa da conclusão é posterior ao congelamento e ao desvelamento. Os IC 95% das seis diferenças estão na Figura 5. Composição ABNT: título acima, fonte e notas abaixo; sem linhas verticais.

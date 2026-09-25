@@ -31,7 +31,7 @@ that reproduce the row but disagree on predicted IDs are omitted, not guessed.
 | `agreement.json` | human vs judge |
 | `conclusions.csv` | primary-family direction and Holm significance, judge vs human |
 | `environment.txt` | Python and analysis-package versions |
-| `tables/` `figures/` | Portuguese plates (`just figures results/human_primary`) |
+| `tables/` `figures/` | Portuguese plates, including the paired-difference forest (`just figures results/human_primary`) |
 
 Regenerate scores: `just score-human-validation`.
 Regenerate plates: `just figures results/human_primary`. Do not edit `frozen/`.

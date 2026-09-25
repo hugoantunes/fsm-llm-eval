@@ -68,6 +68,19 @@ FIGURE_01_STEM = "resultados_figura-01_boxplot-metricas-primarias"
 FIGURE_02_STEM = "resultados_figura-02_barras-por-categoria"
 FIGURE_03_STEM = "resultados_figura-03_vitorias-empates-derrotas"
 FIGURE_04_STEM = "resultados_figura-04_humano-juiz"
+FIGURE_05_STEM = "resultados_figura-05_forest-pareado"
+INSTRUMENTS = ("judge", "human")
+INSTRUMENT_LABELS = {"judge": "Juiz", "human": "Humano"}
+INSTRUMENT_FACECOLORS = {
+    "judge": AGENT_FACECOLORS["baseline"],
+    "human": AGENT_FACECOLORS["fsm"],
+}
+INSTRUMENT_MARKERS = {"judge": "o", "human": "s"}
+MARKER_ENCODING_NOTE = (
+    "Cores e marcadores são usados como codificação visual redundante; "
+    "o círculo e o quadrado preservam a distinção entre instrumentos em "
+    "impressão monocromática."
+)
 POPULATION_LABELS = {
     SEMANTIC_PRIMARY: "semântica primária",
     HUMAN_PRIMARY: "humana primária",
@@ -277,6 +290,53 @@ def _primary_tests(
     ]
     order = {metric: index for index, metric in enumerate(PRIMARY_METRICS)}
     return sorted(selected, key=lambda row: order[row["metric"]])
+
+
+def paired_interval_rows(
+    human_tests: list[dict[str, str]],
+    judge_tests: list[dict[str, str]],
+) -> list[dict[str, float | int | str]]:
+    """Copy overall primary mean_diff and IC from both instruments."""
+    by_instrument = {
+        "judge": {
+            row["metric"]: row
+            for row in _primary_tests(judge_tests, population=SEMANTIC_PRIMARY)
+        },
+        "human": {
+            row["metric"]: row
+            for row in _primary_tests(human_tests, population=HUMAN_PRIMARY)
+        },
+    }
+    rows: list[dict[str, float | int | str]] = []
+    for metric in PRIMARY_METRICS:
+        for instrument in INSTRUMENTS:
+            source = by_instrument[instrument].get(metric)
+            if source is None:
+                raise ValueError(
+                    f"missing overall primary {metric} row for {instrument}"
+                )
+            mean_diff = _parse_float(source["mean_diff"])
+            ci_low = _parse_float(source["ci_low"])
+            ci_high = _parse_float(source["ci_high"])
+            n_value = _parse_float(source["n"])
+            if (
+                mean_diff is None
+                or ci_low is None
+                or ci_high is None
+                or n_value is None
+            ):
+                raise ValueError(f"incomplete interval for {instrument} {metric}")
+            rows.append(
+                {
+                    "metric": metric,
+                    "instrument": instrument,
+                    "mean_diff": mean_diff,
+                    "ci_low": ci_low,
+                    "ci_high": ci_high,
+                    "n": int(n_value),
+                }
+            )
+    return rows
 
 
 def _write_table_01(
@@ -764,12 +824,18 @@ def _figura_03_notes() -> str:
     )
 
 
-def _figure_legend(*, number: int, title: str, notes: str) -> str:
+def _figure_legend(
+    *,
+    number: int,
+    title: str,
+    notes: str,
+    encoding_note: str = COLOR_HATCH_NOTE,
+) -> str:
     return (
         f"Título: Figura {number} — {title}.\n"
         "Fonte: elaboração própria.\n"
         f"Notas: {notes} Legenda abaixo da figura (ABNT); a imagem não traz "
-        f"título embutido. {COLOR_HATCH_NOTE}\n"
+        f"título embutido. {encoding_note}\n"
     )
 
 
@@ -1013,6 +1079,8 @@ def write_comparison_artifacts(
     conclusions_path: Path | None = None,
     tables_dir: Path | None = None,
     figures_dir: Path | None = None,
+    human_tests_path: Path | None = None,
+    judge_tests_path: Path | None = None,
 ) -> None:
     """Write human vs judge agreement plates from frozen sidecar outputs."""
     root = results_dir
@@ -1031,6 +1099,20 @@ def write_comparison_artifacts(
         _write_table_05(_read_csv(conclusions_file), out_tables)
     try:
         _write_figure_04(agreement, out_figures)
+        human_tests_file = (
+            human_tests_path if human_tests_path is not None else root / "tests.csv"
+        )
+        judge_tests_file = (
+            judge_tests_path
+            if judge_tests_path is not None
+            else root.parent / "exp_final" / "tests.csv"
+        )
+        if human_tests_file.is_file() and judge_tests_file.is_file():
+            _write_figure_05(
+                _read_csv(human_tests_file),
+                _read_csv(judge_tests_file),
+                out_figures,
+            )
     except ImportError:
         return
 
@@ -1208,9 +1290,121 @@ def _table_05_legend() -> str:
         "Notas: diferença = FSM - baseline. Significância = p Holm < 0,05 "
         "na família primária (três métricas). A escolha do humano como "
         "referência narrativa da conclusão é posterior ao congelamento e "
-        "ao desvelamento. Composição ABNT: título acima, fonte e notas "
+        "ao desvelamento. Os IC 95% das seis diferenças estão na Figura 5. "
+        "Composição ABNT: título acima, fonte e notas "
         "abaixo; sem linhas verticais.\n"
     )
+
+
+def _write_figure_05(
+    human_tests: list[dict[str, str]],
+    judge_tests: list[dict[str, str]],
+    figures_dir: Path,
+) -> None:
+    plt = _pyplot()
+    _configure_matplotlib(plt)
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    intervals = paired_interval_rows(human_tests, judge_tests)
+    _save_figure(
+        build_paired_forest(human_tests, judge_tests, plt),
+        figures_dir / FIGURE_05_STEM,
+        plt,
+    )
+    atomic_write(
+        figures_dir / f"{FIGURE_05_STEM}.legenda.txt",
+        _figure_legend(
+            number=5,
+            title="Diferenças pareadas FSM - baseline e IC 95%, por instrumento",
+            notes=_figura_05_notes(intervals),
+            encoding_note=MARKER_ENCODING_NOTE,
+        ),
+    )
+
+
+def build_paired_forest(
+    human_tests: list[dict[str, str]],
+    judge_tests: list[dict[str, str]],
+    plt: object | None = None,
+) -> object:
+    """Forest plot of six frozen paired differences (Figura 05)."""
+    if plt is None:
+        plt = _pyplot()
+    intervals = paired_interval_rows(human_tests, judge_tests)
+    y_positions: list[float] = []
+    group_centers: list[float] = []
+    y_tick = 0.0
+    for index, _metric in enumerate(PRIMARY_METRICS):
+        if index:
+            y_tick += 0.5
+        start = y_tick
+        for _instrument in INSTRUMENTS:
+            y_positions.append(y_tick)
+            y_tick += 1.0
+        group_centers.append((start + y_tick - 1.0) / 2.0)
+    fig, axis = plt.subplots(layout="constrained")
+    axis.axvline(0, color="black", linewidth=0.8, zorder=1)
+    for instrument in INSTRUMENTS:
+        subset = [
+            (interval, y)
+            for interval, y in zip(intervals, y_positions, strict=True)
+            if interval["instrument"] == instrument
+        ]
+        xs = [float(interval["mean_diff"]) for interval, _y in subset]
+        ys = [y for _interval, y in subset]
+        lefts: list[float] = []
+        rights: list[float] = []
+        for interval, _y in subset:
+            left, right = frozen_ci_yerr(
+                float(interval["mean_diff"]),
+                float(interval["ci_low"]),
+                float(interval["ci_high"]),
+            )
+            lefts.append(left)
+            rights.append(right)
+        axis.errorbar(
+            xs,
+            ys,
+            xerr=[lefts, rights],
+            fmt=INSTRUMENT_MARKERS[instrument],
+            color=INSTRUMENT_FACECOLORS[instrument],
+            ecolor=INSTRUMENT_FACECOLORS[instrument],
+            elinewidth=1.2,
+            capsize=4,
+            capthick=1.0,
+            markersize=8,
+            markeredgecolor="black",
+            markeredgewidth=0.6,
+            linestyle="none",
+            label=INSTRUMENT_LABELS[instrument],
+            zorder=3,
+        )
+    axis.set_yticks(group_centers)
+    axis.set_yticklabels([METRIC_LABELS[metric] for metric in PRIMARY_METRICS])
+    axis.invert_yaxis()
+    axis.set_ylim(y_positions[-1] + 0.7, y_positions[0] - 0.7)
+    axis.set_xlabel("Diferença média (FSM - baseline)")
+    axis.set_title("")
+    axis.grid(False)
+    for spine in ("top", "right"):
+        axis.spines[spine].set_visible(False)
+    anchor = max(float(interval["ci_high"]) for interval in intervals)
+    for interval, y in zip(intervals, y_positions, strict=True):
+        axis.annotate(
+            (
+                f"{format_pt_br_number(float(interval['mean_diff']))} "
+                f"[{format_pt_br_number(float(interval['ci_low']))}; "
+                f"{format_pt_br_number(float(interval['ci_high']))}]"
+            ),
+            xy=(anchor, y),
+            xytext=(10, 0),
+            textcoords="offset points",
+            va="center",
+            ha="left",
+            fontsize=8,
+        )
+    fig.legend(loc="outside upper center", ncol=2, frameon=False)
+    fig.suptitle("")
+    return fig
 
 
 def _figura_04_notes(agreement: dict[str, object]) -> str:
@@ -1223,6 +1417,28 @@ def _figura_04_notes(agreement: dict[str, object]) -> str:
         f"{kept} diálogos reconstruídos de forma unívoca; {omitted} "
         "diálogos ficaram de fora dessa comparação, não do recenseamento "
         "humano. Kappa e micro F1 estão na Tabela 4, não nesta figura."
+    )
+
+
+def _figura_05_notes(intervals: list[dict[str, float | int | str]]) -> str:
+    counts = sorted({int(interval["n"]) for interval in intervals})
+    if len(counts) == 1:
+        n_clause = f"n = {counts[0]} pares em ambos os instrumentos."
+    else:
+        n_clause = "n copiado de tests.csv por linha."
+    human_support = next(
+        interval
+        for interval in intervals
+        if interval["metric"] == "claim_support" and interval["instrument"] == "human"
+    )
+    lower = format_pt_br_number(float(human_support["ci_low"]))
+    return (
+        "Pontos = diferença média congelada (FSM - baseline) de tests.csv. "
+        "Barras = IC 95% percentil congelado (ci_low, ci_high); T-20 "
+        f"não recalcula. {n_clause} Linha vertical em zero. "
+        "Juiz: results/exp_final/tests.csv, população semântica primária. "
+        "Humano: results/human_primary/tests.csv. "
+        f"O limite inferior do suporte humano é {lower}."
     )
 
 
