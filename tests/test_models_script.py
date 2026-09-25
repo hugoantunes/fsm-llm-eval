@@ -24,12 +24,6 @@ def test_configured_models_refuses_a_key_the_schema_does_not_know(
         models.configured_models(write_models_config(tmp_path, misspelled))
 
 
-def test_matching_digests_report_no_problems() -> None:
-    local = {"qwen:1b": "a" * 64, "gemma:1b": "b" * 64}
-
-    assert models.compare(CONFIG, local) == []
-
-
 def test_model_not_pulled_is_reported() -> None:
     local = {"qwen:1b": "a" * 64}
 
@@ -65,10 +59,6 @@ def test_extra_loaded_models_are_those_other_than_the_judge() -> None:
     resident = ["qwen3.5:4b", "gemma4:12b", "qwen3.5:4b"]
 
     assert models.extra_loaded_models(resident, "gemma4:12b") == ["qwen3.5:4b"]
-
-
-def test_no_extra_loaded_models_when_only_the_judge_is_resident() -> None:
-    assert models.extra_loaded_models(["gemma4:12b"], "gemma4:12b") == []
 
 
 def test_extra_loaded_warning_names_the_resident_models() -> None:

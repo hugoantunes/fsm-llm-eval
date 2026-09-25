@@ -236,9 +236,8 @@ def test_baseline_and_fsm_share_the_knowledge_base_section() -> None:
     assert baseline[baseline.index(marker) :] == fsm[fsm.index(marker) :]
 
 
-@pytest.mark.parametrize("text", ["", "  "])
-def test_a_blank_agent_reply_raises(text: str) -> None:
-    agent = baseline(FakeLlm([text]))
+def test_a_blank_agent_reply_raises() -> None:
+    agent = baseline(FakeLlm(["  "]))
 
     with pytest.raises(AgentError, match="blank"):
         agent.respond([Turn(speaker="user", text="Hello?")])

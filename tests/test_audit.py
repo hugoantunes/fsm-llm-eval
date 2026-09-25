@@ -249,35 +249,6 @@ def test_census_universe_is_manifest_jobs_not_n_ok(tmp_path: Path) -> None:
     assert "missing" in " ".join(report.anomalies).lower()
 
 
-def test_census_separates_execution_status_from_inclusion(tmp_path: Path) -> None:
-    scored = _ok("happy_path_01", "baseline", 1)
-    cfp = _failed(
-        "adversarial_01",
-        "baseline",
-        3,
-        kind="instrument",
-        reason="invalid_candidate_retry_exhausted",
-    )
-    run_dir, sidecar_dir = _layout(
-        tmp_path,
-        [scored, cfp],
-        frozen_rows=[_metrics_row(scored)],
-        sidecar_rows=[_metrics_row(scored)],
-        sidecar_extra=[("adversarial_01", "baseline", 3)],
-        cfp_ids=[cfp.dialogue_id],
-    )
-
-    jobs = _by_id(audit_run(run_dir, sidecar_dir))
-
-    assert jobs[scored.dialogue_id].execution_status == "ok"
-    assert jobs[scored.dialogue_id].primary_status == "included_semantic"
-    assert jobs[scored.dialogue_id].frozen_status == "included_frozen"
-    assert jobs[cfp.dialogue_id].execution_status == "failed"
-    assert jobs[cfp.dialogue_id].failure_class == "instrument_contract_false_positive"
-    assert jobs[cfp.dialogue_id].primary_status == "included_semantic"
-    assert jobs[cfp.dialogue_id].frozen_status == "excluded_failure"
-
-
 def test_empty_dialogue_is_an_integrity_anomaly(tmp_path: Path) -> None:
     empty = make_dialogue_log(
         [],

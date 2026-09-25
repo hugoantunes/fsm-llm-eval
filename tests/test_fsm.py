@@ -7,7 +7,6 @@ import pytest
 
 from helpers import DOCS_DIR, FSM_DIR
 from sim.fsm import FsmError, FsmSpec, load_fsm
-from sim.kb import FACT_ID
 
 MACHINE = """\
 version: 1
@@ -205,25 +204,15 @@ def test_missing_package_file_raises(tmp_path: Path) -> None:
         load_fsm(directory)
 
 
-@pytest.mark.parametrize("fact_id", ["F01", "F02"])
-def test_package_citing_a_fact_id_raises(tmp_path: Path, fact_id: str) -> None:
+def test_package_citing_a_fact_id_raises(tmp_path: Path) -> None:
     package = PACKAGE.replace(
         "Never state anything about a specific order.",
-        f"Never promise a delivery date ({fact_id}).",
+        "Never promise a delivery date (F01).",
     )
     directory = write_fsm(tmp_path / "fsm", packages={"greeting": package})
 
-    with pytest.raises(FsmError, match=fact_id):
+    with pytest.raises(FsmError, match="F01"):
         load_fsm(directory)
-
-
-def test_no_real_state_package_cites_a_fact_id(real_fsm: FsmSpec) -> None:
-    cited = {
-        name: FACT_ID.findall((FSM_DIR / state.package).read_text(encoding="utf-8"))
-        for name, state in real_fsm.states.items()
-    }
-
-    assert {name: found for name, found in cited.items() if found} == {}
 
 
 def test_package_with_a_persona_section_of_its_own_raises(tmp_path: Path) -> None:

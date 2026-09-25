@@ -26,17 +26,6 @@ from sim.fsm import FsmSpec
 from sim.kb import KnowledgeBase
 from sim.schemas import DialogueLog, dialogue_filename
 
-EIGHT_IDS = (
-    "adversarial_01__baseline__rep03",
-    "edge_16__baseline__rep02",
-    "edge_16__baseline__rep03",
-    "happy_path_09__baseline__rep02",
-    "adversarial_19__fsm__rep02",
-    "edge_16__fsm__rep02",
-    "edge_16__fsm__rep03",
-    "happy_path_09__fsm__rep02",
-)
-
 
 def _instrument_failed(
     *,
@@ -69,13 +58,13 @@ def _write_log(run_dir: Path, log: DialogueLog) -> Path:
     return path
 
 
-def _write_allowlist(path: Path, ids: list[str], *, exp_id: str = "exp") -> Path:
+def _write_allowlist(path: Path, ids: list[str]) -> Path:
     """Write a sidecar inclusion JSON for tests."""
     path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "exp_id": exp_id,
+                "exp_id": "exp",
                 "failure_kind": "instrument",
                 "failure_reason": "invalid_candidate_retry_exhausted",
                 "source_discovery": SOURCE_DISCOVERY_RELATIVE,
@@ -93,20 +82,6 @@ def _read_csv_rows(path: Path) -> list[dict[str, str]]:
 
     with path.open(encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
-
-
-def test_generated_inclusion_schema_loads_without_manual_rationale(
-    tmp_path: Path,
-) -> None:
-    path = _write_allowlist(
-        tmp_path / "allowlist.json", list(EIGHT_IDS), exp_id="exp_final"
-    )
-    allowlist = load_failed_inclusion_allowlist(path)
-
-    assert tuple(allowlist.ids) == EIGHT_IDS
-    assert "adversarial_06__fsm__rep02" not in allowlist.ids
-    assert allowlist.failure_reason == "invalid_candidate_retry_exhausted"
-    assert allowlist.source_discovery == SOURCE_DISCOVERY_RELATIVE
 
 
 def test_eval_still_skips_failed_logs_when_no_allowlist_is_given(

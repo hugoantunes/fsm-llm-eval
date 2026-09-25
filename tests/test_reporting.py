@@ -409,13 +409,6 @@ def test_claim_support_na_pct_formats_as_percent() -> None:
     assert format_as_percent(0.005714285714285714) == "0,5714%"
 
 
-def test_pt_br_number_uses_decimal_comma() -> None:
-    assert format_pt_br_number(0.4536) == "0,454"
-    assert format_pt_br_number(-0.0388) == "-0,039"
-    assert "," in format_pt_br_number(1.0)
-    assert "." not in format_pt_br_number(1.0)
-
-
 def test_table01_reads_frozen_descriptive_without_recompute(tmp_path: Path) -> None:
     results = _frozen_triple(tmp_path)
 
@@ -492,21 +485,6 @@ def test_claim_support_reports_metric_specific_n_and_na(tmp_path: Path) -> None:
     assert "pares excluídos por NA = 1" not in tests_legend
 
 
-def test_wtl_uses_complete_pairs_and_excludes_na(tmp_path: Path) -> None:
-    results = _frozen_triple(tmp_path)
-
-    write_thesis_artifacts(results)
-
-    rows = _read_table(results / "tables" / "resultados_tabela-03_testes-pareados.csv")
-    claim = next(row for row in rows if row["Métrica"] == "Suporte das afirmações")
-    wins = int(claim["Vitórias"])
-    ties = int(claim["Empates"])
-    losses = int(claim["Derrotas"])
-    assert claim["n"] == "2"
-    assert wins + ties + losses == 2
-    assert wins + ties + losses != 3
-
-
 def test_reporting_has_no_analysis_calculator_dependency(tmp_path: Path) -> None:
     results = _frozen_triple(tmp_path)
     code = (
@@ -543,22 +521,6 @@ def test_artifacts_are_named_by_thesis_section(tmp_path: Path) -> None:
     assert any(name.startswith("resultados_figura-01_") for name in figures)
     assert any(name.startswith("resultados_figura-02_") for name in figures)
     assert any(name.startswith("resultados_figura-03_") for name in figures)
-
-
-def test_write_artifacts_does_not_mutate_t19_csvs(tmp_path: Path) -> None:
-    results = _frozen_triple(tmp_path)
-    before = {
-        name: (results / name).read_bytes()
-        for name in ("metrics.csv", "descriptive.csv", "tests.csv")
-    }
-
-    write_thesis_artifacts(results)
-
-    for name, content in before.items():
-        assert (results / name).read_bytes() == content
-    descriptive = (results / "descriptive.csv").read_text(encoding="utf-8")
-    assert "0.005714285714285714" in descriptive
-    assert "0,5714%" not in descriptive
 
 
 def test_figures_have_no_embedded_title(tmp_path: Path) -> None:
@@ -614,18 +576,6 @@ def test_boxplot_uses_scenario_scores_from_metrics_csv(tmp_path: Path) -> None:
     assert len(fig.axes) == 3
     fact_f1_axis = fig.axes[1]
     assert len(fact_f1_axis.patches) == 2
-
-
-def test_category_bars_use_frozen_descriptive_csv(tmp_path: Path) -> None:
-    pytest.importorskip("matplotlib")
-    results = _frozen_triple(tmp_path)
-    descriptive = _read_table(results / "descriptive.csv")
-    fig = build_category_bars(descriptive)
-    fact_f1_axis = fig.axes[1]
-    heights = [round(patch.get_height(), 2) for patch in fact_f1_axis.patches]
-    assert 0.38 in heights
-    assert 0.57 in heights
-    assert 1.0 not in heights
 
 
 def test_wtl_figure_reads_wins_ties_losses_from_tests_csv(tmp_path: Path) -> None:

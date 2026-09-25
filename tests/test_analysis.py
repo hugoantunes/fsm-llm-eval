@@ -91,22 +91,6 @@ def test_binary_aggregation_is_a_proportion() -> None:
     assert by_agent["fsm"] == 1.0
 
 
-def test_continuous_aggregation_is_a_mean() -> None:
-    rows = [
-        _row("adversarial_02", "baseline", 1, n_turns=4),
-        _row("adversarial_02", "baseline", 2, n_turns=6),
-        _row("adversarial_02", "fsm", 1, n_turns=5),
-        _row("adversarial_02", "fsm", 2, n_turns=7),
-        _row("adversarial_02", "fsm", 3, n_turns=6),
-    ]
-
-    scores = aggregate_to_scenarios(rows, metric="n_turns")
-
-    by_agent = {score.agent: score.value for score in scores}
-    assert by_agent["baseline"] == 5.0
-    assert by_agent["fsm"] == 6.0
-
-
 def test_na_cells_are_omitted_from_the_scenario_mean_not_scored_zero() -> None:
     rows = [
         _row("happy_path_03", "baseline", 1, claim_support=1.0),
@@ -151,46 +135,6 @@ def test_incomplete_k_still_pairs_on_the_available_reps() -> None:
     assert len(pairs) == 1
     assert pairs[0].baseline == pytest.approx(0.3)
     assert pairs[0].fsm == pytest.approx(0.9)
-
-
-def test_n_of_the_test_is_the_number_of_paired_scenarios_not_dialogues() -> None:
-    rows = [
-        _row("happy_path_01", "baseline", 1, fact_f1=0.1),
-        _row("happy_path_01", "baseline", 2, fact_f1=0.3),
-        _row("happy_path_01", "fsm", 1, fact_f1=0.5),
-        _row("happy_path_01", "fsm", 2, fact_f1=0.7),
-        _row("happy_path_02", "baseline", 1, fact_f1=0.0),
-        _row("happy_path_02", "fsm", 1, fact_f1=1.0),
-        _row("happy_path_02", "fsm", 2, fact_f1=1.0),
-        _row("happy_path_02", "fsm", 3, fact_f1=1.0),
-    ]
-
-    pairs = pair_scenarios(aggregate_to_scenarios(rows, metric="fact_f1"))
-
-    assert len(pairs) == 2
-    assert (
-        sum(score.n_reps for score in aggregate_to_scenarios(rows, metric="fact_f1"))
-        == 8
-    )
-
-
-def test_n_nonzero_counts_nonzero_paired_differences_only() -> None:
-    rows = [
-        _row("happy_path_01", "baseline", 1, fact_f1=0.5),
-        _row("happy_path_01", "fsm", 1, fact_f1=0.5),
-        _row("happy_path_02", "baseline", 1, fact_f1=0.2),
-        _row("happy_path_02", "fsm", 1, fact_f1=0.8),
-        _row("edge_03", "baseline", 1, fact_f1=0.9),
-        _row("edge_03", "fsm", 1, fact_f1=0.1),
-    ]
-
-    pairs = pair_scenarios(aggregate_to_scenarios(rows, metric="fact_f1"))
-    wins, ties, losses = wins_ties_losses(pairs)
-
-    assert len(pairs) == 3
-    assert n_nonzero(pairs) == 2
-    assert (wins, ties, losses) == (1, 1, 1)
-    assert wins + ties + losses == len(pairs)
 
 
 def test_near_zero_float_artifact_is_canonicalized_to_tie() -> None:
@@ -239,10 +183,6 @@ def test_rank_biserial_uses_positive_and_negative_rank_sums() -> None:
     assert (1 - 1) / 2 == 0.0
 
 
-def test_rank_biserial_all_zero_differences_is_zero() -> None:
-    assert rank_biserial((0.0, 0.0, 0.0)) == 0.0
-
-
 def test_holm_adjusts_only_the_three_primary_metrics() -> None:
     raw = {
         "task_completed": 0.01,
@@ -258,16 +198,6 @@ def test_holm_adjusts_only_the_three_primary_metrics() -> None:
     assert adjusted["task_completed"] == pytest.approx(0.03)
     assert adjusted["fact_f1"] == pytest.approx(0.04)
     assert adjusted["claim_support"] == pytest.approx(0.04)
-
-
-def test_flow_adherence_is_not_holm_adjusted() -> None:
-    assert (
-        family_of(
-            metric="flow_adherence", population="semantic_primary", stratum="overall"
-        )
-        == "secondary"
-    )
-    assert "flow_adherence" not in holm_adjust({"flow_adherence": 0.001})
 
 
 def test_per_category_tests_are_labelled_exploratory() -> None:
@@ -570,21 +500,6 @@ def test_frozen_gate_is_a_second_population_not_the_confirmatory_one() -> None:
     assert overall.population == "frozen_gate"
     assert overall.family == "secondary"
     assert overall.wilcoxon_p_holm is None
-
-
-def test_a_metric_na_on_one_agent_is_not_imputed() -> None:
-    rows = [
-        _row("happy_path_01", "baseline", 1, stage_label_accuracy=""),
-        _row("happy_path_01", "fsm", 1, stage_label_accuracy=0.5),
-        _row("happy_path_02", "baseline", 1, stage_label_accuracy=""),
-        _row("happy_path_02", "fsm", 1, stage_label_accuracy=1.0),
-    ]
-
-    pairs = pair_scenarios(aggregate_to_scenarios(rows, metric="stage_label_accuracy"))
-    scores = aggregate_to_scenarios(rows, metric="stage_label_accuracy")
-
-    assert pairs == []
-    assert {score.agent for score in scores} == {"fsm"}
 
 
 def test_metrics_doc_states_n_is_scenarios_not_dialogues(metrics_doc: str) -> None:

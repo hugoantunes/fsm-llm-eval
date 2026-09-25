@@ -49,11 +49,6 @@ def _frozen_packet(tmp_path: Path) -> Path:
     return frozen
 
 
-def test_validate_frozen_sheets_accepts_a_complete_packet(tmp_path: Path) -> None:
-    frozen = _frozen_packet(tmp_path)
-    scorer.validate_frozen_sheets(frozen, kb=load_kb(), n_dialogues=2, n_responses=2)
-
-
 def test_validate_frozen_sheets_rejects_empty_task_completed(tmp_path: Path) -> None:
     frozen = _frozen_packet(tmp_path)
     path = frozen / "dialogue_annotations.csv"

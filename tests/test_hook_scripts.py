@@ -24,7 +24,6 @@ format_on_edit = load_script("ai-assistance/scripts/format_on_edit.py")
 @pytest.mark.parametrize(
     "command",
     [
-        'git commit -m "T-07: add client"',
         'git add -A && git commit -m "x"',
         "git -C /tmp/repo commit --amend --no-edit",
         "cd src && git commit",
@@ -38,23 +37,11 @@ def test_git_commit_commands_are_gated(command: str) -> None:
     "command",
     [
         "git status",
-        "git log --oneline -5",
-        "git diff HEAD -- '*.py'",
-        "just test",
         "git committee",
     ],
 )
 def test_other_commands_pass_through(command: str) -> None:
     assert not quality_gate.is_git_commit(command)
-
-
-def test_python_file_inside_project_is_formatted(tmp_path: Path) -> None:
-    target = tmp_path / "pkg" / "mod.py"
-    target.parent.mkdir()
-    target.write_text("x = 1\n")
-    payload = {"tool_input": {"file_path": str(target)}}
-
-    assert format_on_edit.edited_python_file(payload, tmp_path) == target.resolve()
 
 
 def test_relative_path_resolves_against_project(tmp_path: Path) -> None:

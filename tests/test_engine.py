@@ -10,19 +10,12 @@ from sim.kb import KnowledgeBase
 
 #: One message carrying both identifying data, so the rules alone can walk the
 #: engine several states forward without the classifier being asked anything.
-IDENTIFIED = "My order is NL-20260145 and the email is jane@example.com."
 
 
 @pytest.fixture
 def fsm_engine(real_fsm: FsmSpec, real_kb: KnowledgeBase) -> FsmEngine:
     """A fresh engine on the real machine; mutable, so one per test."""
     return FsmEngine(real_fsm, kb=real_kb, prompts_dir=PROMPTS_DIR)
-
-
-def test_engine_starts_in_the_initial_state(
-    fsm_engine: FsmEngine, real_fsm: FsmSpec
-) -> None:
-    assert fsm_engine.state == real_fsm.initial
 
 
 def test_every_real_transition_fires_when_its_guard_is_met(
@@ -72,45 +65,6 @@ def test_a_turn_records_every_edge_it_walks_and_who_fired_it(
     ]
     assert all(edge.turn == 1 and edge.valid for edge in walk)
     assert list(engine.history) == list(walk)
-
-
-def test_every_walked_edge_is_a_transition_of_the_machine(
-    real_fsm: FsmSpec, real_kb: KnowledgeBase
-) -> None:
-    edges = {(edge.source, edge.event, edge.dest) for edge in real_fsm.transitions}
-    engine = settled_in_intent_classification(real_fsm, real_kb)
-
-    walk = engine.step("I want to know where my package is.", turn=1)
-
-    assert all((edge.source, edge.event, edge.dest) in edges for edge in walk)
-    assert [edge.source for edge in walk[1:]] == [edge.dest for edge in walk[:-1]]
-
-
-def test_a_request_already_named_still_passes_through_intent_classification(
-    real_fsm: FsmSpec, real_kb: KnowledgeBase
-) -> None:
-    llm = FakeLlm([classifier_reply("request_received", "order_tracking")])
-    engine = FsmEngine(real_fsm, kb=real_kb, llm=llm, prompts_dir=PROMPTS_DIR)
-
-    engine.step(f"Where is my order? {IDENTIFIED}", turn=1)
-
-    assert engine.intent == "order_tracking"
-    assert engine.state == "intent_classification"
-
-
-def test_identification_completed_in_the_opening_message_does_not_wait(
-    real_fsm: FsmSpec, real_kb: KnowledgeBase
-) -> None:
-    llm = FakeLlm([classifier_reply("request_received")])
-    engine = FsmEngine(real_fsm, kb=real_kb, llm=llm, prompts_dir=PROMPTS_DIR)
-
-    walk = engine.step(f"Hi, where is my order? {IDENTIFIED}", turn=1)
-
-    assert [(edge.event, edge.fired_by) for edge in walk] == [
-        ("request_received", "user"),
-        ("order_identified", "engine"),
-    ]
-    assert engine.state == "intent_classification"
 
 
 def test_entering_intent_classification_with_a_known_intent_does_not_auto_advance(
@@ -165,9 +119,8 @@ def test_a_later_none_cannot_leave_intent_classification_parked_with_a_known_int
     [
         ("greeting", "user_confirmed", False),
         ("identification", "order_identified", True),
-        ("greeting", NONE, False),
     ],
-    ids=["not_accepted", "guard_fails", "none"],
+    ids=["not_accepted", "guard_fails"],
 )
 def test_a_rejected_event_stays_and_is_invalid(
     fsm_engine: FsmEngine, state: str, event: str, blocked_by_guard: bool

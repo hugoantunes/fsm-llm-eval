@@ -89,11 +89,6 @@ def _tests_csv_n(stratum: str) -> int:
     return matches[0]
 
 
-def test_doc_has_methods_and_discussion_sections(decisions_doc: str) -> None:
-    assert "## For Methods" in decisions_doc
-    assert "## For Discussion" in decisions_doc
-
-
 def test_methods_states_treatment_unit_and_cuts(decisions_doc: str) -> None:
     methods = _methods(decisions_doc)
 

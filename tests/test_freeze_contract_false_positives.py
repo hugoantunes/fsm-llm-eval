@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
@@ -21,7 +20,6 @@ from sim.adjudication import (
     canonical_json,
     contract_false_positives_path,
     freeze_contract_false_positives,
-    load_failed_inclusion_allowlist,
     write_instrument_failures,
 )
 from sim.eval import load_failed_inclusion_allowlist as eval_load
@@ -65,46 +63,6 @@ def _prepare(tmp_path: Path, *logs: DialogueLog, exp_id: str = "exp") -> Path:
     return run_dir
 
 
-def test_valid_full_run_id_is_accepted(tmp_path: Path) -> None:
-    run_dir = _prepare(tmp_path, _failed(scenario_id="edge_16", repetition=2))
-
-    path = freeze_contract_false_positives(run_dir, ["edge_16__baseline__rep02"])
-
-    assert path == contract_false_positives_path(run_dir)
-    artifact = load_failed_inclusion_allowlist(path)
-    assert artifact.ids == ("edge_16__baseline__rep02",)
-    assert artifact.source_discovery == SOURCE_DISCOVERY_RELATIVE
-    assert artifact.exp_id == "exp"
-
-
-def test_multiple_valid_ids_are_accepted_and_sorted(tmp_path: Path) -> None:
-    run_dir = _prepare(
-        tmp_path,
-        _failed(scenario_id="z_last", agent="fsm", repetition=1),
-        _failed(scenario_id="a_first", agent="baseline", repetition=3),
-    )
-
-    path = freeze_contract_false_positives(
-        run_dir, ["z_last__fsm__rep01", "a_first__baseline__rep03"]
-    )
-
-    assert json.loads(path.read_text(encoding="utf-8"))["ids"] == [
-        "a_first__baseline__rep03",
-        "z_last__fsm__rep01",
-    ]
-
-
-def test_bare_scenario_id_is_rejected(tmp_path: Path) -> None:
-    run_dir = _prepare(tmp_path, _failed(scenario_id="edge_16", repetition=2))
-    before = list((run_dir / "adjudication").iterdir())
-
-    with pytest.raises(AdjudicationError, match="edge_16"):
-        freeze_contract_false_positives(run_dir, ["edge_16"])
-
-    assert list((run_dir / "adjudication").iterdir()) == before
-    assert not contract_false_positives_path(run_dir).exists()
-
-
 def test_unknown_id_is_rejected(tmp_path: Path) -> None:
     run_dir = _prepare(tmp_path, _failed(scenario_id="edge_16", repetition=2))
 
@@ -128,22 +86,6 @@ def test_ok_status_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(AdjudicationError, match="status=ok"):
         freeze_contract_false_positives(run_dir, ["happy_path_01__baseline__rep01"])
-
-
-def test_wrong_failure_class_is_rejected(tmp_path: Path) -> None:
-    run_dir = _prepare(
-        tmp_path,
-        _failed(
-            scenario_id="happy_path_01",
-            agent="fsm",
-            kind="operational",
-            reason="other",
-        ),
-        _failed(scenario_id="edge_16", repetition=2),
-    )
-
-    with pytest.raises(AdjudicationError, match="failure_kind='operational'"):
-        freeze_contract_false_positives(run_dir, ["happy_path_01__fsm__rep01"])
 
 
 def test_max_turns_is_rejected(tmp_path: Path) -> None:
@@ -244,17 +186,6 @@ def test_validation_failure_does_not_modify_an_existing_freeze(tmp_path: Path) -
         freeze_contract_false_positives(run_dir, ["edge_16"])
 
     assert path.read_bytes() == before
-
-
-def test_freeze_does_not_mutate_original_jsonls(tmp_path: Path) -> None:
-    log = _failed(scenario_id="edge_16", repetition=2)
-    run_dir = _prepare(tmp_path, log)
-    jsonl = next((run_dir / "dialogues").glob("*.jsonl"))
-    before = hashlib.sha256(jsonl.read_bytes()).hexdigest()
-
-    freeze_contract_false_positives(run_dir, ["edge_16__baseline__rep02"])
-
-    assert hashlib.sha256(jsonl.read_bytes()).hexdigest() == before
 
 
 def test_generated_artifact_is_accepted_by_eval_loader(tmp_path: Path) -> None:

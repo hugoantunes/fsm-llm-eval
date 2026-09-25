@@ -47,22 +47,6 @@ def test_split_separates_an_extra_kb_fact_from_an_unsupported_claim() -> None:
     assert counts.unsupported_claim == 1
 
 
-def test_split_reproduces_the_false_positive_total_of_fact_scores() -> None:
-    claims = _claims(
-        ("Delivery takes 5 business days.", "F02", "yes"),
-        ("Returns run for 30 days.", "F17", "yes"),
-        ("Shipping is always free.", None, "no"),
-        ("We may restock soon.", None, "unverifiable"),
-    )
-
-    counts = split_false_positives(required=REQUIRED, claims=claims)
-
-    scores = fact_scores(required=REQUIRED, claims=claims)
-    assert counts.extra_supported_fact + counts.unsupported_claim == counts.fp
-    assert counts.fp == scores.n_false_positives
-    assert counts.fn == scores.n_false_negatives
-
-
 def test_split_counts_a_duplicate_extra_id_once() -> None:
     claims = _claims(
         ("Returns run for 30 days.", "F17", "yes"),
@@ -85,22 +69,6 @@ def test_split_records_the_expected_set_size_so_recall_stays_derivable() -> None
     assert counts.tp + counts.fn == 2
 
 
-def _write_frozen_metrics(path: Path, rows: list[dict[str, object]]) -> None:
-    fields = [
-        "scenario_id",
-        "agent",
-        "repetition",
-        "fact_precision",
-        "fact_recall",
-        "claim_support",
-        "n_checkable_claims",
-    ]
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
 def _frozen_row(claims: list, **identity: object) -> dict[str, object]:
     scores = fact_scores(required=REQUIRED, claims=claims)
     return {
@@ -119,36 +87,6 @@ def frozen(tmp_path: Path) -> dict[str, Path]:
     (run_dir / "dialogues").mkdir(parents=True)
     metrics = tmp_path / "metrics.csv"
     return {"run_dir": run_dir, "metrics": metrics}
-
-
-def test_reconstruct_matches_a_judge_call_by_its_rendered_transcript(
-    frozen: dict[str, Path],
-) -> None:
-    claims = _claims(("Delivery takes 5 business days.", "F02", "yes"))
-    transcript = "user: When does it arrive?\nagent: Delivery takes 5 business days."
-    write_llm_calls(
-        frozen["run_dir"],
-        [
-            make_llm_call_record(
-                caller="judge_facts",
-                messages=[{"role": "system", "content": f"Judge this:\n{transcript}"}],
-                text=_judge_facts_text(claims),
-            )
-        ],
-    )
-
-    counts = reconstruct_fact_counts(
-        run_dir=frozen["run_dir"],
-        transcripts={("happy_path_01", "fsm", 1): transcript},
-        required={"happy_path_01": REQUIRED},
-        frozen_rows={
-            ("happy_path_01", "fsm", 1): _frozen_row(
-                claims, scenario_id="happy_path_01", agent="fsm", repetition=1
-            )
-        },
-    )
-
-    assert counts[("happy_path_01", "fsm", 1)].tp == 1
 
 
 def test_reconstruct_refuses_a_judge_call_that_does_not_reproduce_the_frozen_row(

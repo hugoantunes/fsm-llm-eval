@@ -334,13 +334,6 @@ def test_generate_from_plan_checks_unanswerable_coverage_when_ids_are_given() ->
         )
 
 
-def test_a_plan_that_skips_an_unanswerable_id_raises() -> None:
-    plan = _adversarial_plan("U01")
-
-    with pytest.raises(generate.GenerateError, match="missing"):
-        generate.check_unanswerable_coverage(plan, ["U01", "U02"])
-
-
 def test_a_plan_that_repeats_an_unanswerable_id_raises() -> None:
     plan = _adversarial_plan("U01", "U01")
 

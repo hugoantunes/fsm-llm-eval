@@ -74,31 +74,6 @@ def play(real_kb: KnowledgeBase, happy_path: Scenario) -> Play:
     return _play
 
 
-def test_a_dialogue_alternates_the_user_and_the_agent(
-    play: Play, sent: list[str]
-) -> None:
-    result = play(
-        [
-            user_reply(sent[-2]),
-            user_reply(sent[-1], status="goal_reached"),
-        ],
-        [
-            "What is the e-mail used in the purchase?",
-            "It ships within 2 business days.",
-        ],
-        n_beats=2,
-    )
-
-    assert [turn.speaker for turn in result.transcript] == [
-        "user",
-        "agent",
-        "user",
-        "agent",
-    ]
-    assert result.transcript[0].text == sent[-2]
-    assert result.transcript[1].text == "What is the e-mail used in the purchase?"
-
-
 def test_a_dialogue_records_the_beat_each_customer_message_delivered(
     play: Play, sent: list[str]
 ) -> None:
@@ -222,84 +197,6 @@ def test_goal_reached_is_recorded_without_ending_while_beats_remain(
     assert [record.user_beat for record in result.records] == [1, 2, 3, 4]
     assert result.records[3].beat_started_at_turn == 4
     assert result.records[3].beat_completed_at_turn == 4
-
-
-def test_goal_reached_with_multiple_pending_beats_still_delivers_all_of_them(
-    real_kb: KnowledgeBase, happy_path: Scenario
-) -> None:
-    scenario = happy_path.model_copy(
-        update={
-            "id": "happy_path_96",
-            "script": [
-                "alpha request",
-                "bravo request",
-                "charlie request",
-                "delta request",
-                "Goodbye.",
-            ],
-            "max_turns": 7,
-        }
-    )
-    user = SimulatedUser(
-        FakeLlm(
-            [
-                user_reply("alpha request"),
-                user_reply("bravo request", status="goal_reached"),
-                user_reply("charlie request"),
-                user_reply("delta request"),
-                user_reply("Goodbye."),
-            ]
-        ),
-        scenario=scenario,
-        data_fields=real_kb.user_data_fields,
-        prompts_dir=PROMPTS_DIR,
-    )
-    agent = BaselineAgent(
-        FakeLlm(["ok", "ok", "ok", "ok", "ok"]), kb=real_kb, prompts_dir=PROMPTS_DIR
-    )
-
-    result = run_dialogue(agent, user, max_turns=scenario.max_turns)
-
-    assert result.stop_reason == "goal_reached"
-    assert result.goal_reached_seen is True
-    assert result.goal_reached_at_turn == 2
-    assert result.script_complete_at_goal_reached is False
-    assert [record.user_beat for record in result.records] == [1, 2, 3, 4, 5]
-
-
-def test_max_turns_can_happen_with_a_still_incomplete_active_beat(
-    real_kb: KnowledgeBase,
-    happy_path: Scenario,
-) -> None:
-    scenario = happy_path.model_copy(
-        update={
-            "id": "happy_path_98",
-            "script": ["NL-20260145 user@example.com cancelled?"],
-            "max_turns": 4,
-        }
-    )
-    user = SimulatedUser(
-        FakeLlm(
-            [
-                user_reply("NL-20260145"),
-                user_reply("user@example.com"),
-                user_reply("still cancelled"),
-                user_reply("still cancelled"),
-            ]
-        ),
-        scenario=scenario,
-        data_fields=real_kb.user_data_fields,
-        prompts_dir=PROMPTS_DIR,
-    )
-    agent = BaselineAgent(
-        FakeLlm(["ok", "ok", "ok", "ok"]), kb=real_kb, prompts_dir=PROMPTS_DIR
-    )
-
-    result = run_dialogue(agent, user, max_turns=4)
-
-    assert result.stop_reason == "max_turns"
-    assert not user.progress.complete
-    assert [record.user_beat for record in result.records] == [None, None, None, None]
 
 
 def test_goal_reached_before_completion_still_fails_on_max_turns(

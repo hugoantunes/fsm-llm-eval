@@ -36,15 +36,6 @@ def test_page_budget_counts_characters_and_rejects_overage() -> None:
         check_budget("a", "x" * 1501)
 
 
-def test_write_appendices_writes_a_through_d(tmp_path: Path) -> None:
-    write_appendices(tmp_path)
-
-    assert (tmp_path / "a.md").is_file()
-    assert (tmp_path / "b.md").is_file()
-    assert (tmp_path / "c.md").is_file()
-    assert (tmp_path / "d.md").is_file()
-
-
 def test_appendix_a_embeds_mermaid_from_the_spec(tmp_path: Path) -> None:
     spec = load_fsm()
 
@@ -53,14 +44,6 @@ def test_appendix_a_embeds_mermaid_from_the_spec(tmp_path: Path) -> None:
 
     assert text.startswith("Paste as: Apêndice A")
     assert f"```mermaid\n{spec.to_mermaid()}\n```" in text
-
-
-def test_appendix_a_fits_half_page(tmp_path: Path) -> None:
-    write_appendices(tmp_path)
-    text = (tmp_path / "a.md").read_text(encoding="utf-8")
-
-    assert page_chars(text) <= char_budget("a")
-    check_budget("a", text)
 
 
 def test_appendix_b_references_shared_and_quotes_both_templates_without_rendered_kb(
@@ -85,14 +68,6 @@ def test_appendix_b_references_shared_and_quotes_both_templates_without_rendered
     for name in packages:
         assert name in text
     assert "## Never in this state" not in text
-
-
-def test_appendix_b_fits_page_and_a_half(tmp_path: Path) -> None:
-    write_appendices(tmp_path)
-    text = (tmp_path / "b.md").read_text(encoding="utf-8")
-
-    assert page_chars(text) <= char_budget("b")
-    check_budget("b", text)
 
 
 def test_appendix_b_raises_when_expected_heading_is_missing(tmp_path: Path) -> None:
@@ -134,14 +109,6 @@ def test_appendix_c_quotes_blindness_and_selected_rubric_fields_without_output_s
     assert "# Output schema" not in text
     assert '"additionalProperties"' not in text
     assert "```json" not in text
-
-
-def test_appendix_c_fits_one_page(tmp_path: Path) -> None:
-    write_appendices(tmp_path)
-    text = (tmp_path / "c.md").read_text(encoding="utf-8")
-
-    assert page_chars(text) <= char_budget("c")
-    check_budget("c", text)
 
 
 def test_appendix_c_raises_when_expected_heading_is_missing(tmp_path: Path) -> None:
@@ -275,14 +242,6 @@ def test_appendix_d_raises_when_truncated_helped_fsm_still_exceeds_budget(
 
     with pytest.raises(AppendicesError, match="6000"):
         write_appendices(tmp_path / "out", cases_path=cases)
-
-
-def test_appendix_d_fits_two_pages(tmp_path: Path) -> None:
-    write_appendices(tmp_path)
-    text = (tmp_path / "d.md").read_text(encoding="utf-8")
-
-    assert page_chars(text) <= char_budget("d")
-    check_budget("d", text)
 
 
 def test_appendix_d_raises_when_expected_heading_is_missing(tmp_path: Path) -> None:

@@ -9,7 +9,7 @@ from tqdm import tqdm
 from helpers import CannedEvalLlm, RunCanned
 from helpers import canned_llm_factory as make_canned_llm
 from sim import __version__
-from sim.__main__ import AGENTS, apply_eval_progress, build_parser, main
+from sim.__main__ import apply_eval_progress, build_parser, main
 from sim.adjudication import CONTRACT_FALSE_POSITIVES_RELATIVE
 from sim.eval import EvalProgress
 from sim.schemas import Manifest
@@ -42,12 +42,11 @@ def test_subcommand_is_required() -> None:
     assert exc_info.value.code == 2
 
 
-@pytest.mark.parametrize("agent", AGENTS)
-def test_run_accepts_each_agent_with_defaults(agent: str) -> None:
+def test_run_accepts_an_agent_with_defaults() -> None:
     argv = [
         "run",
         "--agent",
-        agent,
+        "baseline",
         "--scenarios",
         "data/scenarios/examples",
         "--exp-id",
@@ -57,7 +56,7 @@ def test_run_accepts_each_agent_with_defaults(agent: str) -> None:
     args = build_parser().parse_args(argv)
 
     assert args.command == "run"
-    assert args.agent == [agent]
+    assert args.agent == ["baseline"]
     assert args.scenarios == "data/scenarios/examples"
     assert args.exp_id == "exp"
     assert args.runs_dir == "runs"

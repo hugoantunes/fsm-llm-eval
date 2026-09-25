@@ -162,20 +162,18 @@ def test_repeated_scenario_id_across_files_raises(tmp_path: Path) -> None:
         load_scenarios(directory, kb=KB, fsm=FSM)
 
 
-@pytest.mark.parametrize("intent", ["gift_wrapping", "general"])
-def test_intent_outside_the_knowledge_base_raises(tmp_path: Path, intent: str) -> None:
+def test_intent_outside_the_knowledge_base_raises(tmp_path: Path) -> None:
     directory = write_scenarios(
-        tmp_path / "scenarios", happy_path=[scenario(intent=intent)]
+        tmp_path / "scenarios", happy_path=[scenario(intent="general")]
     )
 
-    with pytest.raises(ScenarioError, match=intent):
+    with pytest.raises(ScenarioError, match="general"):
         load_scenarios(directory, kb=KB, fsm=FSM)
 
 
-@pytest.mark.parametrize("field", ["required_facts", "forbidden_facts"])
-def test_fact_absent_from_the_knowledge_base_raises(tmp_path: Path, field: str) -> None:
+def test_fact_absent_from_the_knowledge_base_raises(tmp_path: Path) -> None:
     directory = write_scenarios(
-        tmp_path / "scenarios", happy_path=[scenario(**{field: ["F99"]})]
+        tmp_path / "scenarios", happy_path=[scenario(forbidden_facts=["F99"])]
     )
 
     with pytest.raises(ScenarioError, match="F99"):

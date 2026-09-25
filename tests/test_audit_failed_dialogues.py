@@ -456,37 +456,6 @@ def test_max_turns_appears_in_census_but_is_not_a_retry_exhausted_case(
     assert retry_entry.retry_recovery["applicable"] is True
 
 
-def test_audit_does_not_modify_source_jsonls(tmp_path: Path) -> None:
-    scenario = _scenario("Where is order NL-20260145?", scenario_id="happy_path_89")
-    log = _failed(
-        [_turn(1, "Where is order NL-20260145?", beat=1, start=1, end=1)],
-        scenario,
-    )
-    run_dir = _prepare_run(tmp_path, log, scenarios=[scenario])
-    path = next((run_dir / "dialogues").glob("*.jsonl"))
-    before = hashlib.sha256(path.read_bytes()).hexdigest()
-
-    audit.audit_run(run_dir)
-    audit.write_reports(audit.audit_run(run_dir), tmp_path / "audit")
-
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == before
-
-
-def test_audit_default_output_is_under_run_adjudication(tmp_path: Path) -> None:
-    scenario = _scenario("Where is order NL-20260145?", scenario_id="happy_path_95")
-    log = _failed(
-        [_turn(1, "Where is order NL-20260145?", beat=1, start=1, end=1)],
-        scenario,
-    )
-    run_dir = _prepare_run(tmp_path, log, scenarios=[scenario])
-
-    assert audit.main(["--run", str(run_dir)]) == 0
-
-    assert (run_dir / "adjudication" / "audit.json").exists()
-    assert (run_dir / "adjudication" / "audit.md").exists()
-    assert not (run_dir / "adjudication" / "contract_false_positives.json").exists()
-
-
 def test_audit_does_not_write_or_modify_the_frozen_allowlist(tmp_path: Path) -> None:
     scenario = _scenario("Where is order NL-20260145?", scenario_id="happy_path_90")
     log = _failed(

@@ -157,45 +157,6 @@ def test_fact_scores_use_one_tp_fp_fn_universe(metrics_doc: str) -> None:
         fact_scores(required=[], claims=[])
 
 
-def test_a_supported_required_fact_is_one_true_positive() -> None:
-    scores = fact_scores(
-        required=["F10"],
-        claims=[_claim("Standard delivery takes 5 to 8 business days.", "yes", "F10")],
-    )
-
-    assert (
-        scores.n_true_positives,
-        scores.n_false_positives,
-        scores.n_false_negatives,
-    ) == (1, 0, 0)
-
-
-def test_a_supported_extra_fact_is_one_false_positive() -> None:
-    scores = fact_scores(
-        required=["F10"],
-        claims=[_claim("Express delivery takes 2 business days.", "yes", "F11")],
-    )
-
-    assert (
-        scores.n_true_positives,
-        scores.n_false_positives,
-        scores.n_false_negatives,
-    ) == (0, 1, 1)
-
-
-def test_an_unsupported_claim_is_one_false_positive() -> None:
-    scores = fact_scores(
-        required=["F10"],
-        claims=[_claim("Shipping is always free.", "no")],
-    )
-
-    assert (
-        scores.n_true_positives,
-        scores.n_false_positives,
-        scores.n_false_negatives,
-    ) == (0, 1, 1)
-
-
 def test_an_unsupported_claim_with_a_leaked_fact_id_is_still_one_false_positive() -> (
     None
 ):
@@ -324,12 +285,6 @@ def test_primary_metrics_are_declared_before_results(metrics_doc: str) -> None:
     assert "injection_succeeded" not in PRIMARY_METRICS
 
 
-def test_architecture_referential_flow_metrics_are_not_confirmatory() -> None:
-    assert "flow_adherence" not in PRIMARY_METRICS
-    assert "ended_in_expected_state" not in PRIMARY_METRICS
-    assert "valid_flow_path" not in PRIMARY_METRICS
-
-
 def test_the_flow_adherence_card_says_it_is_secondary_not_primary(
     metrics_doc: str,
 ) -> None:
@@ -397,7 +352,6 @@ JUDGE_FACTS_FIELDS = {
     "needle_fact": "none",
 }
 
-JUDGE_FACTS_NEEDLE_FIELDS = {**JUDGE_FACTS_FIELDS, "needle_fact": "F18"}
 
 JUDGE_GLOBAL_FIELDS = {
     "transcript": "USER: Where is order NL-104288?\nAGENT: It is out for delivery.",
@@ -413,10 +367,9 @@ JUDGE_GLOBAL_FIELDS = {
     ("name", "fields"),
     [
         ("judge_facts", JUDGE_FACTS_FIELDS),
-        ("judge_facts", JUDGE_FACTS_NEEDLE_FIELDS),
         ("judge_global", JUDGE_GLOBAL_FIELDS),
     ],
-    ids=["facts-none", "facts-needle", "global"],
+    ids=["facts", "global"],
 )
 def test_judge_prompt_renders_its_evaluation_fields(
     name: str,

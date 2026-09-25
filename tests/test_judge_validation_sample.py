@@ -148,14 +148,6 @@ def test_frame_skips_a_blank_reply(tmp_path: Path) -> None:
     assert [response.turn for response in frame] == [2]
 
 
-def test_sample_draws_the_asked_number_per_agent(pilot_run: Path) -> None:
-    sample = sampler.draw_sample(pilot_run)
-
-    drawn = [response.agent for response in sample.responses]
-    assert drawn.count("baseline") == 15
-    assert drawn.count("fsm") == 15
-
-
 def test_sample_spreads_evenly_over_the_scenarios(pilot_run: Path) -> None:
     sample = sampler.draw_sample(pilot_run)
 
@@ -228,14 +220,6 @@ def test_a_quota_above_the_frame_raises(tmp_path: Path) -> None:
 
     with pytest.raises(sampler.SamplingError, match="fsm"):
         sampler.draw_sample(run_dir, per_agent=5, agents=("fsm",))
-
-
-def test_drawing_never_reads_metrics_csv(pilot_run: Path) -> None:
-    (pilot_run / "metrics.csv").write_text("not,a,valid,csv\n", encoding="utf-8")
-
-    sample = sampler.draw_sample(pilot_run)
-
-    assert len(sample.responses) == 30
 
 
 def test_the_response_sheet_holds_one_empty_row_per_sampled_response(

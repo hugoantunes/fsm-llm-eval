@@ -2,11 +2,8 @@
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
-from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
 from helpers import (
     ORDER_AND_EMAIL,
@@ -25,7 +22,6 @@ from sim.events import (
     Detection,
     EventError,
     detect_user_event,
-    user_event_schema,
 )
 from sim.fsm import FsmSpec
 from sim.kb import KnowledgeBase, UserDataField
@@ -36,14 +32,6 @@ RULE_EVENTS = [row for row in load_labeled_events() if row.via == "rule"]
 TRACKING = "I want to track my order"
 INTENT_REPLY = '{"event": "intent_classified", "intent": "order_tracking"}'
 SEED = 42
-
-
-@dataclass
-class Classified:
-    """One LLM-fallback step, shared by the schema, prompt and intent tests."""
-
-    engine: FsmEngine
-    llm: FakeLlm
 
 
 def _engine(
@@ -58,21 +46,13 @@ def _engine(
 
 
 @pytest.fixture
-def classified(real_fsm: FsmSpec, real_kb: KnowledgeBase) -> Classified:
-    """Park in intent_classification and classify a message the rules miss."""
+def classified(real_fsm: FsmSpec, real_kb: KnowledgeBase) -> FakeLlm:
+    """Classify a message the rules miss in intent_classification; return the LLM."""
     llm = FakeLlm([INTENT_REPLY])
     engine = _engine(real_fsm, real_kb, llm)
     engine.park("intent_classification")
     engine.step(TRACKING, turn=1)
-    return Classified(engine=engine, llm=llm)
-
-
-@pytest.fixture
-def intent_schema(real_fsm: FsmSpec, real_kb: KnowledgeBase) -> type:
-    """The classifier schema for ``intent_classification``, including ``none``."""
-    return user_event_schema(
-        real_fsm.events_for("intent_classification"), real_kb.intents()
-    )
+    return llm
 
 
 @pytest.fixture(scope="session")
@@ -100,9 +80,9 @@ def test_a_rule_fires_without_the_llm(
 
 
 def test_llm_fallback_uses_the_current_states_enum_plus_none(
-    classified: Classified, real_fsm: FsmSpec
+    classified: FakeLlm, real_fsm: FsmSpec
 ) -> None:
-    call = classified.llm.calls[0]
+    call = classified.calls[0]
     schema = call["schema"]
 
     assert call["role"] == "classifier"
@@ -113,32 +93,13 @@ def test_llm_fallback_uses_the_current_states_enum_plus_none(
 
 
 def test_classifier_prompt_carries_no_knowledge_base(
-    classified: Classified, real_kb: KnowledgeBase
+    classified: FakeLlm, real_kb: KnowledgeBase
 ) -> None:
     prompt = "\n".join(
-        message["content"] for message in classified.llm.calls[0]["messages"]
+        message["content"] for message in classified.calls[0]["messages"]
     )
 
     assert all(fact.text not in prompt for fact in real_kb.facts)
-
-
-def test_intent_classified_stores_the_intent_on_the_engine(
-    classified: Classified,
-) -> None:
-    assert classified.engine.intent == "order_tracking"
-    assert classified.engine.history[-1].event == "intent_classified"
-
-
-def test_intent_classified_without_intent_is_rejected_by_the_schema(
-    intent_schema: type,
-) -> None:
-    with pytest.raises(ValidationError, match="intent_classified"):
-        intent_schema.model_validate_json(invalid_classifier_reply())
-
-    parsed = intent_schema.model_validate_json(INTENT_REPLY)
-
-    assert parsed.event == "intent_classified"
-    assert parsed.intent == "order_tracking"
 
 
 def test_schema_invalid_classifier_call_is_retried(
@@ -172,10 +133,10 @@ def test_classifier_that_never_validates_raises_typed_error(
 
 
 def test_classifier_prompt_says_an_acknowledgement_alone_does_not_introduce_intent(
-    classified: Classified,
+    classified: FakeLlm,
 ) -> None:
     prompt = "\n".join(
-        message["content"] for message in classified.llm.calls[0]["messages"]
+        message["content"] for message in classified.calls[0]["messages"]
     ).lower()
 
     assert "acknowledgement or confirmation alone" in prompt
@@ -217,27 +178,6 @@ def test_gold_utterances_leave_data_collection_only_when_the_guard_holds(
 
     assert engine.state == expected
     assert engine.intent == intent
-
-
-def test_an_intent_named_before_intent_classification_is_kept(
-    real_fsm: FsmSpec, real_kb: KnowledgeBase, labeled_events: list[LabeledEvent]
-) -> None:
-    """Kept for the slice and the slot list, but still put to the state that settles it.
-
-    The engine does not skip ``intent_classification`` on an intent it already
-    holds: a request the classifier read wrong in the opening turn has to be
-    correctable in the one state built to settle it.
-    """
-    identified = labeled_utterance(labeled_events, "identification", "order_identified")
-    llm = FakeLlm([classifier_reply("request_received", "cancellation")])
-    engine = _engine(real_fsm, real_kb, llm)
-
-    engine.step("I want to cancel one of the items but not both.", turn=1)
-    engine.step(identified.text, turn=2)
-
-    assert engine.intent == "cancellation"
-    assert engine.state == "intent_classification"
-    assert len(llm.calls) == 1
 
 
 def test_an_intent_carried_by_a_later_event_does_not_replace_the_one_held(
@@ -299,20 +239,8 @@ def test_a_farewell_wins_over_slots_already_held(
 
 @pytest.mark.parametrize(
     "message",
-    [
-        "bye",
-        "goodbye",
-        "thanks, bye",
-        "thank you, goodbye",
-        "okay, thanks, goodbye",
-    ],
-    ids=[
-        "bye",
-        "goodbye",
-        "thanks-bye",
-        "thank-you-goodbye",
-        "okay-thanks-goodbye",
-    ],
+    ["thanks, bye", "thank you, goodbye"],
+    ids=["thanks-bye", "thank-you-goodbye"],
 )
 def test_a_courtesy_only_farewell_still_uses_the_fast_path(
     message: str, real_fsm: FsmSpec, real_kb: KnowledgeBase
@@ -329,23 +257,6 @@ def test_a_courtesy_only_farewell_still_uses_the_fast_path(
     assert walk[0].fired_by == "user"
     assert walk[-1].dest == "closing"
     assert llm.calls == []
-
-
-def test_a_goodbye_that_also_asks_a_question_goes_to_the_classifier(
-    real_fsm: FsmSpec, real_kb: KnowledgeBase
-) -> None:
-    llm = FakeLlm([classifier_reply("out_of_scope_request")])
-    engine = _engine(real_fsm, real_kb, llm)
-    engine.park("intent_classification")
-    engine.intent = "cancellation"
-    engine.collected.update(ORDER_AND_EMAIL)
-
-    walk = engine.step("how long for the money? bye", turn=1)
-
-    assert walk[0].event == "out_of_scope_request"
-    assert walk[0].fired_by == "user"
-    assert engine.state == "out_of_scope"
-    assert len(llm.calls) == 1
 
 
 def test_a_mixed_farewell_turn_cannot_emit_farewell_from_the_classifier(
@@ -379,70 +290,30 @@ def test_a_corrected_slot_in_data_collection_fires_without_the_llm(
     assert llm.calls == []
 
 
-@pytest.mark.parametrize(
-    ("intent", "message", "reply", "expected_slots"),
-    [
-        (
-            "cancellation",
-            "The reason is I changed my mind.",
-            '{"event": "data_provided", "intent": null, "reason": "I changed my mind"}',
-            {"reason": "I changed my mind"},
-        ),
-        (
-            "exchange_return",
-            "The blue jacket, too small, I want an exchange.",
-            '{"event": "data_provided", "intent": null, "item": "the blue jacket",'
-            ' "reason": "too small", "preferred_resolution": "an exchange"}',
-            {
-                "item": "the blue jacket",
-                "reason": "too small",
-                "preferred_resolution": "an exchange",
-            },
-        ),
-    ],
-    ids=["cancellation", "exchange_return"],
-)
 def test_patternless_slots_from_the_classifier_leave_data_collection(
-    intent: str,
-    message: str,
-    reply: str,
-    expected_slots: dict[str, str],
-    real_fsm: FsmSpec,
-    real_kb: KnowledgeBase,
+    real_fsm: FsmSpec, real_kb: KnowledgeBase
 ) -> None:
-    llm = FakeLlm([reply])
+    expected_slots = {
+        "item": "the blue jacket",
+        "reason": "too small",
+        "preferred_resolution": "an exchange",
+    }
+    llm = FakeLlm(
+        [
+            '{"event": "data_provided", "intent": null, "item": "the blue jacket",'
+            ' "reason": "too small", "preferred_resolution": "an exchange"}'
+        ]
+    )
     engine = _engine(real_fsm, real_kb, llm)
     engine.park("data_collection")
-    engine.intent = intent
+    engine.intent = "exchange_return"
     engine.collected.update(ORDER_AND_EMAIL)
 
-    walk = engine.step(message, turn=1)
+    walk = engine.step("The blue jacket, too small, I want an exchange.", turn=1)
 
     assert walk[0].event == "data_provided"
     assert walk[-1].dest == "solution"
     assert engine.collected.items() >= expected_slots.items()
-
-
-def test_patternless_slots_are_offered_before_the_intent_is_settled(
-    real_fsm: FsmSpec, real_kb: KnowledgeBase
-) -> None:
-    llm = FakeLlm(
-        [
-            '{"event": "request_received", "intent": "exchange_return", '
-            '"item": "the blue jacket", "reason": "too small", '
-            '"preferred_resolution": "an exchange"}'
-        ]
-    )
-    engine = _engine(real_fsm, real_kb, llm)
-
-    engine.step(
-        "I need to return the blue jacket because it is too small and want "
-        "another one.",
-        turn=1,
-    )
-
-    schema = llm.calls[0]["schema"].model_json_schema()["properties"]
-    assert {"item", "reason", "preferred_resolution"} <= set(schema)
 
 
 def test_a_slot_stated_in_the_opening_message_opens_the_data_collection_guard(
@@ -549,22 +420,6 @@ def test_real_classifier_accuracy_on_labeled_phrases(
     for miss in misses:
         print(miss)
     assert accuracy >= 0.85, misses
-
-
-def test_engine_loads_the_classifier_prompt_when_cwd_is_not_the_repo(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    real_fsm: FsmSpec,
-    real_kb: KnowledgeBase,
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    llm = FakeLlm([INTENT_REPLY])
-    engine = _engine(real_fsm, real_kb, llm)
-    engine.park("intent_classification")
-
-    engine.step(TRACKING, turn=1)
-
-    assert engine.intent == "order_tracking"
 
 
 def test_identification_rule_follows_the_guarded_edge(

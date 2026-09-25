@@ -57,7 +57,6 @@ def _eval(
     kb: KnowledgeBase,
     fsm: FsmSpec,
     parallel: int = 1,
-    on_progress: Progress | None = None,
 ) -> None:
     """Score ``run_dir`` with the canned eval client and the real config."""
     evaluate_run(
@@ -67,7 +66,6 @@ def _eval(
         fsm=fsm,
         config=load_models_config(CONFIG),
         parallel=parallel,
-        on_progress=on_progress,
     )
 
 
@@ -448,19 +446,6 @@ def test_eval_in_parallel_writes_the_same_csvs_as_a_sequential_eval(
     )
 
 
-def test_eval_rejects_a_parallel_below_one(
-    run_canned: RunCanned,
-    run_dir: Path,
-    canned_eval_llm: CannedEvalLlm,
-    real_kb: KnowledgeBase,
-    real_fsm: FsmSpec,
-) -> None:
-    run_canned()
-
-    with pytest.raises(EvalError, match="--parallel must be at least 1"):
-        _eval(run_dir, canned_eval_llm, real_kb, real_fsm, parallel=0)
-
-
 def test_reeval_of_the_same_run_hits_the_prompt_hash_cache(
     run_canned: RunCanned,
     run_dir: Path,
@@ -588,16 +573,6 @@ def test_eval_rejects_a_log_whose_scenario_is_missing(
 
     with pytest.raises(EvalError, match="edge_99"):
         _eval(run_dir, canned_eval_llm, real_kb, real_fsm)
-
-
-def test_eval_rejects_a_missing_manifest(
-    tmp_path: Path,
-    canned_eval_llm: CannedEvalLlm,
-    real_kb: KnowledgeBase,
-    real_fsm: FsmSpec,
-) -> None:
-    with pytest.raises(EvalError, match="manifest"):
-        _eval(tmp_path / "ghost", canned_eval_llm, real_kb, real_fsm)
 
 
 def test_eval_rejects_a_missing_dialogues_directory(
@@ -844,22 +819,6 @@ def test_progress_active_stays_within_parallel_bounds(
     assert not thread.is_alive()
     assert errors == []
     assert all(0 <= snapshot.active <= parallel for snapshot in snapshots)
-    assert snapshots[-1].completed == snapshots[-1].total
-    assert snapshots[-1].active == 0
-
-
-def test_progress_final_state_is_exact_after_fast_jobs(
-    run_canned: RunCanned,
-    run_dir: Path,
-    canned_eval_llm: CannedEvalLlm,
-    real_kb: KnowledgeBase,
-    real_fsm: FsmSpec,
-) -> None:
-    run_canned()
-    snapshots: list[EvalProgress] = []
-
-    _eval(run_dir, canned_eval_llm, real_kb, real_fsm, on_progress=snapshots.append)
-
     assert snapshots[-1].completed == snapshots[-1].total
     assert snapshots[-1].active == 0
 

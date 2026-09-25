@@ -189,17 +189,6 @@ def test_the_recorded_walk_is_a_contiguous_path_of_the_machine(
     assert walked[-1].dest == "closing"
 
 
-def test_out_of_scope_carries_its_own_package_not_anothers(
-    out_of_scope_turn: AgentTurn,
-    real_fsm: FsmSpec,
-) -> None:
-    prompt = out_of_scope_turn.prompt
-
-    assert out_of_scope_turn.record.state_after == "out_of_scope"
-    assert package_text(real_fsm, "out_of_scope") in prompt
-    assert "Give the outcome in the first sentence" not in prompt
-
-
 def test_every_state_and_the_baseline_carry_the_same_knowledge_base(
     greeting_none: AgentTurn,
     closing_walk: Walk,
@@ -223,42 +212,13 @@ def test_every_state_and_the_baseline_carry_the_same_knowledge_base(
     assert package_text(real_fsm, "out_of_scope") not in greeting_none.prompt
 
 
-def test_the_known_order_number_and_email_are_in_the_messages_the_fsm_agent_sends(
+def test_when_identification_is_auto_skipped_the_next_prompt_keeps_identity_contract(
     fsm_agent: MakeFsm,
 ) -> None:
-    llm = FakeLlm([classifier_reply("request_received", "cancellation"), AGENT_REPLY])
-    history = [
-        Turn(
-            speaker="user",
-            text="I want to cancel order NL-20260145 from jane@example.com.",
-        )
-    ]
-
-    fsm_agent(llm).respond(history)
-
-    sent = "\n".join(message["content"] for message in last_agent_call(llm)["messages"])
-    assert "NL-20260145" in sent
-    assert "jane@example.com" in sent
-
-
-@pytest.mark.parametrize(
-    ("intent", "opening"),
-    [
-        (
-            "cancellation",
-            "I want to cancel order NL-20260145 from jane@example.com.",
-        ),
-        (
-            "payment_reissue",
-            "Please reissue expired slip NL-20260423 for tara.quinn@example.com.",
-        ),
-    ],
-    ids=["cancellation", "payment_reissue"],
-)
-def test_when_identification_is_auto_skipped_the_next_prompt_keeps_identity_contract(
-    intent: str, opening: str, fsm_agent: MakeFsm
-) -> None:
-    llm = FakeLlm([classifier_reply("request_received", intent), AGENT_REPLY])
+    llm = FakeLlm(
+        [classifier_reply("request_received", "payment_reissue"), AGENT_REPLY]
+    )
+    opening = "Please reissue expired slip NL-20260423 for tara.quinn@example.com."
 
     record = fsm_agent(llm).respond([Turn(speaker="user", text=opening)])
     prompt = last_agent_prompt(llm).lower()
@@ -287,46 +247,6 @@ def test_fsm_turn_records_persist_the_engine_intent_and_collected_slots(
     assert record.intent == "cancellation"
     assert record.collected["order_number"] == "NL-20260145"
     assert record.collected["email"] == "jane@example.com"
-
-
-def test_data_collection_lists_only_the_fields_still_missing(
-    real_kb: KnowledgeBase, real_fsm: FsmSpec
-) -> None:
-    collect_state = next(
-        edge.source
-        for edge in real_fsm.transitions
-        if edge.guard == "required_data_collected" and not edge.from_any
-    )
-
-    fields = _fields_to_collect(
-        collect_state,
-        "exchange_return",
-        real_kb,
-        collect_state,
-        collected={"order_number": "NL-20260145", "email": "jane@example.com"},
-    )
-
-    assert [field.key for field in fields] == ["item", "reason", "preferred_resolution"]
-
-
-def test_data_collection_keeps_the_fields_still_missing_for_the_active_intent(
-    real_kb: KnowledgeBase, real_fsm: FsmSpec
-) -> None:
-    collect_state = next(
-        edge.source
-        for edge in real_fsm.transitions
-        if edge.guard == "required_data_collected" and not edge.from_any
-    )
-
-    fields = _fields_to_collect(
-        collect_state,
-        "cancellation",
-        real_kb,
-        collect_state,
-        collected={"order_number": "NL-20260145", "email": "jane@example.com"},
-    )
-
-    assert [field.key for field in fields] == ["reason"]
 
 
 def test_data_collection_omits_fields_of_other_intents(

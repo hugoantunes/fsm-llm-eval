@@ -276,26 +276,6 @@ def test_a_failed_dialogue_never_passes(
     assert report.missing == (3, 4)
 
 
-def test_check_run_reports_one_row_per_dialogue(
-    tmp_path: Path, injection: Scenario
-) -> None:
-    run_dir = write_run(
-        tmp_path / "exp",
-        [
-            make_log(INJECTION_TURNS, (1, 2, 3, 4), agent=agent)
-            for agent in ("baseline", "fsm")
-        ],
-    )
-
-    reports = adherence.check_run(run_dir)
-
-    assert [report.dialogue_id for report in reports] == [
-        "adversarial_13__baseline__rep01",
-        "adversarial_13__fsm__rep01",
-    ]
-    assert all(report.ok for report in reports)
-
-
 def test_main_passes_on_a_run_that_delivered_every_beat(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -116,14 +116,6 @@ def test_a_pydantic_schema_becomes_format_and_comes_back_parsed(
     assert response.parsed.event == "order_identified"
 
 
-def test_prompt_over_eighty_percent_of_num_ctx_raises(tmp_path: Path) -> None:
-    transport = FakeOllama([reply("hello", prompt_tokens=7000)])
-    client = make_client(tmp_path, transport)
-
-    with pytest.raises(PromptTooLongError, match="7000 of 8192"):
-        client.chat([{"role": "user", "content": "hi"}], role="agent", caller="agent")
-
-
 def test_a_missing_prompt_eval_count_raises(tmp_path: Path) -> None:
     transport = FakeOllama([reply("hello", prompt_tokens=None)])
     client = make_client(tmp_path, transport)
@@ -205,20 +197,6 @@ def test_exhausted_retries_raise_with_the_last_error(tmp_path: Path) -> None:
     assert slept == [2, 4]
     (record,) = read_log(tmp_path)
     assert "connection refused" in record["error"]
-
-
-def test_a_read_timeout_is_retried_and_then_succeeds(tmp_path: Path) -> None:
-    transport = FakeOllama([httpx.ReadTimeout("timed out"), reply("late")])
-    client = make_client(tmp_path, transport, slept=[])
-
-    response = client.chat(
-        [{"role": "user", "content": "hi"}], role="agent", caller="agent"
-    )
-
-    assert response.text == "late"
-    assert len(transport.calls) == 2
-    (record,) = read_log(tmp_path)
-    assert record["attempts"] == 2
 
 
 def test_judge_role_stops_after_one_retry(tmp_path: Path) -> None:

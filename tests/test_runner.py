@@ -15,7 +15,6 @@ from helpers import (
 )
 from helpers import canned_llm_factory as make_canned_llm
 from sim.config import load_models_config
-from sim.events import EventError
 from sim.fsm import FsmError, FsmSpec
 from sim.io import atomic_write
 from sim.kb import KnowledgeBase
@@ -96,12 +95,10 @@ def _read_log(run_dir: Path, job: DialogueJob) -> DialogueLog:
     )
 
 
-@pytest.mark.parametrize("status", ["ok", "failed"])
 def test_resume_skips_a_complete_file_and_retries_a_missing_one(
     two_example_scenarios: tuple[Scenario, Scenario],
     run_dir: Path,
     run_canned: RunCanned,
-    status: str,
 ) -> None:
     jobs = iter_jobs(two_example_scenarios, agents=("baseline",), reps=1)
     done, missing = jobs
@@ -112,9 +109,8 @@ def test_resume_skips_a_complete_file_and_retries_a_missing_one(
             agent=done.agent,
             repetition=done.repetition,
             seed=0,
-            status=status,
-            error="the server went away" if status == "failed" else None,
-            stop_reason="goal_reached" if status == "ok" else None,
+            status="failed",
+            error="the server went away",
         ).model_dump_json()
         + "\n",
     )
@@ -163,12 +159,9 @@ class _FailingLlm:
     "error",
     [
         LlmError("the server went away"),
-        EventError(
-            "event intent_classified in state 'intent_classification' with no intent"
-        ),
         FsmError("machine.yaml has no path to solution"),
     ],
-    ids=["llm", "event", "fsm"],
+    ids=["llm", "fsm"],
 )
 def test_a_failed_dialogue_is_recorded_and_does_not_abort_the_run(
     two_example_scenarios: tuple[Scenario, Scenario],

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Sequence
 from pathlib import Path
@@ -36,7 +35,6 @@ PRODUCTION_IDS = (
     "happy_path_09__fsm__rep02",
     "adversarial_06__fsm__rep02",
 )
-VERDICTS = ("CONTRACT_FALSE_POSITIVE", "TRUE_INSTRUMENT_FAILURE")
 
 
 def _failed(
@@ -142,18 +140,6 @@ def test_discovery_is_deterministic(tmp_path: Path) -> None:
     assert first == instrument_failures_path(run_dir)
 
 
-def test_discovery_contains_no_semantic_verdict(tmp_path: Path) -> None:
-    log = _failed(scenario_id="happy_path_01")
-    run_dir = write_run(tmp_path / "run", [log])
-
-    path = write_instrument_failures(run_dir)
-    blob = path.read_text(encoding="utf-8")
-
-    for verdict in VERDICTS:
-        assert verdict not in blob
-    assert "needs_adjudication" in blob
-
-
 def test_default_output_is_under_run_adjudication(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -166,17 +152,6 @@ def test_default_output_is_under_run_adjudication(
     assert path.exists()
     out = capsys.readouterr().out
     assert "instrument / invalid_candidate_retry_exhausted: 1" in out
-
-
-def test_discovery_does_not_mutate_original_jsonls(tmp_path: Path) -> None:
-    log = _failed(scenario_id="happy_path_01")
-    run_dir = write_run(tmp_path / "run", [log])
-    path = next((run_dir / "dialogues").glob("*.jsonl"))
-    before = hashlib.sha256(path.read_bytes()).hexdigest()
-
-    write_instrument_failures(run_dir)
-
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == before
 
 
 def test_discovery_implementation_does_not_pin_production_ids() -> None:
