@@ -1,114 +1,52 @@
-# Evaluation metrics (T-04)
+# Evaluation metrics and analysis plan (T-04, T-19)
 
-The experiment compares two agents on the same scenarios. Every number below is
-computed **per dialogue** and aggregated to the **scenario** — the unit of analysis
-(T-19): for each (scenario, agent) the K repetitions become a mean (continuous) or a
-proportion (binary), and the tests run over the N paired scenarios. Treating a
-repetition as an independent sample would inflate n by K.
+> **Experiment guide** · step 3 of 11 · [All steps](README.md) ·
+> [← Scenarios](taxonomy.md) · [Next: Machines and models →](setup.md)
 
-N = 60 is the full set (T-05); the floor is 45. Under a normal-theory paired
-approximation, N = 60 provides 80% power at two-sided α = 0.05 for a
-standardized paired difference of approximately dz ≈ 0.37 (N = 45: dz ≈ 0.43).
-These values are sensitivity benchmarks rather than metric-specific power
-calculations: the confirmatory outcomes are bounded and are analysed with
-paired Wilcoxon/permutation procedures, with Holm adjustment across the three
-primary outcomes. T-19 only fills the observed tests.
+This file is the measurement contract of the experiment. T-04 wrote it, T-19 completed
+the statistical plan, and it was frozen with the dataset and `configs/models.yaml`
+before the first experimental dialogue ran. It reads in the order a reviewer asks:
 
-The n of each test is the number of paired scenarios, not the number of dialogues.
-`n_nonzero` is the count of those paired differences that are not zero after
-canonicalization (`round(fsm_score - baseline_score, 12)`); it is the effective
-number of observations that contribute ranks to Wilcoxon and rank-biserial. V/E/D
-still uses all `n` pairs, including ties.
+1. what is compared (*What is compared*);
+2. where each number comes from (*Where each number comes from*);
+3. which three metrics carry the confirmatory claim (*Primary and secondary*);
+4. how the tests run, with the scenario as the unit (*Unit of analysis and statistical
+   plan*);
+5. what is not data (*What does not count as data*);
+6. how the judge itself is checked against a human (*Validating the judge*);
+7. what was frozen (*Pre-experiment freeze*);
+8. one card per column of `metrics.csv`, then the metrics cut before execution;
+9. what was added after the freeze, and why none of it moves the plan (*After the
+   freeze*).
 
-## T-19 procedures
-
-Paired differences are computed once per scenario and reused:
-
-```text
-diff = round(fsm_score - baseline_score, 12)
-```
-
-A canonical `0.0` is a tie. Wilcoxon uses `scipy.stats.wilcoxon(...,
-zero_method="wilcox", alternative="two-sided", method="auto")`; all-zero diffs
-give p = 1. Rank-biserial is Kerby from signed rank sums after discarding zeros.
-Positive rank-biserial values favor FSM because the canonical paired
-difference is defined as `fsm_score - baseline_score`; negative values favor
-baseline.
-Permutation is 10 000 Monte-Carlo sign flips of the canonical diffs, statistic
-`|mean(d)|`, p = (extreme + 1) / (B + 1), seed 0. Bootstrap CIs resample paired
-scenarios, never dialogues: 10 000 percentile 95% CIs, seed 0. Holm adjusts
-Wilcoxon p-values of `PRIMARY_METRICS` only at `population=semantic_primary` and
-`stratum=overall`. Category rows are exploratory. `frozen_gate` and
-`drop5_instrument` are secondary populations.
-
-`descriptive.csv` reports `claim_support` NA count and NA rate by agent
-(`claim_support_na_dialogues`, `claim_support_na_pct`), with
-`claim_support_total_dialogues` and `claim_support_aggregatable_dialogues`,
-plus complete pairs and pairs excluded because either side is NA
-(`claim_support_complete_pairs`, `claim_support_pairs_excluded_either_na`).
-`claim_support_na_pct` is a proportion in [0, 1], not a value in [0, 100]
-(0.005714 is 0.5714%). T-20 formats that column as a percentage in tables
-and figures; the CSV stays a fraction. Those pair counts are repeated on
-the `claim_support` rows of `tests.csv`.
-`n` on that test remains the number of complete paired scenarios.
-Zero-checkable-claim occurrence is a scenario-level paired diagnostic
-missingness comparison (`metric=zero_checkable_claim_occurrence`,
-`role=diagnostic_missingness`): the per-scenario rate of
-`n_checkable_claims == 0`, reported with V/E/D and mean difference, outside
-`PRIMARY_METRICS` and Holm. It does not add a Wilcoxon, permutation, or other
-inferential test.
-
-`goal_reached` is a stopping condition of the simulated user (T-11). It is **not** a
-metric. If it appears before all mandatory beats are delivered, the runtime records
-that fact and keeps the dialogue running until the script is complete or `max_turns`
-is reached. Whether the task was completed is `task_completed`, scored by the judge
-against the scenario's `success_criterion`.
-
-The scenario `script` is a mandatory ordered plan, not a hint: the customer sends one
-beat per message, in the order written, and the dialogue may not end while a beat is
-still owed. Delivery is decided by the runtime (`sim.script`, `TurnRecord.user_beat`),
-not by the model. `just adherence` is the gate a run has to pass before it is
-evaluated or sampled for T-16. It is not a column of `metrics.csv`. A dialogue that
-lost a beat is an instrument failure, not a data point.
-
-Failed logs carry explicit failure classes in the run JSONL. Keep two cases separate
-in reporting: `invalid_candidate_retry_exhausted` is an instrument-generation failure
-(`failure_kind=instrument`), while `max_turns_with_incomplete_beat` is an incomplete
-simulation artifact (`failure_kind=simulation`, `termination_reason=max_turns`,
-`active_beat_complete=false`). The second is **not** automatically an instrument bug:
-it can be an interaction-level effect (one agent never elicits a required datum; the
-other does). Do not recode it as agent failure and do not drop it to clean the run.
-Dialogue logs also persist goal-reached provenance (`goal_reached_seen`,
-`goal_reached_at_turn`, `script_complete_at_goal_reached`) so early goal achievement
-can be analyzed without overriding failure semantics. Neither failure case enters
-the frozen-gate `metrics.csv` written by ordinary `sim eval` (`status=ok` only).
-
-**T-17 amendment (2026-09-14, post-run, pre-eval).** The sentence above remains
-the default eval rule and the frozen-gate sensitivity population (342
-`status=ok` rows). It is superseded for *semantic* outcome evaluation of eight
-`invalid_candidate_retry_exhausted` transcripts classified
-`CONTRACT_FALSE_POSITIVE` in [`docs/execution.md`](execution.md). The file
-`runs/exp_final/adjudication/contract_false_positives.json`
-is only the machine-readable execution artifact generated from that
-already-frozen decision; it does not generate or independently determine
-adjudication. Those
-eight are scored only through the sidecar path (`--include-failed-from`; default
-`--out` is a sibling named `<run>_semantic`). They keep `status=failed` on disk
-and are not adherence successes. `adversarial_06__fsm__rep02` stays excluded as
-true instrument missingness. This amendment does **not** reclassify
-`max_turns_with_incomplete_beat`. `invalid_candidate_retry_exhausted` is a
-runtime-contract failure class, not a clean semantic classifier of
-simulated-user validity. Full wording and Air commands:
-[`docs/execution.md`](execution.md).
+## What is compared
 
 The treatment is the **FSM-based architecture as a package**: explicit state
 control, transitions and state-specific instruction packages. The baseline is one
 prompt. Both agents receive the same full knowledge base. That package is a
 deliberate difference, not a confound to be partialled out. Hypotheses that
 read "FSM better" mean this architecture against that baseline, never that the
-state machine alone caused a gain.
+state machine alone caused a gain. Everything else — agent model, sampling, seeds,
+simulated user, scenarios — is held equal; the checklist is
+[`docs/parity.md`](parity.md).
 
-## Two judge calls and the deterministic rest
+## Where each number comes from
+
+```mermaid
+flowchart LR
+  D["dialogue log<br/>(user and agent turns only)"]
+  D --> J1["judge call 1<br/>facts and claims"]
+  D --> J2["judge call 2<br/>global judgement"]
+  D --> L["stage labeler<br/>same call for both agents"]
+  D --> R["deterministic evaluators<br/>canary, forbidden sentence,<br/>stopwatches, fact-ID regex"]
+  J1 --> S["sim.metrics.fact_scores<br/>fact P / R / F1, claim_support"]
+  J2 --> G["accuracy_score, relevance,<br/>task_completed, offensive_content"]
+  L --> F["sim.evaluators.flow_scores<br/>flow columns"]
+  S --> M["metrics.csv<br/>one row per dialogue"]
+  G --> M
+  F --> M
+  R --> M
+```
 
 The judge (T-12) is a different model family, blind to agent metadata, and sees a
 clean transcript of user and agent turns, never a name, a state, or a prompt
@@ -170,12 +108,6 @@ encodes, and they are the natural explanation for a difference in
 `task_completed` or in the factual columns. They are not evidence that one
 architecture is better than the other.
 
-The unit of analysis is the **scenario**, not the dialogue. For each
-(scenario, agent) the K repetitions become a mean (continuous) or a proportion
-(binary). Tests run over the N paired scenarios. A repetition is not an
-independent sample. Every scenario runs under both `baseline` and `fsm` with
-the same brief, the same answer key and the same metrics.
-
 Safety and the needle check are **exploratory robustness probes**, not a second
 confirmatory family. Their columns are NA on most rows, so n is the eligible
 subset, not N. On the frozen v1 dataset that subset is:
@@ -190,11 +122,135 @@ secondary or diagnostic, including the three flow columns, the components of
 `fact_f1` and the components of `flow_adherence`. Secondary tests may be
 reported as explanatory.
 
+## Unit of analysis and statistical plan (T-19)
+
+Every number is computed **per dialogue** and aggregated to the **scenario** — the
+unit of analysis: for each (scenario, agent) the K repetitions become a mean
+(continuous) or a proportion (binary), and the tests run over the N paired
+scenarios. Treating a repetition as an independent sample would inflate n by K.
+Every scenario runs under both `baseline` and `fsm` with the same brief, the same
+answer key and the same metrics, which is what makes the pairing valid.
+
+N = 60 is the full set (T-05); the floor was 45 and the only balanced cut step was
+48, never used. Under a normal-theory paired approximation, N = 60 provides 80% power
+at two-sided α = 0.05 for a standardized paired difference of approximately
+dz ≈ 0.37 (N = 45: dz ≈ 0.43). These values are sensitivity benchmarks rather than
+metric-specific power calculations: the confirmatory outcomes are bounded and are
+analysed with paired Wilcoxon/permutation procedures, with Holm adjustment across
+the three primary outcomes. T-19 only fills the observed tests.
+
+The n of each test is the number of paired scenarios, not the number of dialogues.
+`n_nonzero` is the count of those paired differences that are not zero after
+canonicalization (`round(fsm_score - baseline_score, 12)`); it is the effective
+number of observations that contribute ranks to Wilcoxon and rank-biserial. V/E/D
+still uses all `n` pairs, including ties.
+
+Paired differences are computed once per scenario and reused:
+
+```text
+diff = round(fsm_score - baseline_score, 12)
+```
+
+A canonical `0.0` is a tie. Wilcoxon uses `scipy.stats.wilcoxon(...,
+zero_method="wilcox", alternative="two-sided", method="auto")`; all-zero diffs
+give p = 1. Rank-biserial is Kerby from signed rank sums after discarding zeros.
+Positive rank-biserial values favor FSM because the canonical paired
+difference is defined as `fsm_score - baseline_score`; negative values favor
+baseline.
+Permutation is 10 000 Monte-Carlo sign flips of the canonical diffs, statistic
+`|mean(d)|`, p = (extreme + 1) / (B + 1), seed 0. Bootstrap CIs resample paired
+scenarios, never dialogues: 10 000 percentile 95% CIs, seed 0. Holm adjusts
+Wilcoxon p-values of `PRIMARY_METRICS` only at `population=semantic_primary` and
+`stratum=overall`. Category rows are exploratory. `frozen_gate` and
+`drop5_instrument` are secondary populations (*After the freeze*).
+
+`descriptive.csv` reports `claim_support` NA count and NA rate by agent
+(`claim_support_na_dialogues`, `claim_support_na_pct`), with
+`claim_support_total_dialogues` and `claim_support_aggregatable_dialogues`,
+plus complete pairs and pairs excluded because either side is NA
+(`claim_support_complete_pairs`, `claim_support_pairs_excluded_either_na`).
+`claim_support_na_pct` is a proportion in [0, 1], not a value in [0, 100]
+(0.005714 is 0.5714%). T-20 formats that column as a percentage in tables
+and figures; the CSV stays a fraction. Those pair counts are repeated on
+the `claim_support` rows of `tests.csv`.
+`n` on that test remains the number of complete paired scenarios.
+Zero-checkable-claim occurrence is a scenario-level paired diagnostic
+missingness comparison (`metric=zero_checkable_claim_occurrence`,
+`role=diagnostic_missingness`): the per-scenario rate of
+`n_checkable_claims == 0`, reported with V/E/D and mean difference, outside
+`PRIMARY_METRICS` and Holm. It does not add a Wilcoxon, permutation, or other
+inferential test.
+
+## What does not count as data
+
+`goal_reached` is a stopping condition of the simulated user (T-11). It is **not** a
+metric. If it appears before all mandatory beats are delivered, the runtime records
+that fact and keeps the dialogue running until the script is complete or `max_turns`
+is reached. Whether the task was completed is `task_completed`, scored by the judge
+against the scenario's `success_criterion`.
+
+The scenario `script` is a mandatory ordered plan, not a hint: the customer sends one
+beat per message, in the order written, and the dialogue may not end while a beat is
+still owed. Delivery is decided by the runtime (`sim.script`, `TurnRecord.user_beat`),
+not by the model. `just adherence` is the gate a run has to pass before it is
+evaluated or sampled for T-16. It is not a column of `metrics.csv`. A dialogue that
+lost a beat is an instrument failure, not a data point.
+
+Failed logs carry explicit failure classes in the run JSONL. Keep two cases separate
+in reporting: `invalid_candidate_retry_exhausted` is an instrument-generation failure
+(`failure_kind=instrument`), while `max_turns_with_incomplete_beat` is an incomplete
+simulation artifact (`failure_kind=simulation`, `termination_reason=max_turns`,
+`active_beat_complete=false`). The second is **not** automatically an instrument bug:
+it can be an interaction-level effect (one agent never elicits a required datum; the
+other does). Do not recode it as agent failure and do not drop it to clean the run.
+Dialogue logs also persist goal-reached provenance (`goal_reached_seen`,
+`goal_reached_at_turn`, `script_complete_at_goal_reached`) so early goal achievement
+can be analyzed without overriding failure semantics. Neither failure case enters
+the frozen-gate `metrics.csv` written by ordinary `sim eval` (`status=ok` only). The
+one execution-time exception — eight adjudicated transcripts admitted to the
+semantic-primary population — is the T-17 amendment under *After the freeze*.
+
+## Validating the judge against a human (T-16)
+
+The LLM judge is not replaced by humans; it is checked against one before the
+experiment runs. T-16 validates it on a pilot run that passed `just adherence`, in two
+units that are never mixed. Dialogue-level validation is a census of all 20 ok
+dialogues (`accuracy`, `task_completed`). Response-level validation is a blinded
+stratified sample of 30/76 eligible agent responses (`fact_ids_stated`,
+`claim_support`), 15 per agent, seed `20260911`. A human grades the same rubric
+without seeing the model output. Report Cohen's kappa (binary/categorical),
+quadratic weighted Cohen's kappa for ordinal `accuracy`, and raw percentage
+agreement; `fact_ids_stated` is exact-set agreement plus micro P/R/F1. This
+validates the instrument. The sample is not used to retune the judge after T-17
+results are seen, and it was not used to retune it before either.
+
+Two validation rounds exist, on the same five pilot scenarios, pooled neither with
+each other nor with T-17 ([`docs/pilot.md`](pilot.md) tells how each came about):
+
+- **Pilot v1** — the corrected pilot of 2026-09-13 at logical path `runs/exp_pilot`
+  (manifest `exp_id` `exp_pilot_fixes_20260913_final_v1`), 4B simulated user, the
+  30/76 draw above. Frozen sheets under `results/judge_validation/pilot_v1/`; do not
+  redraw them. The 11/09 draw from the first pilot is void: those dialogues dropped
+  beats ([`docs/judge_validation.md`](judge_validation.md)).
+- **Pilot v2** — `runs/pilot_v2` (2026-09-14), 9B simulated user, 30/78 eligible
+  responses, seed `20260914`, sheets under `results/judge_validation/pilot_v2/`; do
+  not redraw. This is the round quoted as the judge's agreement, because its
+  simulated user and instruments are the ones T-17 ran.
+
+Both rounds used `gemma4:12b` (GGUF). The judge backend is the one thing T-17 ran
+differently; what it ran, and how that was checked, is under *After the freeze*. `relevance`, `offensive_content`
+and `needle_recovered` are not validated fields. `flow_adherence` stays out of
+`PRIMARY_METRICS`. Agreement tables: [`docs/judge_validation.md`](judge_validation.md).
+
 ## Pre-experiment freeze
 
 Before T-17, this file plus `configs/models.yaml`, `data/scenarios/v1/` and
 `DECISOES.md` (dataset hash, also pinned as `FROZEN_V1_HASH` in
-`sim.runner`) are the freeze. Do not change them after seeing results.
+`sim.runner`) are the freeze: the configuration frozen on 2026-09-14 at the close of
+T-16 (judge, prompts, rubrics, stage labeler, dataset v1, models). Do not change them
+after seeing results. What was written into this file later — including the one
+later configuration change, the judge backend — is collected under *After the freeze*;
+it adds provenance and interpretation and changes no definition, family or test.
 
 - **Primary outcomes.** `PRIMARY_METRICS` above. Holm on that family of three.
 - **Secondary / exploratory.** All other `METRICS`, including `accuracy_score`,
@@ -208,7 +264,7 @@ Before T-17, this file plus `configs/models.yaml`, `data/scenarios/v1/` and
 - **Metric definitions.** The cards in this file; names in `sim.metrics.METRICS`.
 - **Aggregation.** Scenario means/proportions over K; paired tests over N.
   Dialogue-run inclusion in T-17 is the post-run amendment of 2026-09-14
-  (semantic primary vs frozen-gate; see the T-17 amendment above and
+  (semantic primary vs frozen-gate; see *After the freeze* below and
   `docs/execution.md`). That amendment does not change PRIMARY_METRICS,
   Holm, N, or the scenario as unit of analysis.
 - **Missing / NA.** `needle_recovered`, `injection_succeeded` and
@@ -240,73 +296,6 @@ Before T-17, this file plus `configs/models.yaml`, `data/scenarios/v1/` and
   not extra rows.
 - **Models and inference.** `configs/models.yaml` (names, digests, `num_ctx`,
   temperature, seed). `scripts/ollama_env.sh` for the server env.
-
-## Protocol amendment (T-17, 2026-09-14)
-
-Dated execution-time amendment, recorded after `sim run` and **before**
-judge evaluation and **before** inspection of baseline-vs-FSM outcome
-metrics. It does not silently rewrite the freeze: confirmatory family,
-Holm, N = 60, and “unit = scenario” stay as declared.
-
-The same-day wording that excluded all nine
-`invalid_candidate_retry_exhausted` runs as instrument missingness is
-historical (`docs/execution.md` *Immediate post-run rule*). The locked
-rule is the post-run adjudication in that file: eight
-`CONTRACT_FALSE_POSITIVE` transcripts enter semantic-primary evaluation
-via the sidecar; `adversarial_06__fsm__rep02` stays excluded as true
-instrument missingness. See the T-17 amendment at the top of this file.
-
-**Sensitivity analysis (secondary, distinct from both frozen
-populations):** drop the five scenarios that contain at least one of the
-nine instrument runs (`adversarial_01`, `adversarial_06`,
-`adversarial_19`, `edge_16`, `happy_path_09`) from **both** arms; repeat
-the principal comparisons; report whether substantive conclusions differ.
-That scenario-wide exclusion is only this robustness check.
-
-Operational detail: `docs/execution.md`.
-
-## Human validation of the judge (T-16)
-
-The LLM judge is not replaced by humans. T-16 validates it on a run that passed
-`just adherence`. Dialogue-level validation is a census of all 20 ok dialogues
-(`accuracy`, `task_completed`). Response-level validation is a blinded stratified
-sample of 30/76 eligible agent responses (`fact_ids_stated`, `claim_support`),
-15 per agent, seed `20260911`. The 11/09 sample is void: those dialogues dropped
-beats ([`docs/judge_validation.md`](judge_validation.md)). The path
-`runs/exp_pilot` is the logical directory of the corrected pilot (manifest
-`exp_id` `exp_pilot_fixes_20260913_final_v1`); do not redraw the frozen sheets
-under `results/judge_validation/pilot_v1/`. A second instrument-validation
-round on Pilot v2 lives under `results/judge_validation/pilot_v2/` (seed
-`20260914`, 30/78 eligible responses; do not redraw). Agreement tables are in
-[`docs/judge_validation.md`](judge_validation.md). A human grades the same rubric
-without seeing the model output. Report Cohen's kappa (binary/categorical),
-quadratic weighted Cohen's kappa for ordinal `accuracy`, and raw percentage
-agreement; `fact_ids_stated` is exact-set agreement plus micro P/R/F1. This
-validates the instrument. The sample is not used to retune the judge after T-17
-results are seen. T-16 and Pilot v2 used `gemma4:12b`. In T-17, the frozen-gate
-evaluation used `gemma4:12b` GGUF, while the semantic sidecar used
-`gemma4:12b-mlx`. Judge prompts and schemas remain frozen. T-18 does not pool
-or compare the backends; provenance stays on the exported rows. Treatment of
-the backend split belongs to T-23.
-`flow_adherence` stays out of `PRIMARY_METRICS`. A later census of the 348
-scored T-17 dialogues is the next section, not this one.
-
-## Human census of semantic-primary (exp_final)
-
-Not T-16 and not a retune. After the Final Experiment freeze, one annotator
-labelled the same 348 scored `semantic_primary` dialogues under blind IDs
-D001–D348 (seed `20260920`). Sheets were frozen on 2026-09-20T21:11:58Z, then
-unblinded. Human `task_completed`, `fact_f1` and `claim_support` reuse
-`fact_scores` / T-19; Holm is the same three-metric family at
-`human_primary` × overall (n = 59). Claim-support agreement with the judge is
-a three-way dialogue label, not atomic claim matching. Fact-ID exact-set
-comparison kept 241 dialogues and omitted 107 reconstructions that reproduce
-the metrics row but disagree on predicted IDs. The human census was chosen as
-the narrative reference for the thesis conclusion after freeze and unblind;
-the judge remains the original confirmatory instrument and is reported as
-comparison. Do not edit `frozen/`.
-Regenerate plates with `just figures results/human_primary` (tables 1–5,
-figures 1–5, including the paired-difference forest).
 
 ## Judge call 1 — facts and claims
 
@@ -670,8 +659,8 @@ classifier of T-08).
 
 ## Deterministic — flow adherence (T-13)
 
-The two questions of flow adherence, and the rule that only **flow edges**
-(`from_any` false) count as a valid path, are specified in
+The two questions of flow adherence, and the rule for a valid path (at most two flow
+edges per turn, plus the two universal `from: "*"` edges), are specified in
 [`docs/fsm.md`](fsm.md#flow-adherence). This file names the columns; it does not
 copy `machine.yaml`.
 
@@ -732,18 +721,19 @@ neither, and scored 8 of the FSM's own 10 recorded pilot paths invalid; see
 **Why 2, and not a number fitted to the pilot.** Two is the ceiling
 `FsmEngine.step` can reach, derived from the engine and `machine.yaml` alone. One
 turn fires exactly one classified user event, and then `_advance_when_ready`
-offers exactly two auto-advance events in a fixed order, each at most once, with
-no loop: `order_identified` and `data_provided`. All three can never fire, because
-`order_identified` lands on `intent_classification` while `data_provided` is
-declared only out of `data_collection`, and the single edge between those two is
-`intent_classified` — which `_advance_when_ready` deliberately excludes, so that a
-request the classifier read wrong is not made final without the state built to
-settle it ever speaking. Assuming every guard passes and trying every state
-against every event, the longest chain the machine admits is
+tries its engine events in a fixed order, each at most once, with no loop:
+`order_identified`, `intent_classified` and `data_provided`. `intent_classified`
+fires there only on a turn that *started* in `intent_classification` with an intent
+already held, so a request the classifier read wrong is never made final before the
+state built to settle it has spoken. That is also why the three never chain:
+`order_identified` lands on `intent_classification`, and a turn that arrives there
+did not start there. Assuming every guard passes and trying every state against
+every event, the longest chains the machine admits are
 `greeting --request_received--> identification --order_identified-->
-intent_classification`: **two edges**. Since one label is one turn and consecutive
-labels are consecutive turns' `state_after`, two is exactly the right bound. A
-wider gap cannot be the engine advancing; it is a skipped stage.
+intent_classification` and `intent_classification --intent_classified-->
+data_collection --data_provided--> solution`: **two edges**. Since one label is one
+turn and consecutive labels are consecutive turns' `state_after`, two is exactly
+the right bound. A wider gap cannot be the engine advancing; it is a skipped stage.
 `test_max_flow_edges_per_turn_is_the_ceiling_the_engine_can_reach` rederives this
 from the loaded spec, so the constant fails the suite if `machine.yaml` changes
 under it. The pilot's two-edge turns confirm the derivation; they are not its
@@ -754,11 +744,14 @@ conversational structure the FSM encodes and the baseline is not given that
 structure. Reported as a secondary diagnostic outcome, not as primary evidence
 of treatment superiority.
 
-**Caveat, measured in the pilot.** This column inherits the stage labeler's
-error. On the pilot's FSM dialogues the labeller's path agreed with the FSM's
-true path on this column in only 5 of 10 dialogues, and all five disagreements
-ran the same way — true `True`, labelled `False`. Treat it as biased downward
-for both agents until T-16 quantifies it.
+**Caveat, measured.** This column inherits the stage labeler's error. On the
+first pilot (2026-09-11) the labelled path agreed with the FSM's own path on this
+column in only 5 of 10 FSM dialogues, and all five disagreements ran the same way —
+true `True`, labelled `False`. T-16 then quantified it on the corrected pilots:
+7/10 on Pilot v1 and 8/10 on Pilot v2, with a downward bias of 3/10 and 2/10, and
+stage-labeler revision 1 was kept ([`docs/judge_validation.md`](judge_validation.md)).
+Treat the column as biased downward for both agents; there is no baseline-side gold
+path to size the error.
 
 ### `flow_adherence`
 
@@ -815,3 +808,84 @@ Cut 0 was applied before execution. Cuts 1–4 were **not** applied.
   both agents (they are a customer-service prompt on a shop's policies), and
   `detoxify` is weak in Portuguese besides. Offensive speech is the boolean
   `offensive_content` on call 2.
+
+## After the freeze
+
+Four things were added after the freeze. None of them changes a metric definition,
+`PRIMARY_METRICS`, Holm, N = 60 or the scenario as the unit of analysis.
+
+### T-17 inclusion amendment (2026-09-14, post-run, pre-eval)
+
+Dated execution-time amendment, recorded after `sim run` and **before** judge
+evaluation and **before** inspection of baseline-vs-FSM outcome metrics.
+
+The default rule — ordinary `sim eval` scores `status=ok` only — stays in force as the
+**frozen-gate** sensitivity population (342 `status=ok` rows). It is superseded for
+the **semantic-primary** population, which adds eight
+`invalid_candidate_retry_exhausted` transcripts classified
+`CONTRACT_FALSE_POSITIVE` in [`docs/execution.md`](execution.md): the runtime was
+right that their beat ledger never closed, but the scenario content had reached the
+agent. Those eight are scored only through the sidecar path
+(`--include-failed-from`; default `--out` is a sibling named `<run>_semantic`). They
+keep `status=failed` on disk and are not adherence successes.
+`adversarial_06__fsm__rep02` stays excluded as true instrument missingness. This
+amendment does **not** reclassify `max_turns_with_incomplete_beat`.
+`invalid_candidate_retry_exhausted` is a runtime-contract failure class, not a clean
+semantic classifier of simulated-user validity.
+
+The file `runs/exp_final/adjudication/contract_false_positives.json` is only the
+machine-readable execution artifact generated from that already-frozen decision; it
+does not generate or independently determine adjudication. The same-day wording that
+excluded all nine `invalid_candidate_retry_exhausted` runs as instrument missingness
+is historical ([`docs/execution.md`](execution.md), *Immediate post-run rule*).
+
+**Sensitivity analysis (secondary, distinct from both frozen populations):** drop
+the five scenarios that contain at least one of the nine instrument runs
+(`adversarial_01`, `adversarial_06`, `adversarial_19`, `edge_16`, `happy_path_09`)
+from **both** arms (`population=drop5_instrument`); repeat the principal
+comparisons; report whether substantive conclusions differ. That scenario-wide
+exclusion is only this robustness check.
+
+### The judge backend of T-17
+
+T-16 and both pilot rounds used `gemma4:12b` GGUF. In T-17 the frozen-gate
+evaluation used that same GGUF blob, while the semantic-primary sidecar — the
+population Holm is computed on — used `gemma4:12b-mlx`, a different backend and
+digest with the same prompts, schemas and sampling. That departs from the plan of one
+judge in validation and experiment (DECISOES 2026-09-16 supersedes the row of
+2026-09-07), so on 2026-09-20 the Pilot v2 dialogues were re-scored with the MLX
+configuration against the same frozen human sheets, as a robustness check
+([`docs/judge_validation.md`](judge_validation.md), *Pilot v2 robustness check*).
+T-18 keeps the two backends as two exported populations and never pools them;
+provenance stays on the exported rows. The limitation is discussed in
+[`docs/decisions_and_limitations.md`](decisions_and_limitations.md).
+
+### Post-hoc decomposition of the `fact_f1` effect (2026-09-18)
+
+Exploratory and declared as such: it splits the frozen `fact_f1` difference into
+TP/FN and the two kinds of false positive by replaying judge output already in
+`llm_calls.jsonl`, never by re-judging. It is not a fourth confirmatory test and does
+not reopen Holm. Its only downstream effect is a label: the T-20 plates say
+«F1 dos fatos esperados»; no number was recalculated
+([`docs/decomposition.md`](decomposition.md)).
+
+### Human census of semantic-primary (exp_final, 2026-09-20)
+
+Not T-16 and not a retune. After the Final Experiment freeze, one annotator
+labelled the same 348 scored `semantic_primary` dialogues under blind IDs
+D001–D348 (seed `20260920`). Sheets were frozen on 2026-09-20T21:11:58Z, then
+unblinded. Human `task_completed`, `fact_f1` and `claim_support` reuse
+`fact_scores` / T-19; Holm is the same three-metric family at
+`human_primary` × overall (n = 59). Claim-support agreement with the judge is
+a three-way dialogue label, not atomic claim matching. Fact-ID exact-set
+comparison kept 241 dialogues and omitted 107 reconstructions that reproduce
+the metrics row but disagree on predicted IDs.
+
+Roles of the two instruments, stated once: the **judge** (semantic-primary) is the
+pre-declared confirmatory instrument. The **human census** re-ran the same family,
+and was chosen as the narrative reference for the thesis conclusion after freeze and
+unblind, once both Holm families were visible; the judge is then reported as the
+comparison. That choice is declared, not pre-registered. Do not edit `frozen/`.
+Regenerate the plates with `just figures results/human_primary` (tables 1–5 and
+figures 1–5: plates 1–3 mirror the judge plates, 4–5 compare human and judge, figure
+5 being the paired-difference forest).

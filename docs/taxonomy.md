@@ -1,4 +1,7 @@
-# Scenario taxonomy and quotas (T-05)
+# Scenario taxonomy and quotas (T-05, T-06)
+
+> **Experiment guide** · step 2 of 11 · [All steps](README.md) ·
+> [← The finite-state machine](fsm.md) · [Next: Evaluation metrics →](metrics.md)
 
 A scenario is one test case of the experiment: the brief the simulated user plays, the
 answer key the judge grades against, and the condition that decides whether the task was
@@ -6,13 +9,20 @@ completed. Both agents run the same scenarios, so a scenario is also the unit of
 analysis: the statistics of T-19 pair `baseline` and `fsm` by scenario ID and never by
 dialogue.
 
-The shape is fixed by [`src/sim/schemas.py`](../src/sim/schemas.py) and the two worked
-examples are in [`data/scenarios/examples/`](../data/scenarios/examples/). The frozen
-dataset of T-06 lives in `data/scenarios/v1/`, one JSONL per category, one scenario per
-line, and does not change
-(`0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9`,
-DECISOES.md 2026-09-10; `FROZEN_V1_HASH` in `sim.runner`). The authoring source
-is `data/scenarios/plan.yaml`; `sim run` never reads it.
+The shape is fixed by [`src/sim/schemas.py`](../src/sim/schemas.py) and the three worked
+examples (`happy_path_01`, `edge_01`, `adversarial_01`; T-05 and T-11) are in
+[`data/scenarios/examples/`](../data/scenarios/examples/). The frozen dataset of T-06
+lives in `data/scenarios/v1/`, one JSONL per category, one scenario per line, and does
+not change (`0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9`,
+DECISOES.md 2026-09-10; `FROZEN_V1_HASH` in `sim.runner`).
+
+The authoring source is `data/scenarios/plan.yaml`; `sim run` never reads it. Answer key,
+persona, goal and script of every cell are written there, and
+`scripts/generate_scenarios.py --phrasing seed` copies them as written. The generator's
+other mode, `--phrasing llm`, would ask the judge model (never the agent model) to vary
+the phrasing; **v1 was frozen with `--phrasing seed`, so no model rephrased it**
+(DECISOES.md 2026-09-10, superseding the plan of 2026-09-07 to generate with the judge
+model).
 
 ## The three categories
 
@@ -49,7 +59,11 @@ block: an injection carrying a `canary` token, a plausible question the KB does 
 answer, and an attempt to bend a policy. The fourth slot is an aggressive or
 out-of-scope request for `order_tracking`, `exchange_return` and `cancellation`;
 `payment_reissue` uses a second unanswerable question (U10) instead. Only those
-three intents have an `out_of_scope` expected final state. The correct behaviour is
+three intents have an `out_of_scope` expected final state (`adversarial_04`,
+`adversarial_08`, `adversarial_12`); their scripts end on a farewell, which fires the
+universal `farewell` edge into `closing`, so that expected state turned out to be
+unreachable — a frozen waiver recorded in
+[`docs/decisions_and_limitations.md`](decisions_and_limitations.md). The correct behaviour is
 always the same: state only what the KB contains, say plainly when something is not
 covered, and escalate (F03, F04).
 
@@ -79,14 +93,14 @@ The extras add a fifth scenario to every cell, which is the full dataset:
 
 ## Writing order
 
-The 48 of the first block are written and reviewed **before** any extra, cell by cell,
-and the extras are appended last. That is what makes cut 1b free **for balance**: if
-Friday runs out of time, the dataset stops at 48 and is still balanced across every
-intent and category, one whole pass ahead of the pre-declared floor of 45. Cut 1b is
-not free for unanswerable coverage: U02, U04, U06 and U08 sit on the fifth
-adversarial slot of each intent, so they exist only at N = 60. Reducing N after the
-dataset is frozen and run would be discarding data, which the *Plano de corte*
-forbids. The freeze chose 60, so those four are in.
+The 48 of the first block were written and reviewed **before** any extra, cell by cell,
+and the extras were appended last. That is what kept cut 1b free **for balance**: had
+time run out before the freeze, the dataset would have stopped at 48 and still been
+balanced across every intent and category, one whole pass ahead of the pre-declared floor
+of 45. Cut 1b was never free for unanswerable coverage: U02, U04, U06 and U08 sit on the
+fifth adversarial slot of each intent, so they exist only at N = 60. Reducing N after the
+dataset is frozen and run would be discarding data, which the *Plano de corte* forbids.
+**Cut 1b was not applied: the freeze chose N = 60**, so those four are in.
 
 Within a category file the scenarios are in writing order, so the first sixteen lines of
 each file are the first block. IDs run per category, `happy_path_01` to `happy_path_20`.

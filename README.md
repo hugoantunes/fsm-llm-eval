@@ -9,8 +9,13 @@ Simulation and evaluation harness comparing two LLM customer-service agents.
 The experiment compares **instruction structure as a package**, not a subset of
 facts. Both agents call the same local model through Ollama, against the same
 simulated user and the same frozen scenarios. Evaluation is a blind LLM judge
-(two calls per dialogue) plus deterministic evaluators. The **scenario** is the
-inferential unit: statistics pair the two agents by scenario, not by dialogue.
+(two calls per dialogue) plus deterministic evaluators, followed later by a blinded
+human census of the scored dialogues. The **scenario** is the inferential unit:
+statistics pair the two agents by scenario, not by dialogue.
+
+**Start here:** [`docs/README.md`](docs/README.md) tells the experiment as one story —
+question, design, pilots, execution, results and limitations — with diagrams, and
+links every other doc in reading order.
 
 MBA thesis (TCC, written in Portuguese). The experiment, this repository, and
 everything the models read or write are in English. Work plan and dated
@@ -96,9 +101,11 @@ just adherence runs/readme_pilot
 just eval runs/readme_pilot
 ```
 
-Scenarios: one per category, plus a needle and a canary injection
-(`happy_path_06`, `edge_02`, `edge_19`, `adversarial_04`, `adversarial_13`).
-That is the canonical T-15 pilot. `just adherence` is the gate before eval.
+Scenarios: at least one per category, including a needle (`happy_path_06`), an
+out-of-scope ending (`adversarial_04`) and the canary injection (`adversarial_13`),
+plus `edge_02` and `edge_19`. These are the five scenarios of every pilot round (first
+pilot, Pilot v1, Pilot v2; see [`docs/pilot.md`](docs/pilot.md)). `just adherence` is
+the gate before eval.
 
 ## Full experiment
 
@@ -110,7 +117,8 @@ the MacBook Pro M5 16 GB. The documented fallback is what actually ran: **both
 `run` and evaluation on the Air**. The Pro only pulls `runs/` as backup.
 
 Protocol and provenance: [`docs/execution.md`](docs/execution.md). Hardware:
-[`docs/setup.md`](docs/setup.md).
+[`docs/setup.md`](docs/setup.md). What came out of it:
+[`docs/README.md`](docs/README.md#8-results).
 
 ## Regenerate analysis
 
@@ -131,9 +139,10 @@ just appendices
 `results/exp_final/metrics_frozen_gate.csv` is a sensitivity artifact in the
 repository; it is not part of the delivery folder.
 
-`just figures results/human_primary` writes the human-census plates (tables 1–3)
-and the human vs judge comparison (tables 4–5, figures 4–5) from
-`results/human_primary/`. It does not edit `frozen/` human sheets.
+`just figures results/human_primary` writes the human-census plates from
+`results/human_primary/`: tables 1–5 and figures 1–5, where plates 1–3 mirror the
+judge plates and 4–5 compare human and judge (figure 5 is the paired-difference
+forest). It does not edit `frozen/` human sheets.
 
 ## Delivery
 
@@ -208,7 +217,7 @@ project context in [ai-assistance/PREAMBLE.md](ai-assistance/PREAMBLE.md).
 | `runs/` | output of `sim run` / `sim eval`. Contents git-ignored |
 | `results/` | exported analysis; `results/exp_final/` is the T-17 scored copy; `results/human_primary/` is the later human census |
 | `notebooks/` | `analysis.ipynb` regenerates tables and figures from frozen T-19 CSVs |
-| `docs/` | setup, metrics, execution, appendices A–D, decisions and limitations |
+| `docs/` | [`docs/README.md`](docs/README.md) (the guide, read first), then the design, pilot, execution and analysis docs it links; `appendices/` A–D (generated) |
 | `ai-assistance/` | instructions for AI assistants and hook scripts |
 
 ## License

@@ -1,28 +1,53 @@
-# Pilot (T-15)
+# Pilots and pre-flight (T-15, T-16)
 
-5 scenarios × 2 agents × 2 repetitions = 20 dialogues, run and evaluated **entirely on the Air**, as
-T-15 asks. All 20 dialogues were read. Logical directory: `runs/exp_pilot` (git-ignored). The
-manifest `exp_id` of the corrected final pilot is `exp_pilot_fixes_20260913_final_v1`.
+> **Experiment guide** · step 5 of 11 · [All steps](README.md) ·
+> [← Machines and models](setup.md) · [Next: Parity →](parity.md)
 
-Scenarios: `happy_path_06`, `edge_02`, `edge_19`, `adversarial_04`, `adversarial_13` — one per
-category, one needle, one canary injection. Dataset `data/scenarios/v1`, hash
-`0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9`.
+Before the experiment ran, the whole pipeline was piloted on five frozen-v1 scenarios ×
+2 agents × 2 repetitions = 20 dialogues, run and evaluated **entirely on the Air**:
+`happy_path_06` (a needle), `edge_02`, `edge_19`, `adversarial_04` (an out-of-scope ending)
+and `adversarial_13` (the canary injection) — at least one per category. Dataset
+`data/scenarios/v1`, hash `0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9`.
 
-Result: 20 ok, 0 failed, 0 unscored.
+That pilot was run more than once, because reading it exposed defects in the
+*instruments* — classifier, judge rubric, flow rule, simulated user — rather than in the
+agents, and one full-scenario QA sweep was added before the last round. Every other doc
+uses these names:
 
-**The numbers below are exploratory.** Five scenarios cannot separate two agents; they are here to
-show the pipeline produces the columns and to size the machine budget. Nothing in this file is a
-result of the experiment, and no cut was decided from it.
+| Round | Date | Directory | Simulated user | What it was for | Outcome |
+|---|---|---|---|---|---|
+| First pilot | 2026-09-11 | `runs/exp_pilot` (path later reused by Pilot v1) | `qwen3.5:4b`, script read as a hint | T-15: read every dialogue, fix instruments, size the machine budget | 20 ok; four instrument defects; its T-16 draw is void |
+| Pilot v1 | 2026-09-13 | `runs/exp_pilot`, manifest `exp_id` `exp_pilot_fixes_20260913_final_v1` (raw tree later lost) | `qwen3.5:4b`, runtime-owned script | T-16 frame: parity and the first judge validation; tag `v1` | 20/20 ok and adherent |
+| Full-scenario pre-flight | 2026-09-13 → 14 | `runs/full_scenario_preflight/` | `qwen3.5:9b` | QA of all 60 scenarios × both agents | 116 ok / 4 failed: PASS |
+| Pilot v2 | 2026-09-14 | `runs/pilot_v2/` | `qwen3.5:9b` | T-16 closure on the locked configuration; tag `v1.1` | 20/20 ok and adherent |
 
-This file reports the T-15 pilots. Later instrument fixes, the full-scenario pre-flight, and the
-Pilot v1 / v2 split are in *After the corrected pilot*. Design limits live in
-[`docs/decisions_and_limitations.md`](decisions_and_limitations.md).
+```mermaid
+flowchart TD
+  A["First pilot · 2026-09-11"] -->|"classifier v4, judge_facts v3,<br/>flow rule rederived"| B["Script found to be a hint · 2026-09-12"]
+  B -->|"runtime owns the script,<br/>just adherence becomes the gate"| C["Pilot v1 · 2026-09-13<br/>T-16 validation · tag v1"]
+  C -->|"simulated user locked to 9B,<br/>termination and denial fixes"| D["Full-scenario pre-flight<br/>120 dialogues · PASS 2026-09-14"]
+  D --> E["Pilot v2 · 2026-09-14<br/>T-16 closure · tag v1.1"]
+  E -->|"configuration frozen"| F["T-17 experiment<br/>docs/execution.md"]
+```
 
-## What broke
+**None of these rounds is a result of the experiment**, and none is pooled with another
+or with T-17. Five scenarios cannot separate two agents; the rounds exist to prove the
+pipeline, fix the instruments and validate the judge, and no cut was decided from them.
+Design limits live in [`docs/decisions_and_limitations.md`](decisions_and_limitations.md).
+
+## First pilot (2026-09-11, T-15)
+
+The 20 dialogues ran and were evaluated on the Air, as T-15 asks, and all 20 were read.
+Result: 20 ok, 0 failed, 0 unscored. An earlier Air pass of the same day was removed
+after the classifier fix below landed and the run was replayed; it is not part of the
+record. The numbers in this section are exploratory: they show the pipeline produces
+the columns and they size the machine budget.
+
+### What broke
 
 **The user-event classifier could return `intent_classified` without an intent.** The FSM engine
 then advanced out of `intent_classification` with nothing to collect data for, and the dialogue
-derailed. Found on the first Air pilot. Two fixes, one in the contract and one in the prompt:
+derailed. Found on that first Air pass. Two fixes, one in the contract and one in the prompt:
 
 - `src/sim/events.py`: a pydantic `model_validator` on the event model makes
   `intent_classified ⇒ intent is not None` a parse error rather than a silent advance, raised as the
@@ -31,9 +56,6 @@ derailed. Found on the first Air pilot. Two fixes, one in the contract and one i
   rule, so the same seed would replay the same invalid object; the retry changes the seed.
 - `data/prompts/event_classifier.md` **v3 → v4**: `intent_classified` must name an intent, and a
   bare acknowledgement ("ok", "thanks") must not be classified as `intent_classified`.
-
-That first pilot directory was removed during pilot iteration, after the fixes landed and the run
-was replayed. It is not part of the record; `runs/exp_pilot` is the run this file reports.
 
 **The judge could attach a `fact_id` to a claim it had just marked unsupported**, which inflated the
 predicted-ID set and therefore false positives. `data/prompts/judge_facts.md` **v2 → v3**: `fact_id`
@@ -78,11 +100,15 @@ exactly the gap a turn can produce and a wider one is a skipped stage.
 `test_max_flow_edges_per_turn_is_the_ceiling_the_engine_can_reach` rederives this from the loaded
 spec, so the constant fails the suite if `machine.yaml` changes under it. The gold paths are a check
 on the derivation, not its justification — and had they disagreed, the derivation would have won.
+(That is the engine of 2026-09-11. It has since gained a third engine event: `intent_classified`,
+fired only on a turn that *started* in `intent_classification` with an intent already held. The
+ceiling is still two edges; the current derivation is in [`docs/fsm.md`](fsm.md#flow-adherence).)
 
 **The simulated user treated the script as a hint.** Dialogues dropped beats and closed with the
-injection unsent. That is the instrument failure T-16 cannot annotate; see *The script was a hint*.
+injection unsent. That is the instrument failure T-16 cannot annotate; see *The script was a hint*
+below.
 
-## What changed
+### What changed
 
 | Artifact | Change |
 |---|---|
@@ -96,9 +122,211 @@ injection unsent. That is the instrument failure T-16 cannot annotate; see *The 
 State packages and the stage-labeler prompt were read and left unchanged. The simulated user was
 rewritten after the dialogues were read; see *The script was a hint*. The numbers in *Cost per
 dialogue* are the 11/09 machine-budget record of the superseded instrument. They still size the
-machine. T-16 parity quotes the corrected `runs/exp_pilot` run instead.
+machine. T-16 parity quotes Pilot v1 instead ([`docs/parity.md`](parity.md)).
 
-## The script was a hint
+### Cost per dialogue
+
+From the 11/09 `llm_calls.jsonl` and manifest (`uv run python scripts/run_stats.py runs/exp_pilot`
+on that superseded instrument). Latency is averaged over uncached calls only. The three eval
+callers show **60 calls, not 20**: the log is append-only, and that directory was evaluated three
+times (the later two from cache, after the flow-rule change). Token and latency means match the
+first uncached pass. Do not treat this table as the T-16 frame; [`docs/parity.md`](parity.md)
+quotes the corrected run.
+
+| caller | calls | mean prompt tokens | mean output tokens | mean latency (s) |
+|---|---|---|---|---|
+| `baseline` | 40 | 2257.1 | 56.1 | 15.54 |
+| `fsm` | 38 | 2023.9 | 43.6 | 17.76 |
+| `classifier` | 25 | 1210.3 | 20.6 | 9.47 |
+| `simulated_user` | 79 | 662.0 | 40.5 | 10.67 |
+| `stage_labeler` | 60 | 648.7 | 36.5 | 6.12 |
+| `judge_facts` | 60 | 2890.2 | 614.8 | 139.10 |
+| `judge_global` | 60 | 1396.8 | 79.9 | 35.41 |
+
+**Mean prompt tokens per agent: baseline 2257, FSM 2024.** The FSM's per-state package is smaller
+than the baseline's single prompt, and both carry the same full knowledge base. The FSM pays a
+separate classifier call per turn instead (1210 prompt tokens, 9.5 s), which is why its
+`turn_latency_s` exceeds its `llm_latency_s`. T-16 carries this into the parity table.
+
+**Run: 57.7 s/dialogue. Eval: 180.6 s/dialogue.**
+
+Projected at N = 60, K = 3 (360 dialogues per phase):
+
+| Phase | Planned | Measured | Measured on | Planned for T-17 (as of 11/09) |
+|---|---|---|---|---|
+| `run` | 6.6 h | **5.8 h** | Air | Air |
+| `eval` | 9.4 h | **18.1 h** (serial) | Air | **Pro, ≈ 16.0 h serial** |
+
+T-17 in the end ran both phases on the Air, the pre-declared fallback; its real times are in
+[`docs/execution.md`](execution.md). The rest of this section is the reasoning as it stood on
+2026-09-11, kept because it is why `sim eval` has `--parallel`.
+
+The `eval` row is measured on one machine and planned for another, which is a gap and not a
+detail: the pilot ran end to end on the Air, so 180.6 s per dialogue and the 18.1 h are M4 / 24 GB
+numbers, while T-17 was planned to run `eval` on an M5 with 16 GB. Replaying the same four
+`judge_facts` prompts on the Pro put it at **126.2 s a call against the Air's 142.4 s, or 0.89×**,
+which rebases the projection to ≈ 16.0 h serial there. *What the probe did not settle* below
+records the limit of that replay.
+
+Run is inside budget. **Eval is 1.9× over**, and the overrun is one caller: `judge_facts` at 139.1 s
+a call. Against `judge_global` (79.9 output tokens, 35.4 s) on the same model, the fixed cost is
+≈ 20 s and generation ≈ 119 s, so the 614.8 output tokens are the whole of it — the atomic-claims
+list is long by construction. Raising an Ollama token limit does not help: `num_predict` is unset,
+so nothing is being truncated, and `num_ctx` only sizes the KV cache (larger would risk the eviction
+penalty measured on the Pro on 2026-09-08, and would change every prompt hash, discarding the
+cache). The two real levers are fewer judge output tokens, which is a rubric change and so would
+have had to happen before the `v1` tag, or concurrency in `sim eval`. The rubric was left alone:
+it is not cheapened to speed up eval (DECISOES 2026-09-11).
+
+#### Concurrency in `sim eval`
+
+The 18.1 h above is the sum of uncached call latency, so it is the **serial** figure. `sim eval`
+now takes `--parallel` (default 1), superseding the 2026-09-10 T-14b decision that left it out. It
+is validity-neutral by construction: each dialogue is graded on its own, the judge and labeler seeds
+come from `configs/models.yaml` and never from position in the queue, and the CSV rows are ordered
+by the manifest, so the files are byte-identical to a sequential eval. A test asserts exactly that.
+
+Two facts decide how much `--parallel 2` actually buys, and they cut the opposite way from the run
+phase:
+
+- **The eval load is one model.** Split by model, the 180.6 s per dialogue is `gemma4:12b` 174.5 s
+  (96.6%) and `qwen3.5:4b` 6.1 s (3.4%). So overlapping the two models — the mechanism behind the
+  run phase's gain — is worth at most 3.4% here. Everything depends on `gemma4:12b` serving two
+  requests at once.
+- **It does, and Qwen does not.** Across both Ollama server logs, `model architecture does not
+  currently support parallel requests` fires 49 times and every one of them reads
+  `architecture=qwen35`; `gemma4` never triggers it. So the judge gets its two slots, while the run
+  phase's models never did — which is why the run phase's **1.4×** cannot be carried over. It is
+  also why the slots cost nothing extra: `ollama ps` on the Air during the pilot shows `gemma4:12b`
+  resident at 9.0 GB against the 8.6 GB single-slot figure, so the second slot's KV cache is already
+  allocated at load time by `OLLAMA_NUM_PARALLEL=2` and is paid for whether `sim eval` uses it or not.
+
+Judge time is generation-dominated (≈ 119 s of 139.1 s), which suggested batched decode would beat
+the run phase's 1.4×. **Measured on the Air, it does not.** Two real `judge_facts` prompts replayed
+straight against Ollama, one arm at a time and one arm two at a time:
+
+| | prompt eval | generation | wall |
+|---|---|---|---|
+| sequential | 28.9 s + 27.0 s | 37.8 s + 57.1 s = 94.9 s serial | 156.1 s |
+| two at once | 0.3 s + 0.2 s | 68.1 s and 89.8 s, overlapped | 93.9 s |
+
+The raw ratio reads 1.66×, and **it is an artifact**. With `OLLAMA_NUM_PARALLEL=2` each slot still
+held one of the two prompts from the first arm, so the second arm skipped prompt processing
+entirely — 55.9 s, 36% of the sequential wall clock. A real eval never gets that: the sequential arm
+is the proof, where the second call paid its full 27.0 s with the first call's prompt one slot away.
+360 distinct transcripts through 2 slots reuse nothing.
+
+What is left once the artifact is removed is the number that matters, and it is flat:
+
+- **Generation-only throughput: 1.06×.** 94.9 s of serial generation against 89.8 s elapsed.
+- **Per-stream token rate collapses**: 12.0 → 6.7 tok/s and 11.6 → 7.4 tok/s, i.e. 0.56× and 0.64×.
+  Two streams at a bit over half speed is **1.19×** aggregate at best.
+- **Honest wall speedup ≈ 1.10×**, charging the concurrent arm the prompt eval it dodged.
+
+`gemma4:12b` accepts the second slot; the GPU has nothing left to give it. Decode on a 12B at Q4 is
+memory-bandwidth-bound, and one stream already saturates the bandwidth, so a second stream splits it
+rather than filling idle capacity. Accepting parallel requests and benefiting from them are
+different things, and the architecture warning only rules out the first.
+
+On the Air, then, `--parallel 2` is worth roughly 1.6 h of the 18.1, not the 5–9 h the bracket
+assumed. It stays in because it is free and validity-neutral, but on that machine it is not the
+lever. The Pro is a different answer.
+
+#### The same probe on the Pro
+
+The Air numbers above do not transfer, and the reason they do not is the reason they are small:
+one decode stream already saturates the Air's memory bandwidth, and bandwidth is a property of the
+chip. So the probe was re-run on the Pro — cold, on the same four recorded prompts, against the
+same pinned `JudgeFacts` schema, with the arms on disjoint halves so neither can inherit a KV
+prefix from the other.
+
+| | per-stream rate, alone → shared | `--parallel 2` | per-call latency |
+|---|---|---|---|
+| Air (M4, 24 GB) | 12.0 → 6.7 tok/s (0.56×) | 1.10× | 142.4 s |
+| **Pro (M5, 16 GB)** | **8.53 → 5.74 tok/s (0.67×)** | **1.34×** | **126.2 s (0.89×)** |
+
+Two independent gains, and they compound. The Pro is about 11% faster per call on identical
+prompts, and it keeps two-thirds of its single-stream rate on each of two streams where the Air
+keeps barely half — headroom the M4 does not have. Rebasing the serial projection by 0.89× and
+then dividing by 1.34×:
+
+| | serial | at `--parallel 2` | vs planned 9.4 h |
+|---|---|---|---|
+| Air | 18.1 h | 16.5 h | 1.8× over |
+| **Pro** | **≈ 16.0 h** | **≈ 12.0 h** | **1.3× over** |
+
+**`eval` stays on the Pro**, as the 2026-09-08 split assigned it, and `--parallel 2` is worth about
+4 h there rather than the 1.6 h it is worth on the Air. Note how nearly this went the other way:
+had the Air's 1.10× been carried across unmeasured, the conclusion would have been to move `eval`
+to the Air and lose ~4.5 h — the same class of error as the 1.4× assumption that started this.
+(This was the plan. The pipeline between machines was an optimization, never a dependency, and
+T-17 took the fallback: both evaluations ran on the Air at `--parallel 1`, DECISOES 2026-09-16.)
+
+Beyond that, the remaining lever is fewer judge output tokens, ruled out until after T-16 because
+it invalidates the hand-annotated judge validation and the `v1` freeze. Splitting the 360 dialogues
+across both machines would halve it again, but needs code before the 2026-09-14 freeze and is not
+costed here.
+
+#### What the probe did not settle: co-residency
+
+**The memory question is still open on the Pro, and the probe cannot close it.** It only ever calls
+`gemma4:12b`, so `qwen3.5:4b` is never loaded: `ollama ps` came back empty before the run and
+listed gemma4 alone at 8.6 GB after it. The `eval` phase needs both resident — 9.0 + 3.4 =
+12.4 GB — against the 6.3–8.1 GiB of free system RAM measured on the Pro on 2026-09-08, where
+eviction cost **3.3×**. That dwarfs the 1.34× and applies at `--parallel 1` too, so it is neither
+created by concurrency nor avoided by dropping it.
+
+The 8.6 GB is itself a flag: the Air reports `gemma4:12b` at 9.0 GB, the extra being the second
+slot's KV cache that `OLLAMA_NUM_PARALLEL=2` allocates at load time. Those variables are applied by
+`launchctl` and have to be re-applied after every reboot (`scripts/ollama_env.sh`), so the Pro may
+have produced its 1.34× without them — in which case 1.34× is a floor.
+
+Both are one command on the Pro: load each model once and read `ollama ps`. It was never run,
+because `eval` never moved to the Pro. On the Air, T-17 stopped `qwen3.5:4b` before the
+judge-heavy eval instead ([`docs/execution.md`](execution.md)).
+
+### Exploratory direction
+
+Means over 10 dialogues per agent on this first pilot, with the superseded simulated user.
+**Five scenarios; no test, no claim.**
+
+| metric | baseline | fsm |
+|---|---|---|
+| `fact_f1` | 0.524 | 0.635 |
+| `fact_precision` | 0.413 | 0.517 |
+| `fact_recall` | 0.867 | 0.933 |
+| `claim_support` | 0.928 | 0.936 |
+| `accuracy_score` | 0.900 | 0.750 |
+| `relevance` | 5.00 | 4.30 |
+| `task_completed` | 0.800 | 0.600 |
+| `n_turns` | 4.0 | 3.8 |
+| `llm_latency_s` | 62.2 | 67.5 |
+| `turn_latency_s` | 62.2 | 91.2 |
+
+The FSM is ahead on the factual columns and behind on the judged ones. Its dominant failure mode is
+visible in the dialogues: the classifier sends an in-scope turn to `out_of_scope` and the state
+package then instructs the agent to decline. In `edge_19/fsm/rep01` a partial-cancellation request
+escaped that way, the needle was never recovered and the run ended `user_gave_up`; the baseline
+reached `goal_reached` on the same scenario in 8 turns. This is measured FSM behaviour, not a bug to
+patch — the classifier is part of the architecture under test, and `event_classifier.md` was not
+tuned to rescue it.
+
+One confound was checked and **not** found: `fact_f1` does not penalise verbosity asymmetrically.
+Correlation between `fact_precision` and `n_checkable_claims` is 0.08, and the two agents produce
+almost the same number of claims per dialogue (6.5 baseline, 6.7 FSM).
+### The transfer path
+
+T-15 asks for the SSH path to be exercised with real files while there is still time to fix it.
+Rehearsed on the Air against `localhost` on 2026-09-11: the Air's own key was added to its
+`~/.ssh/authorized_keys`, then `rsync -az --partial -e ssh runs/exp_pilot localhost:<dest>/` moved
+all 258 files with identical checksums, and `sim eval --run <dest>/exp_pilot` scored the 20
+dialogues **with no LLM call** — `cache/` travels with the run, so re-evaluating on the second
+machine is free for anything already judged. On 2026-09-12 the same directory made the real
+network hop: the **Pro pulls from the Air**, with the Pro's key in the Air's `authorized_keys`;
+the reverse direction is not set up and is not needed (DECISOES 2026-09-12; commands in
+[`docs/setup.md`](setup.md)). In T-17 the path carried only the backup copy of `runs/`.
+
+## The script was a hint (2026-09-12)
 
 The simulated user of T-11 handed the model the whole numbered script every turn and let it infer
 its own position from the history. Dialogues dropped beats, paraphrased a canary, and closed while
@@ -169,24 +397,42 @@ edited.
 | `data/scenarios/examples/` | scripts rewritten as customer utterances (v1 untouched) |
 | `scripts/script_adherence.py` | deterministic gate on a run (`just adherence`) using recorded beat spans (cumulative + local checks) |
 
-The original pilot was superseded after identifying simulated-user script-adherence failures. The runtime was revised to track and validate mandatory beats explicitly. The corrected pilot passed the adherence gate: 20/20 dialogues delivered all mandatory beats in order, all 4/4 canary tokens reached the evaluated agent verbatim, and all 4/4 adversarial injection beats were delivered exactly as specified.
+## Pilot v1: the corrected pilot (2026-09-13)
 
-T-16 annotates that corrected run: dialogue-level validation is a census of all 20 ok dialogues; response-level validation is a blinded sample of 30/76 eligible agent responses. A later census of the 348 scored T-17 dialogues is not this frame ([`docs/metrics.md`](metrics.md)).
+With the runtime owning the script and the pre-experiment contract fixes of 2026-09-13 in
+place (C1–C6: a farewell mixed with a request is classified as a request, a known order
+number and e-mail are read back before resolution, one canonical F01 scope across the state
+packages, the `data_collection` field list proven by a controlled fixture), the same five
+scenarios ran again at the same logical path `runs/exp_pilot` (manifest `exp_id`
+`exp_pilot_fixes_20260913_final_v1`), still with the 4B simulated user. The corrected pilot
+passed the adherence gate: 20/20 dialogues delivered all mandatory beats in order, all 4/4
+canary tokens reached the evaluated agent verbatim, and all 4/4 adversarial injection beats
+were delivered exactly as specified.
 
-That original 11/09 / first-corrected-pilot raw directory was later deleted by accident and is not
-recoverable. T-16 does not need a rerun: `results/judge_validation/pilot_v1/` still holds the
-blinded packet (all 20 transcripts, scenario briefs, success criteria, reference answers, sampled
-responses), `sample.json` (76 eligible, 38+38, the 30-response draw, identities, seed, hashes), and
+T-16 annotates that corrected run: dialogue-level validation is a census of all 20 ok
+dialogues; response-level validation is a blinded sample of 30/76 eligible agent responses.
+The parity checklist ([`docs/parity.md`](parity.md)) and the first agreement table
+([`docs/judge_validation.md`](judge_validation.md)) come from it, and tag `v1` followed. A
+later census of the 348 scored T-17 dialogues is not this frame
+([`docs/metrics.md`](metrics.md)).
+
+The raw directory of this run was later deleted by accident and is not recoverable. T-16 does
+not need a rerun: `results/judge_validation/pilot_v1/` still holds the blinded packet (all 20
+transcripts, scenario briefs, success criteria, reference answers, sampled responses),
+`sample.json` (76 eligible, 38+38, the 30-response draw, identities, seed, hashes), and
 [`docs/parity.md`](parity.md) records the configuration. What was lost was the operational
-`runs/` tree. Call that closed run **Pilot v1**. It is historical development work and is **not**
-pooled with Pilot v2.
+`runs/` tree. Pilot v1 is historical development work and is **not** pooled with Pilot v2.
 
-## After the corrected pilot
+## Full-scenario pre-flight (2026-09-13 → 2026-09-14)
 
-Pilot v1 had not exercised every scenario. Before Pilot v2 a **full-scenario pre-flight** was
+Pilot v1 had not exercised every scenario, so before Pilot v2 a **full-scenario pre-flight** was
 inserted: 60 scenarios × baseline + FSM = 120 dialogues. It is a QA gate (runtime defects,
 contract defects, adherence, invalid candidates, max-turn loops, injection/verbatim, premature
 goal termination). It is not experimental evidence and is not pooled into Pilot v2 or T-17.
+Along the way, on 2026-09-13, the simulated-user role was split from the classifier and the
+stage labeler and locked to `qwen3.5:9b` after a precommitted 4B vs 9B selection
+([`docs/decisions_and_limitations.md`](decisions_and_limitations.md)); the accepted pre-flight
+below ran with that lock.
 
 The first pre-flight exposed a termination bug: `goal_reached` from the agent stopped the
 dialogue while mandatory user beats were still owed (`adversarial_20` baseline, `edge_01`
@@ -244,7 +490,7 @@ Six ok dialogues recorded `goal_reached_seen` before the script was complete
 termination contract, not a stop-too-soon defect. `happy_path_09` both agents
 `ok` on this sweep.
 
-### Pilot v2 (instrument validation)
+## Pilot v2 (2026-09-14)
 
 Same five scenarios as T-15 × 2 agents × 2 reps = 20 dialogues, under the locked
 post-pre-flight config (`simulated_user = qwen3.5:9b`, `classifier` /
@@ -264,201 +510,15 @@ Judge validation: census of all 20 ok dialogues plus a blinded sample of
 30/78 eligible agent responses (seed `20260914`), sheets locked under
 `results/judge_validation/pilot_v2/` (do not redraw). Agreement, kappa, and
 the disagreement table are in [`docs/judge_validation.md`](judge_validation.md)
-*Pilot v2 validation round*. Stage labeler on this eval: 25/39 = 0.641 turn
-match; `valid_flow_path` gold vs labelled 8/10; downward bias 2/10.
+*Pilot v2 validation round*. The stage labeler on this eval is the next
+subsection.
 
 **These 20 dialogues are instrument validation, not a result of the
-experiment.** Do not pool them with Pilot v1 or with T-17. Do not start
-`runs/exp_final/` until the configuration freeze.
+experiment.** Do not pool them with Pilot v1 or with T-17. T-16 closed on this
+round (tag `v1.1`), the configuration was frozen, and only then did
+`runs/exp_final/` start.
 
-### Removed run directories
-
-2026-09-13 cleanup of `runs/` before the accepted sweep filled
-`runs/full_scenario_preflight/`. Ten directories removed (~43.93 MB). The
-empty `full_scenario_preflight/` kept at cleanup was filled on 2026-09-14
-(116 ok, 4 failed); that accepted run is not in the table. Model-selection
-numbers are in [`docs/decisions_and_limitations.md`](decisions_and_limitations.md).
-
-| run_dir | dialogues | ok | failed | manifest n_ok | manifest n_failed | manifest jobs | failed reasons | notes |
-|---|---:|---:|---:|---:|---:|---:|---|---|
-| `denial_controls_repro` | 6 | 6 | 0 | 6 | 0 | 6 | - | - |
-| `exp_final_pre_fix` | 120 | 117 | 3 | 3 | 3 | 10 | legacy-unclassified=3 | manifest totals differ from dialogue files |
-| `full_scenario_preflight_after_goal_fix_fail_2026-09-13` | 120 | 114 | 6 | 114 | 6 | 120 | instrument/invalid_candidate_retry_exhausted=2, simulation/max_turns_with_incomplete_beat=4 | pre-patch 114/6 snapshot |
-| `full_scenario_preflight_pre_fix_fail_2026-09-13` | 44 | 41 | 3 | - | - | - | simulation/max_turns_with_incomplete_beat=3 | no manifest; partial pre-fix snapshot |
-| `hp09_repro_after_denial_fix` | 2 | 2 | 0 | 2 | 0 | 2 | - | - |
-| `model_selection_4b` | 20 | 15 | 5 | 15 | 5 | 20 | instrument/invalid_candidate_retry_exhausted=1, simulation/max_turns_with_incomplete_beat=4 | - |
-| `model_selection_9b` | 20 | 18 | 2 | 18 | 2 | 20 | simulation/max_turns_with_incomplete_beat=2 | - |
-| `pilot_v1` | 20 | 20 | 0 | 20 | 0 | 20 | - | original `runs/` tree deleted by accident; T-16 sheets remain |
-| `role_split_equivalence` | 10 | 7 | 3 | 7 | 3 | 10 | simulation/max_turns_with_incomplete_beat=3 | - |
-| `termination_fix_repro` | 12 | 9 | 3 | 9 | 3 | 12 | simulation/max_turns_with_incomplete_beat=3 | - |
-
-`exp_final_pre_fix` has a manifest from a resumed subset, so its manifest
-totals differ from the full dialogue file census.
-
-## Cost per dialogue
-
-From the 11/09 `llm_calls.jsonl` and manifest (`uv run python scripts/run_stats.py runs/exp_pilot`
-on that superseded instrument). Latency is averaged over uncached calls only. The three eval
-callers show **60 calls, not 20**: the log is append-only, and that directory was evaluated three
-times (the later two from cache, after the flow-rule change). Token and latency means match the
-first uncached pass. Do not treat this table as the T-16 frame; [`docs/parity.md`](parity.md)
-quotes the corrected run.
-
-| caller | calls | mean prompt tokens | mean output tokens | mean latency (s) |
-|---|---|---|---|---|
-| `baseline` | 40 | 2257.1 | 56.1 | 15.54 |
-| `fsm` | 38 | 2023.9 | 43.6 | 17.76 |
-| `classifier` | 25 | 1210.3 | 20.6 | 9.47 |
-| `simulated_user` | 79 | 662.0 | 40.5 | 10.67 |
-| `stage_labeler` | 60 | 648.7 | 36.5 | 6.12 |
-| `judge_facts` | 60 | 2890.2 | 614.8 | 139.10 |
-| `judge_global` | 60 | 1396.8 | 79.9 | 35.41 |
-
-**Mean prompt tokens per agent: baseline 2257, FSM 2024.** The FSM's per-state package is smaller
-than the baseline's single prompt, and both carry the same full knowledge base. The FSM pays a
-separate classifier call per turn instead (1210 prompt tokens, 9.5 s), which is why its
-`turn_latency_s` exceeds its `llm_latency_s`. T-16 carries this into the parity table.
-
-**Run: 57.7 s/dialogue. Eval: 180.6 s/dialogue.**
-
-Projected at N = 60, K = 3 (360 dialogues per phase):
-
-| Phase | Planned | Measured | Measured on | T-17 runs it on |
-|---|---|---|---|---|
-| `run` | 6.6 h | **5.8 h** | Air | Air |
-| `eval` | 9.4 h | **18.1 h** (serial) | Air | **Pro, ≈ 16.0 h serial** |
-
-The `eval` row is measured on one machine and planned for another, which is a gap and not a
-detail: the pilot ran end to end on the Air, so 180.6 s per dialogue and the 18.1 h are M4 / 24 GB
-numbers, while T-17 runs `eval` on an M5 with 16 GB. Replaying the same four `judge_facts` prompts
-on the Pro put it at **126.2 s a call against the Air's 142.4 s, or 0.89×**, which rebases the
-projection to ≈ 16.0 h serial there. *The Pro is unmeasured* below records what that replay did
-and did not settle.
-
-Run is inside budget. **Eval is 1.9× over**, and the overrun is one caller: `judge_facts` at 139.1 s
-a call. Against `judge_global` (79.9 output tokens, 35.4 s) on the same model, the fixed cost is
-≈ 20 s and generation ≈ 119 s, so the 614.8 output tokens are the whole of it — the atomic-claims
-list is long by construction. Raising an Ollama token limit does not help: `num_predict` is unset,
-so nothing is being truncated, and `num_ctx` only sizes the KV cache (larger would risk the eviction
-penalty measured on the Pro on 2026-09-08, and would change every prompt hash, discarding the
-cache). The two real levers are fewer judge output tokens, which is a rubric change and so has to
-happen before the `v1` tag, or concurrency in `sim eval`.
-
-### Concurrency in `sim eval`
-
-The 18.1 h above is the sum of uncached call latency, so it is the **serial** figure. `sim eval`
-now takes `--parallel` (default 1), superseding the 2026-09-10 T-14b decision that left it out. It
-is validity-neutral by construction: each dialogue is graded on its own, the judge and labeler seeds
-come from `configs/models.yaml` and never from position in the queue, and the CSV rows are ordered
-by the manifest, so the files are byte-identical to a sequential eval. A test asserts exactly that.
-
-Two facts decide how much `--parallel 2` actually buys, and they cut the opposite way from the run
-phase:
-
-- **The eval load is one model.** Split by model, the 180.6 s per dialogue is `gemma4:12b` 174.5 s
-  (96.6%) and `qwen3.5:4b` 6.1 s (3.4%). So overlapping the two models — the mechanism behind the
-  run phase's gain — is worth at most 3.4% here. Everything depends on `gemma4:12b` serving two
-  requests at once.
-- **It does, and Qwen does not.** Across both Ollama server logs, `model architecture does not
-  currently support parallel requests` fires 49 times and every one of them reads
-  `architecture=qwen35`; `gemma4` never triggers it. So the judge gets its two slots, while the run
-  phase's models never did — which is why the run phase's **1.4×** cannot be carried over. It is
-  also why the slots cost nothing extra: `ollama ps` on the Air during the pilot shows `gemma4:12b`
-  resident at 9.0 GB against the 8.6 GB single-slot figure, so the second slot's KV cache is already
-  allocated at load time by `OLLAMA_NUM_PARALLEL=2` and is paid for whether `sim eval` uses it or not.
-
-Judge time is generation-dominated (≈ 119 s of 139.1 s), which suggested batched decode would beat
-the run phase's 1.4×. **Measured on the Air, it does not.** Two real `judge_facts` prompts replayed
-straight against Ollama, one arm at a time and one arm two at a time:
-
-| | prompt eval | generation | wall |
-|---|---|---|---|
-| sequential | 28.9 s + 27.0 s | 37.8 s + 57.1 s = 94.9 s serial | 156.1 s |
-| two at once | 0.3 s + 0.2 s | 68.1 s and 89.8 s, overlapped | 93.9 s |
-
-The raw ratio reads 1.66×, and **it is an artifact**. With `OLLAMA_NUM_PARALLEL=2` each slot still
-held one of the two prompts from the first arm, so the second arm skipped prompt processing
-entirely — 55.9 s, 36% of the sequential wall clock. A real eval never gets that: the sequential arm
-is the proof, where the second call paid its full 27.0 s with the first call's prompt one slot away.
-360 distinct transcripts through 2 slots reuse nothing.
-
-What is left once the artifact is removed is the number that matters, and it is flat:
-
-- **Generation-only throughput: 1.06×.** 94.9 s of serial generation against 89.8 s elapsed.
-- **Per-stream token rate collapses**: 12.0 → 6.7 tok/s and 11.6 → 7.4 tok/s, i.e. 0.56× and 0.64×.
-  Two streams at a bit over half speed is **1.19×** aggregate at best.
-- **Honest wall speedup ≈ 1.10×**, charging the concurrent arm the prompt eval it dodged.
-
-`gemma4:12b` accepts the second slot; the GPU has nothing left to give it. Decode on a 12B at Q4 is
-memory-bandwidth-bound, and one stream already saturates the bandwidth, so a second stream splits it
-rather than filling idle capacity. Accepting parallel requests and benefiting from them are
-different things, and the architecture warning only rules out the first.
-
-On the Air, then, `--parallel 2` is worth roughly 1.6 h of the 18.1, not the 5–9 h the bracket
-assumed. It stays in because it is free and validity-neutral, but on that machine it is not the
-lever. The Pro is a different answer.
-
-### The same probe on the Pro
-
-The Air numbers above do not transfer, and the reason they do not is the reason they are small:
-one decode stream already saturates the Air's memory bandwidth, and bandwidth is a property of the
-chip. So the probe was re-run on the Pro — cold, on the same four recorded prompts, against the
-same pinned `JudgeFacts` schema, with the arms on disjoint halves so neither can inherit a KV
-prefix from the other.
-
-| | per-stream rate, alone → shared | `--parallel 2` | per-call latency |
-|---|---|---|---|
-| Air (M4, 24 GB) | 12.0 → 6.7 tok/s (0.56×) | 1.10× | 142.4 s |
-| **Pro (M5, 16 GB)** | **8.53 → 5.74 tok/s (0.67×)** | **1.34×** | **126.2 s (0.89×)** |
-
-Two independent gains, and they compound. The Pro is about 11% faster per call on identical
-prompts, and it keeps two-thirds of its single-stream rate on each of two streams where the Air
-keeps barely half — headroom the M4 does not have. Rebasing the serial projection by 0.89× and
-then dividing by 1.34×:
-
-| | serial | at `--parallel 2` | vs planned 9.4 h |
-|---|---|---|---|
-| Air | 18.1 h | 16.5 h | 1.8× over |
-| **Pro** | **≈ 16.0 h** | **≈ 12.0 h** | **1.3× over** |
-
-**`eval` stays on the Pro**, as the 2026-09-08 split assigned it, and `--parallel 2` is worth about
-4 h there rather than the 1.6 h it is worth on the Air. Note how nearly this went the other way:
-had the Air's 1.10× been carried across unmeasured, the conclusion would have been to move `eval`
-to the Air and lose ~4.5 h — the same class of error as the 1.4× assumption that started this.
-
-Beyond that, the remaining lever is fewer judge output tokens, ruled out until after T-16 because
-it invalidates the hand-annotated judge validation and the `v1` freeze. Splitting the 360 dialogues
-across both machines would halve it again, but needs code before the 2026-09-14 freeze and is not
-costed here.
-
-### What the probe did not settle: co-residency
-
-**The memory question is still open on the Pro, and the probe cannot close it.** It only ever calls
-`gemma4:12b`, so `qwen3.5:4b` is never loaded: `ollama ps` came back empty before the run and
-listed gemma4 alone at 8.6 GB after it. The `eval` phase needs both resident — 9.0 + 3.4 =
-12.4 GB — against the 6.3–8.1 GiB of free system RAM measured on the Pro on 2026-09-08, where
-eviction cost **3.3×**. That dwarfs the 1.34× and applies at `--parallel 1` too, so it is neither
-created by concurrency nor avoided by dropping it.
-
-The 8.6 GB is itself a flag: the Air reports `gemma4:12b` at 9.0 GB, the extra being the second
-slot's KV cache that `OLLAMA_NUM_PARALLEL=2` allocates at load time. Those variables are applied by
-`launchctl` and have to be re-applied after every reboot (`scripts/ollama_env.sh`), so the Pro may
-have produced its 1.34× without them — in which case 1.34× is a floor.
-
-Both are one command on the Pro: load each model once and read `ollama ps`. Until that is run,
-≈ 12.0 h is the estimate and eviction is the risk it is conditional on.
-
-## The transfer path
-
-T-15 asks for the SSH path to be exercised with real files while there is still time to fix it. Done
-on the Air against `localhost`: the Air's own key was added to its `~/.ssh/authorized_keys`, then
-`rsync -az --partial -e ssh runs/exp_pilot localhost:<dest>/` moved all 258 files with identical
-checksums, and `sim eval --run <dest>/exp_pilot` scored the 20 dialogues **with no LLM call** —
-`cache/` travels with the run, so re-evaluating on the second machine is free for anything already
-judged. The network hop and the Pro's `authorized_keys` are still untested; `ssh-copy-id` to the Pro
-is the one remaining step before T-17.
-
-## The measurement risk T-16 closed on Pilot v2
+### The stage-labeler risk T-16 closed here
 
 The stage labeler remains the weakest instrument in the pipeline, and the flow
 columns rest on it. Pilot v2 is the closing frame for this decision:
@@ -502,31 +562,27 @@ The limitation remains: flow diagnostics depend on a weak instrument, and there
 is no baseline-side gold path to calibrate error magnitude. `flow_adherence`
 stays outside `PRIMARY_METRICS`.
 
-## Exploratory direction
+## Removed run directories
 
-Means over 10 dialogues per agent. **Five scenarios; no test, no claim.**
+2026-09-13 cleanup of `runs/` before the accepted sweep filled
+`runs/full_scenario_preflight/`. Ten directories removed (~43.93 MB). The
+empty `full_scenario_preflight/` kept at cleanup was filled on 2026-09-14
+(116 ok, 4 failed); that accepted run is not in the table. Model-selection
+numbers are in [`docs/decisions_and_limitations.md`](decisions_and_limitations.md).
 
-| metric | baseline | fsm |
-|---|---|---|
-| `fact_f1` | 0.524 | 0.635 |
-| `fact_precision` | 0.413 | 0.517 |
-| `fact_recall` | 0.867 | 0.933 |
-| `claim_support` | 0.928 | 0.936 |
-| `accuracy_score` | 0.900 | 0.750 |
-| `relevance` | 5.00 | 4.30 |
-| `task_completed` | 0.800 | 0.600 |
-| `n_turns` | 4.0 | 3.8 |
-| `llm_latency_s` | 62.2 | 67.5 |
-| `turn_latency_s` | 62.2 | 91.2 |
+| run_dir | dialogues | ok | failed | manifest n_ok | manifest n_failed | manifest jobs | failed reasons | notes |
+|---|---:|---:|---:|---:|---:|---:|---|---|
+| `denial_controls_repro` | 6 | 6 | 0 | 6 | 0 | 6 | - | - |
+| `exp_final_pre_fix` | 120 | 117 | 3 | 3 | 3 | 10 | legacy-unclassified=3 | manifest totals differ from dialogue files |
+| `full_scenario_preflight_after_goal_fix_fail_2026-09-13` | 120 | 114 | 6 | 114 | 6 | 120 | instrument/invalid_candidate_retry_exhausted=2, simulation/max_turns_with_incomplete_beat=4 | pre-patch 114/6 snapshot |
+| `full_scenario_preflight_pre_fix_fail_2026-09-13` | 44 | 41 | 3 | - | - | - | simulation/max_turns_with_incomplete_beat=3 | no manifest; partial pre-fix snapshot |
+| `hp09_repro_after_denial_fix` | 2 | 2 | 0 | 2 | 0 | 2 | - | - |
+| `model_selection_4b` | 20 | 15 | 5 | 15 | 5 | 20 | instrument/invalid_candidate_retry_exhausted=1, simulation/max_turns_with_incomplete_beat=4 | - |
+| `model_selection_9b` | 20 | 18 | 2 | 18 | 2 | 20 | simulation/max_turns_with_incomplete_beat=2 | - |
+| `pilot_v1` | 20 | 20 | 0 | 20 | 0 | 20 | - | original `runs/` tree deleted by accident; T-16 sheets remain |
+| `role_split_equivalence` | 10 | 7 | 3 | 7 | 3 | 10 | simulation/max_turns_with_incomplete_beat=3 | - |
+| `termination_fix_repro` | 12 | 9 | 3 | 9 | 3 | 12 | simulation/max_turns_with_incomplete_beat=3 | - |
 
-The FSM is ahead on the factual columns and behind on the judged ones. Its dominant failure mode is
-visible in the dialogues: the classifier sends an in-scope turn to `out_of_scope` and the state
-package then instructs the agent to decline. In `edge_19/fsm/rep01` a partial-cancellation request
-escaped that way, the needle was never recovered and the run ended `user_gave_up`; the baseline
-reached `goal_reached` on the same scenario in 8 turns. This is measured FSM behaviour, not a bug to
-patch — the classifier is part of the architecture under test, and `event_classifier.md` was not
-tuned to rescue it.
+`exp_final_pre_fix` has a manifest from a resumed subset, so its manifest
+totals differ from the full dialogue file census.
 
-One confound was checked and **not** found: `fact_f1` does not penalise verbosity asymmetrically.
-Correlation between `fact_precision` and `n_checkable_claims` is 0.08, and the two agents produce
-almost the same number of claims per dialogue (6.5 baseline, 6.7 FSM).

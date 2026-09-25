@@ -1,11 +1,23 @@
 # Setup: machines and Ollama (T-03)
 
+> **Experiment guide** · step 4 of 11 · [All steps](README.md) ·
+> [← Evaluation metrics](metrics.md) · [Next: Pilots →](pilot.md)
+
 Record of the execution environment. Each item becomes a sentence in *Material e Métodos* or a row
 in the Decisões table of `DECISOES.md`.
 
+**In short.** The plan of 2026-09-07 put `run` on the Pro; measuring on 2026-09-08 showed the Pro
+cannot keep the two run-phase models loaded together, so the roles were swapped: `run` on the Air,
+`eval` on the Pro. In the end the documented fallback is what ran: the pilots and T-17 ran **both
+phases on the Air**, and the Pro holds the backup copy of `runs/`
+([`docs/execution.md`](execution.md)). Models: agents `qwen3.5:9b`; simulated user `qwen3.5:9b`
+(from 2026-09-13); event classifier and stage labeler `qwen3.5:4b`; judge `gemma4:12b` GGUF (T-16,
+both pilot rounds, T-17 frozen-gate) and `gemma4:12b-mlx` (T-17 semantic-primary). The rest of this
+file is the evidence behind each of those choices, in the order it was gathered.
+
 ## Machines
 
-| Role | Machine | Chip | RAM | macOS | Ollama | Checked on |
+| Planned role (2026-09-08) | Machine | Chip | RAM | macOS | Ollama | Checked on |
 |---|---|---|---|---|---|---|
 | `run` (agents + simulator) and writing | MacBook Air (Mac16,12) | Apple M4, 10 cores (4P + 6E) | 24 GB | 26.6.2 | 0.33.3 (app) | 2026-09-08 |
 | `eval` (judge) | MacBook Pro (Mac17,2) | Apple M5, 10 CPU cores (4 Super + 6 Efficiency), 10 GPU cores | 16 GB | 26.4.1 (25E253) | 0.33.3 (app) | 2026-09-08 |
@@ -13,13 +25,14 @@ in the Decisões table of `DECISOES.md`.
 **Roles swapped on 2026-09-08**, reversing the assignment of 2026-09-07. The `run` phase needs two
 models resident at once and only the Air's 24 GB delivers that; the `eval` phase runs one model at a
 time, which the Pro's 16 GB handles comfortably. Measurements and reasoning in *Memory on the Pro*
-below. Consequences: `runs/` now moves Air to Pro by `rsync`, and the Air does both the run blocks
-and the writing, so the run blocks want to be overnight.
+below. Consequences as planned: `runs/` moves Air to Pro by `rsync`, and the Air does both the run
+blocks and the writing, so the run blocks want to be overnight. As executed (2026-09-16): `run` and
+both evaluations of T-17 ran on the Air, and the Pro pulled `runs/` only as the backup copy.
 
 The two machines run different macOS versions (Air 26.6.2, Pro 26.4.1). It does not affect the
-comparison: each phase runs entirely on one machine, `run` on the Air and `eval` on the Pro, so no
-metric is computed from numbers produced by both. What has to match across machines is the Ollama
-version and the model digests, and both do.
+comparison: the rule is that each phase runs entirely on one machine, so no metric is computed from
+numbers produced by both, and in the end every phase that produced a reported number ran on the
+Air. What has to match across machines is the Ollama version and the model digests, and both do.
 
 `iogpu.wired_limit_mb` is `0` (automatic) on the Pro, and raising it would change nothing: the
 binding constraint turned out to be free *system* RAM, not the GPU allowance. See *Memory on the
@@ -31,7 +44,8 @@ The repository lives in `~/projects/fsm-llm-eval` on both machines, outside iClo
 GitHub; `runs/` is git-ignored on purpose and moves Air to Pro by `rsync` over SSH on the local
 network.
 
-Transfer path, working end to end since 2026-09-11 (T-15). Hostnames and addresses are deliberately
+Transfer path, rehearsed against `localhost` on 2026-09-11 (T-15) and run for real Air → Pro on
+2026-09-12. Hostnames and addresses are deliberately
 not recorded in this repository: read them off the Sharing pane, or with `scutil --get LocalHostName`
 on the machine itself.
 
@@ -78,9 +92,10 @@ Code travels by GitHub, not by `rsync`: `runs/` is written by whichever commit t
 
 The transfer is an optimization worth about 4 h, not a dependency: if it fails, run and eval both
 happen on the Air in sequence, with nothing lost, because the two phases are already separate and
-cached by prompt hash. What it buys is measured in `docs/pilot.md`: the Pro is 0.89× the Air's
+cached by prompt hash. What it would buy is measured in `docs/pilot.md`: the Pro is 0.89× the Air's
 per-call judge latency and gets 1.34× from `--parallel 2` against the Air's 1.10×, so `eval` there
-is ≈ 12.0 h against ≈ 16.5 h on the Air — conditional on the co-residency check recorded there.
+is ≈ 12.0 h against ≈ 16.5 h on the Air — conditional on a co-residency check that was never run,
+because T-17 took the fallback and evaluated on the Air (DECISOES 2026-09-16).
 
 ## Ollama installation
 
@@ -97,7 +112,7 @@ curl -s localhost:11434/api/version
 | Variable | Value | Why |
 |---|---|---|
 | `OLLAMA_MAX_LOADED_MODELS` | 2 | lets agent and simulator stay loaded together; otherwise Ollama unloads and reloads on every turn and latency triples, measured at 3.3x on the Pro. **It permits, it does not guarantee**: the scheduler still evicts when free system RAM is short, which is what happens on the Pro. See *Memory on the Pro* |
-| `OLLAMA_KEEP_ALIVE` | -1 | never unload a model for inactivity. On a 16 GB eval host this also keeps simulation models (`qwen3.5:4b`, `qwen3.5:9b`) resident after `sim run`. Stop them explicitly before the judge-heavy eval phase (`ollama stop qwen3.5:4b`); `sim eval` does not unload anything. See `docs/execution.md` |
+| `OLLAMA_KEEP_ALIVE` | -1 | never unload a model for inactivity. On the machine that then evaluates, this also keeps the simulation models (`qwen3.5:4b`, `qwen3.5:9b`) resident after `sim run`. Stop them explicitly before the judge-heavy eval phase (`ollama stop qwen3.5:4b`, as T-17 did on the Air); `sim eval` does not unload anything. See `docs/execution.md` |
 | `OLLAMA_NUM_PARALLEL` | 2 | the runner runs 2 dialogues at once (`sim run --parallel 2`). Qwen 3.5 serves one request per model at a time, so the gain is cross-model overlap, not two agent calls; see *Parallelism* below |
 | `OLLAMA_CONTEXT_LENGTH` | 8192 | server default equal to the experiment's `num_ctx`. The client (T-07) sets `num_ctx` on every call; this is the second defense against the silent truncation of the beginning of the prompt, which would cut the baseline's KB |
 
@@ -125,9 +140,9 @@ Decisões row, and on both machines. Two measured notes on where it is worth rea
 - **Not for the `run` phase.** On the Qwen pair it recovers about 0.2 GB, because their KV cache is
   only 306 MiB against 4717 MiB of weights, and it does not make the pair co-resident on 16 GB.
   That is one of the reasons `run` moved to the Air. See *Memory on the Pro*.
-- **Possibly for the judge**, which is now the Pro's job. `gemma4:12b` carries 1216 MiB of KV, four
-  times the Qwen figure, so quantizing it would actually free something. The judge runs alone in
-  16 GB and is not tight today, so this stays unused until it is needed.
+- **Possibly for the judge**, which was planned as the Pro's job. `gemma4:12b` carries 1216 MiB of
+  KV, four times the Qwen figure, so quantizing it would actually free something. It was never
+  needed: the setting stayed unused.
 
 | Variables check | Air | Pro |
 |---|---|---|
@@ -176,7 +191,7 @@ Decision history (Decisões, T-03), mirrored in `configs/models.yaml`:
 | Simulated user (locked 2026-09-13, after T-16) | `qwen3.5:9b` | 9.7B, Q4_K_M | 6.6 GB | 5.7 GB | split from classifier/labeler so a user-model change cannot retune them; T-16 corrected pilot still used 4B |
 | Event classifier and stage labeler | `qwen3.5:4b` | 4.7B, Q4_K_M | 3.4 GB | 3.4 GB | faster than Qwen2.5-7B on both prompt processing and generation |
 | Judge (T-16 / Pilot v2 / T-17 frozen-gate) | `gemma4:12b` | 11.9B, Q4_K_M | 7.6 GB | 8.6 GB | T-16 validation blob; frozen-gate eval |
-| Judge (T-17 semantic-primary sidecar) | `gemma4:12b-mlx` | 12.4B, nvfp4 MLX | 7.7 GB | (see `ollama ps`) | not T-16-validated; cache does not carry over from GGUF |
+| Judge (T-17 semantic-primary sidecar) | `gemma4:12b-mlx` | 12.4B, nvfp4 MLX | 7.7 GB | (see `ollama ps`) | not the T-16 blob; re-checked against the Pilot v2 human sheets on 2026-09-20 ([`docs/judge_validation.md`](judge_validation.md)); cache does not carry over from GGUF |
 
 Candidates measured on the Air on 2026-09-08 (`num_ctx` 8192, 2 parallel dialogues, thinking
 switched off where the model has it; speeds are indicative, several runs overlapped with model
@@ -225,7 +240,8 @@ The full digests live in `configs/models.yaml`; the table records the 12-charact
 | event classifier, stage labeler | `qwen3.5:4b` | `2a654d98e6fb` | `2a654d98e6fb` | yes |
 | judge (T-16) | `gemma4:12b` | `4eb23ef187e2` | `4eb23ef187e2` | yes |
 
-**2026-09-15.** T-17 used two judge backends. Frozen-gate evaluation stayed on
+**T-17 (tag added to `configs/models.yaml` on 2026-09-15, decision row 2026-09-16).** T-17 used two
+judge backends. Frozen-gate evaluation stayed on
 the T-16-validated `gemma4:12b` GGUF (`4eb23ef187e2`). The semantic-primary
 sidecar used `gemma4:12b-mlx`, digest
 `ded7a27350032202d9e9b2a6071e8aa89959ab156771b5228f30863c741c4970` (Air,
@@ -344,14 +360,14 @@ For the Qwen pair the KV cache is **6% of the footprint**. Every context-side le
 `OLLAMA_NUM_PARALLEL` and `OLLAMA_KV_CACHE_TYPE`, is therefore capped at roughly 0.3 GB, which is
 consistent with the 0.2 GB the q8_0 experiment actually recovered. Only smaller weights or more free
 RAM move this. The judge is the opposite case: 1216 MiB of KV, so cache quantization would matter
-there if the Pro, its machine since the role swap, ever got tight. It is not tight today, since the
-judge runs alone.
+there if the machine running it ever got tight. It never did: the judge runs alone.
 
 ### Decision: swap the machine roles (2026-09-08)
 
 **`run` moves to the Air, `eval` moves to the Pro.** The Air holds both models with no eviction, and
 the judge on the Pro runs one model at a time inside 16 GB. It costs no code and reverses only the
-assignment of 2026-09-07.
+assignment of 2026-09-07. (The `eval` half of this assignment was later dropped for the documented
+fallback: T-17 evaluated on the Air too, DECISOES 2026-09-16.)
 
 What it costs: the Air is passively cooled, so a long block may throttle and the real throughput has
 to come from the pilot rather than from these probes. The Air is also the writing machine, so run
@@ -459,8 +475,8 @@ Budget from those means, 8 turns per dialogue, 2 dialogues in parallel:
 | 60 | 5 | 600 | 26.9 h | 15.7 h |
 
 The run column is history now that `run` moved to the Air, and it was 2.4x the Air's figure purely
-because of the eviction. The judge column is the one that stays useful, and the Pro is the judge
-machine, so those hours are the ones T-17 will actually spend on eval.
+because of the eviction. The judge column sized the plan for `eval` on the Pro; T-17 evaluated on
+the Air instead, and its real times are in `docs/execution.md`.
 
 Earlier smoke test on the Air on 2026-09-08 (2 turns, 2 dialogues, Qwen2.5 + Gemma 3) while four
 model downloads were running: it works end to end; those numbers were not recorded because of the
@@ -481,7 +497,7 @@ Budget from those means, 8 turns per dialogue, 2 dialogues in parallel: N = 45, 
 dialogues) gives about 5.0 h of run on the Air and 7.3 h of judge, one night; N = 60, K = 3 gives
 6.6 h and 9.7 h. Those run figures assume both models stay co-resident, which is true on the Air and
 was the reason `run` moved there. The judge figures here are the Air's own; since the role swap eval
-runs on the Pro, which measured 7.1 h for N = 45, K = 3.
+was planned for the Pro, which measured 7.1 h for N = 45, K = 3.
 
 Every judge mean in this document is **per call**, and there are two calls per dialogue, so a
 dialogue costs about 97 s of judge time. The budget rows already account for both calls.
@@ -507,7 +523,7 @@ and 1b decisions do not have to move.
 **N = 60, K = 3** costs 6.6 h of run on the Air against 5.0 h for N = 45, which the chosen
 configuration absorbs. It was only the Pro that made this choice tight (16.2 h), so moving `run` to
 the Air takes the machine budget out of the N decision and leaves it to the statistics, which is
-where the plan wanted it. Still freeze N on Friday with the dataset hash.
+where the plan wanted it. N was frozen at 60 with the dataset hash on 2026-09-10.
 
-K = 5 stays what the plan already says it is: 8.3 h of run on the Air, incremental repetitions, only
-if there is machine time left over.
+K = 5 stayed what the plan said it was: 8.3 h of run on the Air, incremental repetitions, only if
+there was machine time left over. They were not run: T-17 used K = 3.

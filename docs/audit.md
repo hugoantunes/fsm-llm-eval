@@ -1,5 +1,8 @@
 # Data audit (T-18)
 
+> **Experiment guide** · step 9 of 11 · [All steps](README.md) ·
+> [← Execution](execution.md) · [Next: Decomposing `fact_f1` →](decomposition.md)
+
 Census of `runs/exp_final/` after T-17. The manifest defines the audit
 universe. Dialogue logs define execution outcome; metric files define
 inclusion. T-18 never rewrites execution history: contract false positives

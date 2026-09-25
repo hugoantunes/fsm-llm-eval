@@ -1,5 +1,8 @@
 # The finite-state machine (T-02)
 
+> **Experiment guide** · step 1 of 11 · [All steps](README.md) ·
+> [Next: Scenarios →](taxonomy.md)
+
 The machine below is the FSM agent's *instruction base*. Every state carries an
 instruction package in [`data/fsm/states/`](../data/fsm/states/) saying what the agent
 is there to do, which data it needs, what its answer must contain, what it must not say
@@ -99,20 +102,26 @@ each datum and the data each request requires are written in one place only:
   the state, which is what a human agent does when the customer answers half the question.
 
 A state with nothing left to *ask* is left without waiting for another user turn: after
-the customer's event, the engine fires `order_identified` and then `data_provided`, each
-one only where the current state accepts it and its guard already holds. That is what
+the customer's event, the engine tries `order_identified`, `intent_classified` and
+`data_provided`, in that order and each at most once, firing one only where the current
+state accepts it and its condition already holds. That is what
 carries tracking and payment-slip reissue — whose only required data are the order number
 and the e-mail — out of `data_collection`, and it is what stops the agent asking for what
 the opening message already gave it. Those edges are the machine's own; the log marks them
 `fired_by: engine`, against the customer's own `fired_by: user`, so one turn records a
-walk of one to three edges rather than a single pair of endpoints.
+walk of up to two edges rather than a single pair of endpoints (why two is the ceiling:
+*Flow adherence* below).
 
-`intent_classified` is deliberately not among them. A request the classifier read wrong in
-the opening turn would be final, because the one state built to settle it would never be
-spoken from: in the pilot a "take one of the items back" opening was read as an exchange,
-and the whole dialogue ran on the wrong request. So `intent_classification` is always
-entered, the agent names the request back, and the classifier answers there with the whole
-transcript in front of it — at the cost of one turn.
+`intent_classified` is the one the engine holds back. It never fires on the turn the
+dialogue *arrives* in `intent_classification`, because a request the classifier read wrong
+in the opening turn would then be final: in an early re-run a "take one of the items back"
+opening was read as an exchange, the engine skipped the state built to settle it, and the
+whole dialogue ran on the wrong request (DECISOES 2026-09-10). So `intent_classification` is
+always entered and always spoken from: the agent names the request back and the classifier
+answers there with the whole transcript in front of it — at the cost of one turn. Only on a
+turn that *started* in `intent_classification`, with an intent already held, does the
+engine fire `intent_classified` itself, so that a classifier `none` cannot park the dialogue
+there for good (`FsmEngine._advance_when_ready`).
 
 Detection never short-circuits on what the dialogue already holds: every state still asks
 the classifier, so `out_of_scope_request` stays reachable from `intent_classification` and
@@ -168,24 +177,25 @@ Two distinct consecutive labels are a valid step when at most
 `MAX_FLOW_EDGES_PER_TURN` = 2 flow edges join them. **Two is the ceiling
 `FsmEngine.step` can reach**, derived from the engine and this YAML rather than fitted
 to an observation: a turn fires exactly one classified user event, then
-`_advance_when_ready` offers exactly two auto-advance events in a fixed order, each at
-most once and with no loop — `order_identified` and `data_provided`. All three can never
-fire, because `order_identified` lands on `intent_classification` while `data_provided`
-is declared only out of `data_collection`, and the single edge between them is
-`intent_classified`, which `_advance_when_ready` deliberately excludes (see *Events and
-guards*). Assume every guard passes and try every state against every event: the longest
-chain the machine admits is `greeting --request_received--> identification
---order_identified--> intent_classification`. One label is one turn and consecutive
-labels are consecutive turns' `state_after`, so two is exactly the gap a turn can
-produce, and a wider one is a skipped stage.
-`test_max_flow_edges_per_turn_is_the_ceiling_the_engine_can_reach` rederives this from
-the loaded spec, so the constant fails the suite if this file changes under it.
+`_advance_when_ready` tries its engine events in a fixed order, each at most once and
+with no loop — `order_identified`, `intent_classified` (only on a turn that started in
+`intent_classification`, see *Events and guards*) and `data_provided`. A walk can never
+chain all of them: `order_identified` lands on `intent_classification`, and a turn that
+arrives there cannot also fire `intent_classified`, because it did not start there.
+Assume every guard passes and try every state against every event: the longest chains
+the machine admits are two edges, `greeting --request_received--> identification
+--order_identified--> intent_classification` and `intent_classification
+--intent_classified--> data_collection --data_provided--> solution`. One label is one
+turn and consecutive labels are consecutive turns' `state_after`, so two is exactly the
+gap a turn can produce, and a wider one is a skipped stage.
+`test_max_flow_edges_per_turn_is_the_ceiling_the_engine_can_reach` rederives the bound
+from the loaded spec, so the constant fails the suite if this file changes under it.
 
 **Both universal edges count** (decision of 2026-09-11, superseding the rule that
 excluded them). Asking for something out of scope and saying goodbye are moves of the
 *user*, which every state answers, so a dialogue that ends early because the user was
 satisfied is a legal path and not a skipped stage. Excluding them made the column
-constant `False` across the whole pilot and marked 8 of the FSM's own 10 recorded paths
-invalid. What keeps the column from degenerating into "any legal path" is the two-edge
+constant `False` across the whole first pilot of 2026-09-11 and marked 8 of the FSM's own
+10 recorded paths invalid ([`docs/pilot.md`](pilot.md)). What keeps the column from degenerating into "any legal path" is the two-edge
 bound, not the exclusion of these edges. The first question is unaffected: a scenario
 that expects `out_of_scope` is met by ending there.

@@ -1,20 +1,37 @@
 # Judge validation (T-16)
 
+> **Experiment guide** · step 7 of 11 · [All steps](README.md) ·
+> [← Parity](parity.md) · [Next: Execution →](execution.md)
+
 The LLM judge of T-12 is validated against a human on the instrument-fixed pilot. Dialogue-level
 validation is a census of all 20 ok dialogues. Response-level validation is a blinded sample of
 30/76 eligible agent responses. Both were annotated by hand before anyone looks at what the judge
-answered. The judge validated here is the judge that scores the experiment in T-17: validating one
-model and running another validates nothing.
+answered. The rule was that the judge validated here is the judge that scores the experiment in
+T-17: validating one model and running another validates nothing. T-17 kept that rule for its
+frozen-gate population, scored by the same `gemma4:12b` GGUF blob, but scored the
+semantic-primary population with `gemma4:12b-mlx` (DECISOES 2026-09-16). The Pilot v2 sample was
+therefore re-scored with that configuration against the same human sheets (*Pilot v2 robustness
+check*, below).
 
-This file is the protocol. It fixes the sample, the rubric the human fills and how agreement is
-computed, then records the measured values under *Results*.
+This file is the protocol, then the measurements in the order they were taken:
+
+1. the protocol — sample, rubric, procedure, agreement — fixed on Pilot v1 (2026-09-13);
+2. *Results* on Pilot v1, after which tag `v1` froze prompts and rubrics;
+3. *Pilot v2 validation round* (2026-09-14), the T-16 closure and the agreement quoted
+   everywhere else, with the stage-labeler decision (tag `v1.1`);
+4. two later checks on the same Pilot v2 dialogues (2026-09-20), neither a retune: the judge
+   backend used by T-17 (*Pilot v2 robustness check*) and the classifier/labeler model size
+   (*Pilot v2 instrument sidecar*);
+5. a pointer to the separate human census of the T-17 dialogues.
+
+The pilot rounds are named in [`docs/pilot.md`](pilot.md).
 
 ## The sample
 
 Drawn by `scripts/judge_validation_sample.py` **after** the instrument-fixed pilot (the simulated
 user of T-11 now delivers the script as an ordered plan) **and** after `just adherence` has passed
-on that run. The logical run path is `runs/exp_pilot`. The manifest `exp_id` of this final pilot is
-`exp_pilot_fixes_20260913_final_v1`. Join agreement to that path, not to a later
+on that run — Pilot v1. The logical run path is `runs/exp_pilot`. The manifest `exp_id` of this
+final pilot is `exp_pilot_fixes_20260913_final_v1`. Join agreement to that path, not to a later
 `exp_pilot_fixes_*` directory.
 
 The **11/09 sample** is void: those dialogues dropped beats, so annotating them would validate the
@@ -205,7 +222,7 @@ check* below. Prompts stay frozen. GGUF and MLX remain two recorded backends.
 
 ## Results
 
-Computed on the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_id`
+Computed on Pilot v1, the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_id`
 `exp_pilot_fixes_20260913_final_v1`) with:
 
 - `uv run python scripts/validate_judge.py agree --run runs/exp_pilot --sample results/judge_validation/pilot_v1`
@@ -226,7 +243,7 @@ Computed on the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_
 Unmatched claim attribution cases: 19 claims with zero or multiple turn matches.
 They are reported and excluded from forced turn-level labels by design.
 
-### Stage labeler on this final eval
+### Stage labeler on Pilot v1
 
 Measured from `metrics_turn.csv` on the same corrected run:
 
@@ -246,9 +263,10 @@ At the `v1` freeze point, no stage-labeler retune was applied.
 
 Tag `v1` comes after this section and freezes prompts and rubrics.
 
-## Pilot v2 validation round (post-T-16)
+## Pilot v2 validation round (T-16 closure)
 
-Second round on the instrument-fixed, 9B-simulated-user pilot. Same judge
+Second round on the instrument-fixed, 9B-simulated-user pilot, run under the configuration that
+T-17 then used, its judge backend aside. T-16 closed on it (tag `v1.1`). Same judge
 (`gemma4:12b`), same rubrics (`judge_facts.md` v3, `judge_global.md` v2,
 `judge_shared.md` v2), same protocol as above. Not pooled with the T-16
 `v1` freeze. **Do not redraw these sheets.**
@@ -382,8 +400,8 @@ Complementary `fact_ids_stated` counts: original TP/FP/FN = 28/1/11; MLX =
 
 ### Changed cases (original judge ≠ `gemma4:12b-mlx`)
 
-Four units. `changed_cases.csv` compares the two `agree()` judge labels, not
-the human.
+Five units (`D04`, `A05`, `A08`, `A12`, `A29`). `changed_cases.csv` compares the two
+`agree()` judge labels, not the human.
 
 | unit | field | original | mlx |
 |---|---|---|---|
@@ -526,7 +544,9 @@ T-16 stays the instrument-validation protocol on the pilot. After the Final
 Experiment freeze, one annotator labelled the same 348 scored
 `semantic_primary` dialogues (blind IDs D001–D348, freeze 2026-09-20T21:11:58Z,
 then unblind). That sidecar does not retune the judge and does not edit T-16
-sheets. Holm family, human vs judge agreement, and the 107 omitted fact-ID
+sheets. The judge stays the pre-declared confirmatory instrument; the census re-ran the
+same Holm family and was chosen as the narrative reference for the thesis conclusion after
+unblind, a choice declared as such. Holm family, human vs judge agreement, and the 107 omitted fact-ID
 reconstructions: [`docs/metrics.md`](metrics.md) (Human census of
 semantic-primary),
 [`docs/decisions_and_limitations.md`](decisions_and_limitations.md),

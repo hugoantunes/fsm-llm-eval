@@ -1,5 +1,8 @@
 # Decomposition of the `fact_f1` effect (post hoc, exploratory)
 
+> **Experiment guide** · step 10 of 11 · [All steps](README.md) ·
+> [← Data audit](audit.md) · [Next: Decisions and limitations →](decisions_and_limitations.md)
+
 `fact_f1` is the frozen confirmatory metric and nothing here changes how it is
 computed. This file answers a separate question about the result already frozen:
 **where** the difference came from. It is exploratory and post hoc, declared as

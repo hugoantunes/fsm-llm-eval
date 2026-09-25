@@ -1,19 +1,24 @@
 # Parity (T-16)
 
+> **Experiment guide** · step 6 of 11 · [All steps](README.md) ·
+> [← Pilots](pilot.md) · [Next: Judge validation →](judge_validation.md)
+
 What is held equal between `baseline` and `fsm`, and what is allowed to differ, so a
 score gap can be read as the instruction-base contrast rather than a confound. Quoted
-from the corrected pilot at logical path `runs/exp_pilot` (manifest `exp_id`
-`exp_pilot_fixes_20260913_final_v1`). Dataset hash
+from **Pilot v1**, the corrected pilot of 2026-09-13 at logical path `runs/exp_pilot`
+(manifest `exp_id` `exp_pilot_fixes_20260913_final_v1`; the rounds are named in
+[`docs/pilot.md`](pilot.md)). Dataset hash
 `0778a90110e6dd67685c1e6768934483cb4405213dad35ec172f3ddcf21d47c9` (`FROZEN_V1_HASH`).
 
-The 11/09 sample is void. This directory after the adherence gate is the T-16 frame.
-Dialogue-level judge validation is a census of all 20 ok dialogues. Response-level
-validation is a blinded sample of 30/76 eligible agent responses. Frozen T-16
-sheets: `results/judge_validation/pilot_v1/`. See
+Pilot v1, after the adherence gate, is the T-16 frame; the 11/09 sample of the first
+pilot is void. Dialogue-level judge validation is a census of all 20 ok dialogues.
+Response-level validation is a blinded sample of 30/76 eligible agent responses. Frozen
+T-16 sheets: `results/judge_validation/pilot_v1/`. See
 [`docs/judge_validation.md`](judge_validation.md).
-Pilot v2 is a later 9B-simulated-user frame (`runs/pilot_v2`, 30/78, seed
+Pilot v2 is the later 9B-simulated-user frame (`runs/pilot_v2`, 30/78, seed
 `20260914`); agreement and disagreements are in the same file, under
-`results/judge_validation/pilot_v2/`. Do not mix the two token tables.
+`results/judge_validation/pilot_v2/`. This file carries a token table for each; do
+not mix the two.
 
 A later census of the 348 scored T-17 dialogues is not this T-16 frame. See
 [`docs/metrics.md`](metrics.md) (Human census of semantic-primary).
@@ -43,9 +48,12 @@ equivalent. Rubrics are not cheapened to speed eval. `flow_adherence` stays out 
 - **Shared instruction block.** [`data/prompts/agent_shared.md`](../data/prompts/agent_shared.md)
   version 2 is included by both [`baseline.md`](../data/prompts/baseline.md) and
   [`fsm_template.md`](../data/prompts/fsm_template.md).
-- **Judge.** Blind two-call judge, temperature 0. T-16 / Pilot v2 and T-17
-  frozen-gate: `gemma4:12b` GGUF. T-17 semantic-primary sidecar:
-  `gemma4:12b-mlx`. Same prompts; not the same weights. Not pooled.
+- **Stage labeler.** One `qwen3.5:4b` call per dialogue, same prompt and `enum`, on the
+  observable dialogue of both agents (T-13).
+- **Judge.** Blind two-call judge, temperature 0, same prompts. Within any one
+  population both agents are scored by the same judge; the backend differs only
+  between populations. T-16 / Pilot v2 and T-17 frozen-gate: `gemma4:12b` GGUF. T-17
+  semantic-primary sidecar: `gemma4:12b-mlx`. Not the same weights; not pooled.
 
 ## Allowed to differ
 
@@ -56,9 +64,10 @@ equivalent. Rubrics are not cheapened to speed eval. `flow_adherence` stays out 
   deliberate part of the treatment, reported in the token account below, not a leak
   to be subtracted away.
 
-## Token account (corrected pilot)
+## Token account (Pilot v1)
 
-From `just stats runs/exp_pilot` on the corrected run (13/09). Means are over that
+From `just stats runs/exp_pilot` on the corrected run (13/09), taken before its raw tree was
+lost. Means are over that
 caller's lines in `llm_calls.jsonl`. Latency is uncached calls only.
 
 | caller | n | mean prompt tokens | mean output tokens | mean latency (s) |
