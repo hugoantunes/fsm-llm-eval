@@ -219,17 +219,29 @@ def test_eval_skips_failed_dialogues(
     assert len(judged) == 3
 
 
-def test_eval_skips_the_dialogue_whose_judge_reply_never_validates(
+@pytest.mark.parametrize(
+    ("marker_kwarg", "reason_substrings"),
+    [
+        pytest.param("invalid_facts_marker", ("fact_id",), id="judge_reply_invalid"),
+        pytest.param(
+            "extra_label_marker", ("label", "turn"), id="labeler_count_mismatch"
+        ),
+        pytest.param("timeout_marker", ("timed out",), id="judge_call_timeout"),
+    ],
+)
+def test_eval_records_the_dialogue_it_could_not_score_as_unscored(
     run_canned: RunCanned,
     run_dir: Path,
     real_kb: KnowledgeBase,
     real_fsm: FsmSpec,
     two_example_scenarios: tuple[Scenario, Scenario],
+    marker_kwarg: str,
+    reason_substrings: tuple[str, ...],
 ) -> None:
     run_canned()
     _mark_replies(run_dir, two_example_scenarios)
     happy, _ = two_example_scenarios
-    llm = CannedEvalLlm(invalid_facts_marker=f"{happy.id}:baseline")
+    llm = CannedEvalLlm(**{marker_kwarg: f"{happy.id}:baseline"})
 
     result = evaluate_run(
         run_dir,
@@ -254,84 +266,8 @@ def test_eval_skips_the_dialogue_whose_judge_reply_never_validates(
     assert [
         (row["scenario_id"], row["agent"], int(row["repetition"])) for row in unscored
     ] == [(happy.id, "baseline", 1)]
-    assert "fact_id" in unscored[0]["reason"]
-
-
-def test_eval_skips_the_dialogue_whose_labeler_count_mismatches_turns(
-    run_canned: RunCanned,
-    run_dir: Path,
-    real_kb: KnowledgeBase,
-    real_fsm: FsmSpec,
-    two_example_scenarios: tuple[Scenario, Scenario],
-) -> None:
-    run_canned()
-    _mark_replies(run_dir, two_example_scenarios)
-    happy, _ = two_example_scenarios
-    llm = CannedEvalLlm(extra_label_marker=f"{happy.id}:baseline")
-
-    result = evaluate_run(
-        run_dir,
-        llm=llm,
-        kb=real_kb,
-        fsm=real_fsm,
-        config=load_models_config(CONFIG),
-    )
-
-    _, rows = _read_csv(run_dir / "metrics.csv")
-    _, turn_rows = _read_csv(run_dir / "metrics_turn.csv")
-    unscored_fields, unscored = _read_csv(run_dir / "unscored.csv")
-
-    assert result.n_scored == 3
-    assert result.n_unscored == 1
-    assert len(rows) == 3
-    assert (happy.id, "baseline") not in {
-        (row["scenario_id"], row["agent"]) for row in rows
-    }
-    assert len(turn_rows) == 3
-    assert unscored_fields == [*IDENTITY, "reason"]
-    assert [
-        (row["scenario_id"], row["agent"], int(row["repetition"])) for row in unscored
-    ] == [(happy.id, "baseline", 1)]
-    assert "label" in unscored[0]["reason"]
-    assert "turn" in unscored[0]["reason"]
-
-
-def test_eval_skips_the_dialogue_whose_judge_call_times_out(
-    run_canned: RunCanned,
-    run_dir: Path,
-    real_kb: KnowledgeBase,
-    real_fsm: FsmSpec,
-    two_example_scenarios: tuple[Scenario, Scenario],
-) -> None:
-    run_canned()
-    _mark_replies(run_dir, two_example_scenarios)
-    happy, _ = two_example_scenarios
-    llm = CannedEvalLlm(timeout_marker=f"{happy.id}:baseline")
-
-    result = evaluate_run(
-        run_dir,
-        llm=llm,
-        kb=real_kb,
-        fsm=real_fsm,
-        config=load_models_config(CONFIG),
-    )
-
-    _, rows = _read_csv(run_dir / "metrics.csv")
-    _, turn_rows = _read_csv(run_dir / "metrics_turn.csv")
-    unscored_fields, unscored = _read_csv(run_dir / "unscored.csv")
-
-    assert result.n_scored == 3
-    assert result.n_unscored == 1
-    assert len(rows) == 3
-    assert (happy.id, "baseline") not in {
-        (row["scenario_id"], row["agent"]) for row in rows
-    }
-    assert len(turn_rows) == 3
-    assert unscored_fields == [*IDENTITY, "reason"]
-    assert [
-        (row["scenario_id"], row["agent"], int(row["repetition"])) for row in unscored
-    ] == [(happy.id, "baseline", 1)]
-    assert "timed out" in unscored[0]["reason"]
+    for substring in reason_substrings:
+        assert substring in unscored[0]["reason"]
 
 
 def test_eval_writes_a_header_only_unscored_csv_when_every_dialogue_scores(

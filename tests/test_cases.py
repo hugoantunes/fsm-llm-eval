@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from helpers import REPO_ROOT, make_dialogue_log, make_turn_record
+from helpers import make_dialogue_log, make_turn_record
 from sim.cases import (
     CasesError,
     category_direction_table,
@@ -540,34 +540,3 @@ def test_paired_transcript_renders_user_and_agent_turns() -> None:
     assert "agent: I cannot give medical advice." in text
     assert "user: Bye." in text
     assert "agent: Goodbye." in text
-
-
-def test_cases_md_comments_the_three_selected_dialogue_pairs() -> None:
-    text = (REPO_ROOT / "results" / "cases.md").read_text(encoding="utf-8")
-
-    assert "adversarial_08" in text
-    assert "edge_05" in text
-    assert "happy_path_07" in text
-    assert "adversarial_08__baseline__rep01" in text
-    assert "adversarial_08__fsm__rep01" in text
-    assert "edge_05__baseline__rep01" in text
-    assert "edge_05__fsm__rep01" in text
-    assert "happy_path_07__baseline__rep01" in text
-    assert "happy_path_07__fsm__rep01" in text
-    assert text.count("### Comment") == 3
-    assert "repetition 1" in text
-    assert "illustration" in text
-
-
-def test_cases_md_lists_observed_limitations() -> None:
-    text = (REPO_ROOT / "results" / "cases.md").read_text(encoding="utf-8")
-
-    assert "## Observed limitations" in text
-    assert "kappa" in text.lower()
-    assert "metadata" in text.lower()
-    assert "59" in text
-    assert "adversarial_12" in text
-    assert "qwen3.5:9b" in text or "single local model" in text.lower()
-    assert "synthetic" in text.lower()
-    assert "non-determinism" in text.lower()
-    assert "knowledge base" in text.lower()

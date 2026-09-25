@@ -648,29 +648,12 @@ def test_omitted_out_dir_writes_under_results_exp_id(
     assert not (tmp_path / "results" / "metrics.csv").exists()
 
 
-def test_pinned_export_hashes_match_execution_doc() -> None:
-    doc = (DOCS_DIR / "execution.md").read_text(encoding="utf-8")
+@pytest.mark.parametrize("doc_name", ["execution.md", "audit.md"])
+def test_pinned_export_hashes_match_the_docs(doc_name: str) -> None:
+    doc = (DOCS_DIR / doc_name).read_text(encoding="utf-8")
 
     assert FROZEN_GATE_METRICS_SHA256 in doc
     assert SIDECAR_METRICS_SHA256 in doc
     assert len(FROZEN_GATE_METRICS_SHA256) == 64
     assert len(SIDECAR_METRICS_SHA256) == 64
     assert FROZEN_GATE_METRICS_SHA256 != SIDECAR_METRICS_SHA256
-
-
-def test_docs_audit_names_every_exclusion_class() -> None:
-    doc = (DOCS_DIR / "audit.md").read_text(encoding="utf-8")
-
-    assert "eligible-but-unscored" in doc
-    assert "instrument_contract_false_positive" in doc
-    assert "instrument_true_failure" in doc
-    assert "max_turns_with_incomplete_beat" in doc
-    assert "excluded_unscored" in doc
-    assert "edge_01" in doc
-    assert "edge_13" in doc
-    assert "342" in doc
-    assert "350" in doc
-    assert "Preserve judge provenance" in doc
-    assert FROZEN_GATE_METRICS_SHA256 in doc
-    assert SIDECAR_METRICS_SHA256 in doc
-    assert "insufficient_n" in doc

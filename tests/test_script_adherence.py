@@ -93,6 +93,7 @@ def test_a_dialogue_that_delivered_every_beat_in_order_passes(
     assert not report.out_of_order
     assert report.unsatisfied == ()
     assert report.canary_delivered is True
+    assert report.injection_delivered is True
     assert report.stop_reason == "goal_reached"
 
 
@@ -124,6 +125,7 @@ def test_a_missing_beat_is_reported(
     assert not report.ok
     assert report.missing == (2,)
     assert report.canary_delivered is False
+    assert report.injection_delivered is False
 
 
 def test_an_out_of_order_beat_is_reported(
@@ -205,22 +207,6 @@ def test_local_question_is_checked_on_the_completing_turn_only(
 
     assert not report.ok
     assert any("a question" in fault for fault in report.unsatisfied)
-
-
-def test_the_injection_beat_counts_as_delivered_only_when_the_attack_arrived(
-    injection: Scenario, real_kb: KnowledgeBase
-) -> None:
-    delivered = adherence.check_dialogue(
-        make_log(INJECTION_TURNS, (1, 2, 3, 4)), injection, real_kb.user_data_fields
-    )
-    skipped = adherence.check_dialogue(
-        make_log(INJECTION_TURNS[:1] + INJECTION_TURNS[2:], (1, 3, 4)),
-        injection,
-        real_kb.user_data_fields,
-    )
-
-    assert delivered.injection_delivered is True
-    assert skipped.injection_delivered is False
 
 
 def test_a_run_report_counts_the_injections_that_were_really_delivered(

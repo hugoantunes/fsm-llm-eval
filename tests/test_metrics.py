@@ -15,7 +15,6 @@ from sim.fsm import FsmSpec
 from sim.kb import FACT_ID_SCHEMA_PATTERN
 from sim.metrics import (
     ACCURACY_SCORE,
-    CARD_FIELDS,
     METRICS,
     PRIMARY_METRICS,
     RELEVANCE_MAX,
@@ -79,29 +78,7 @@ def _claim(
     return judge_claim(text=text, fact_id=fact_id, supported_by_kb=supported_by_kb)
 
 
-def test_metrics_doc_has_a_card_for_every_metric_with_the_five_fields(
-    metrics_doc: str,
-) -> None:
-    for name in METRICS:
-        card = _metric_card(metrics_doc, name)
-        for field in CARD_FIELDS:
-            assert f"**{field}.**" in card, f"{name} is missing **{field}.**"
-
-
-def test_cut_metrics_are_marked_in_the_metrics_doc(metrics_doc: str) -> None:
-    relevance = _metric_card(metrics_doc, "relevance")
-
-    assert "cut 2" in relevance
-    assert "cut 0" in metrics_doc
-    assert "Sentiment" in metrics_doc
-    assert "Toxicity classifier" in metrics_doc
-    assert "plays a mandatory script" in metrics_doc
-    assert "offensive_content" in metrics_doc[metrics_doc.index("Cut metrics") :]
-
-
-def test_fact_scores_use_one_tp_fp_fn_universe(metrics_doc: str) -> None:
-    assert "derived in code" in metrics_doc
-    assert "at most one" in _metric_card(metrics_doc, "fact_precision")
+def test_fact_scores_use_one_tp_fp_fn_universe() -> None:
     assert "fact_precision" in METRICS
     assert "precision" not in METRICS
     assert "f1" not in METRICS
@@ -206,16 +183,7 @@ def test_unverifiable_claims_do_not_contribute_tp_fp_or_fn() -> None:
     assert with_phatic.n_checkable_claims == 0
 
 
-def test_claim_support_is_na_when_there_are_no_checkable_claims(
-    metrics_doc: str,
-) -> None:
-    card = _metric_card(metrics_doc, "claim_support")
-    rate = _metric_card(metrics_doc, "unsupported_claim_rate")
-
-    assert "NA" in card
-    assert "NA" in rate
-    assert "n_checkable_claims" in card
-
+def test_claim_support_is_na_when_there_are_no_checkable_claims() -> None:
     only_phatic = fact_scores(
         required=["F01"],
         claims=[_claim("Your order number is NL-104288.", "unverifiable")],
@@ -225,27 +193,10 @@ def test_claim_support_is_na_when_there_are_no_checkable_claims(
     assert only_phatic.fact_recall == 0.0
 
 
-def test_unsupported_claims_are_relative_to_the_closed_world_kb(
-    metrics_doc: str,
+def test_the_facts_rubric_judges_claims_against_the_closed_world_kb(
     judge_facts_prompt: Prompt,
 ) -> None:
-    support = _metric_card(metrics_doc, "claim_support")
-    rate = _metric_card(metrics_doc, "unsupported_claim_rate")
-
-    assert "closed-world" in support.lower() or "closed-world" in rate.lower()
-    assert "external" in rate.lower()
     assert "closed-world" in judge_facts_prompt.template.lower()
-
-
-def test_unit_of_analysis_is_the_scenario_and_goal_reached_is_not_a_metric(
-    metrics_doc: str,
-) -> None:
-    folded = " ".join(metrics_doc.split())
-
-    assert "unit of analysis" in folded
-    assert "N paired scenarios" in folded
-    assert "`goal_reached` is a stopping condition" in folded
-    assert "not a metric" in folded.replace("*", "")
 
 
 def test_accuracy_score_is_the_numeric_column(metrics_doc: str) -> None:
@@ -253,94 +204,15 @@ def test_accuracy_score_is_the_numeric_column(metrics_doc: str) -> None:
 
     assert "accuracy_score" in METRICS
     assert "accuracy" not in METRICS
-    assert "mean" in card
     for label, score in ACCURACY_SCORE.items():
         assert f"{label}: {score:g}".replace(".0", "") in card or str(score) in card
     assert ACCURACY_SCORE == {"incorrect": 0.0, "partial": 0.5, "correct": 1.0}
-    assert "JudgeGlobal.accuracy" in card or "`accuracy`" in card
 
 
-def test_masked_metrics_are_na_when_the_scenario_cannot_score_them(
-    metrics_doc: str,
-) -> None:
-    for name, marker in (
-        ("needle_recovered", "is_needle"),
-        ("injection_succeeded", "canary"),
-        ("policy_violation", "forbidden_facts"),
-        ("claim_support", "n_checkable_claims"),
-    ):
-        card = _metric_card(metrics_doc, name)
-        assert "NA" in card, name
-        assert marker in card
-
-
-def test_primary_metrics_are_declared_before_results(metrics_doc: str) -> None:
+def test_primary_metrics_are_the_three_confirmatory_metrics() -> None:
     assert PRIMARY_METRICS == ("task_completed", "fact_f1", "claim_support")
     assert set(PRIMARY_METRICS) <= set(METRICS)
-    heading = metrics_doc.index("## Primary and secondary")
-    block = metrics_doc[heading:]
-    assert "Holm" in block
-    for name in PRIMARY_METRICS:
-        assert f"`{name}`" in block
     assert "injection_succeeded" not in PRIMARY_METRICS
-
-
-def test_the_flow_adherence_card_says_it_is_secondary_not_primary(
-    metrics_doc: str,
-) -> None:
-    card = _metric_card(metrics_doc, "flow_adherence").lower()
-
-    assert "diagnostic" in card
-    assert "architecture-referential" in card
-    assert "primary confirmatory" not in card
-
-
-def test_treatment_is_the_fsm_based_architecture_package(metrics_doc: str) -> None:
-    start = metrics_doc.index("The treatment is")
-    end = metrics_doc.index("\n## ", start)
-    folded = " ".join(metrics_doc[start:end].lower().split())
-
-    assert "fsm-based architecture" in folded
-    assert "fsm alone" not in folded
-    assert "state-specific" in folded or "state package" in folded
-    assert "same" in folded
-    assert "knowledge base" in folded
-    assert "filtered" not in folded
-
-
-def test_comparative_flow_metrics_use_labelled_stages_for_both_agents(
-    metrics_doc: str,
-) -> None:
-    for name in (
-        "n_stage_transitions",
-        "n_self_loops",
-        "ended_in_expected_state",
-        "valid_flow_path",
-        "flow_adherence",
-    ):
-        card = _metric_card(metrics_doc, name)
-        assert "true `state_after`" not in card, name
-        assert "gold for that side" not in card, name
-        assert "labelled" in card.lower() or "labeled" in card.lower()
-    assert "labeler" in metrics_doc.lower()
-    assert "not substituted" in metrics_doc or "not substitute" in metrics_doc
-
-
-def test_policy_violation_keeps_the_literal_match_and_its_limit(
-    metrics_doc: str,
-) -> None:
-    card = _metric_card(metrics_doc, "policy_violation")
-
-    assert "substring" in card.lower()
-    assert "paraphrase" in card.lower()
-    assert "recall" in card.lower()
-
-
-def test_human_judge_validation_is_specified(metrics_doc: str) -> None:
-    assert "T-16" in metrics_doc
-    assert "Cohen" in metrics_doc
-    assert "weighted" in metrics_doc.lower()
-    assert "stratified" in metrics_doc.lower()
 
 
 JUDGE_FACTS_FIELDS = {

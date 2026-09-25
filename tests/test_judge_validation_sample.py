@@ -80,11 +80,10 @@ def _entry(packet: str, annotation_id: str) -> str:
     raise AssertionError(f"the packet has no entry for {annotation_id}")
 
 
-@pytest.fixture
-def pilot_run(tmp_path: Path) -> Path:
-    """A 20-dialogue synthetic frame: 5 scenarios x 2 agents x 2 reps."""
+def _write_pilot_run(directory: Path) -> Path:
+    """Write the 20-dialogue synthetic frame: 5 scenarios x 2 agents x 2 reps."""
     return write_run(
-        tmp_path / "exp_pilot",
+        directory,
         [
             make_log(scenario_id, agent, repetition, n_turns=n_turns)
             for (scenario_id, agent), turns in PILOT_TURNS.items()
@@ -93,23 +92,50 @@ def pilot_run(tmp_path: Path) -> Path:
     )
 
 
-@pytest.fixture
-def written_pilot(
+def _write_pilot_sample(
     pilot_run: Path,
-    tmp_path: Path,
-    v1_scenarios: dict[str, Scenario],
-    real_kb: KnowledgeBase,
+    out_dir: Path,
+    scenarios: dict[str, Scenario],
+    kb: KnowledgeBase,
 ) -> Path:
-    """The four files of the pilot-shaped sample, written under ``tmp_path``."""
-    out_dir = tmp_path / "out"
+    """Draw the default sample of ``pilot_run`` and write its four files."""
     sampler.write_sample(
         sampler.draw_sample(pilot_run),
         dialogues=sampler.load_dialogues(pilot_run),
-        scenarios=v1_scenarios,
-        kb=real_kb,
+        scenarios=scenarios,
+        kb=kb,
         out_dir=out_dir,
     )
     return out_dir
+
+
+@pytest.fixture(scope="module")
+def pilot_run(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return _write_pilot_run(tmp_path_factory.mktemp("pilot") / "exp_pilot")
+
+
+@pytest.fixture(scope="module")
+def pilot_sample(pilot_run: Path) -> sampler.Sample:
+    """The default draw of the pilot frame; read-only, so shared by the module."""
+    return sampler.draw_sample(pilot_run)
+
+
+@pytest.fixture(scope="module")
+def written_pilot(
+    pilot_run: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    v1_scenarios: dict[str, Scenario],
+    real_kb: KnowledgeBase,
+) -> Path:
+    """The four files of the pilot-shaped sample, written once for the module."""
+    return _write_pilot_sample(
+        pilot_run, tmp_path_factory.mktemp("written"), v1_scenarios, real_kb
+    )
+
+
+@pytest.fixture(scope="module")
+def pilot_packet(written_pilot: Path) -> str:
+    return (written_pilot / sampler.PACKET_MD).read_text(encoding="utf-8")
 
 
 def test_frame_holds_every_agent_turn_of_an_ok_dialogue(tmp_path: Path) -> None:
@@ -148,14 +174,14 @@ def test_frame_skips_a_blank_reply(tmp_path: Path) -> None:
     assert [response.turn for response in frame] == [2]
 
 
-def test_sample_spreads_evenly_over_the_scenarios(pilot_run: Path) -> None:
-    sample = sampler.draw_sample(pilot_run)
-
+def test_sample_spreads_evenly_over_the_scenarios(
+    pilot_sample: sampler.Sample,
+) -> None:
     for agent in ("baseline", "fsm"):
         per_scenario = {
             scenario_id: sum(
                 1
-                for response in sample.responses
+                for response in pilot_sample.responses
                 if response.agent == agent and response.scenario_id == scenario_id
             )
             for scenario_id in PILOT_SCENARIOS
@@ -163,17 +189,20 @@ def test_sample_spreads_evenly_over_the_scenarios(pilot_run: Path) -> None:
         assert set(per_scenario.values()) == {3}
 
 
-def test_sample_takes_at_most_two_responses_from_one_dialogue(pilot_run: Path) -> None:
-    sample = sampler.draw_sample(pilot_run)
-
+def test_sample_takes_at_most_two_responses_from_one_dialogue(
+    pilot_sample: sampler.Sample,
+) -> None:
     per_dialogue = {
         dialogue_id: sum(
-            1 for response in sample.responses if response.dialogue_id == dialogue_id
+            1
+            for response in pilot_sample.responses
+            if response.dialogue_id == dialogue_id
         )
-        for dialogue_id in {response.dialogue_id for response in sample.responses}
+        for dialogue_id in {response.dialogue_id for response in pilot_sample.responses}
     }
+
     assert max(per_dialogue.values()) == 2
-    assert sample.max_per_dialogue == 2
+    assert pilot_sample.max_per_dialogue == 2
 
 
 def test_a_short_dialogue_spills_its_share_to_the_other(tmp_path: Path) -> None:
@@ -196,23 +225,14 @@ def test_a_short_dialogue_spills_its_share_to_the_other(tmp_path: Path) -> None:
     assert per_dialogue == {"edge_02__fsm__rep01": 1, "edge_02__fsm__rep02": 2}
 
 
-def test_the_same_seed_draws_the_same_responses(pilot_run: Path) -> None:
-    first = sampler.draw_sample(pilot_run)
-    second = sampler.draw_sample(pilot_run)
-
-    assert [response.unit_id for response in first.responses] == [
-        response.unit_id for response in second.responses
-    ]
-    assert first.seed == 20260911
-
-
-def test_another_seed_draws_other_responses(pilot_run: Path) -> None:
-    default = sampler.draw_sample(pilot_run)
+def test_the_seed_fixes_the_draw(pilot_run: Path, pilot_sample: sampler.Sample) -> None:
+    again = sampler.draw_sample(pilot_run)
     other = sampler.draw_sample(pilot_run, seed=1)
 
-    assert {response.unit_id for response in default.responses} != {
-        response.unit_id for response in other.responses
-    }
+    default_ids = [response.unit_id for response in pilot_sample.responses]
+    assert default_ids == [response.unit_id for response in again.responses]
+    assert pilot_sample.seed == 20260911
+    assert set(default_ids) != {response.unit_id for response in other.responses}
 
 
 def test_a_quota_above_the_frame_raises(tmp_path: Path) -> None:
@@ -222,29 +242,23 @@ def test_a_quota_above_the_frame_raises(tmp_path: Path) -> None:
         sampler.draw_sample(run_dir, per_agent=5, agents=("fsm",))
 
 
-def test_the_response_sheet_holds_one_empty_row_per_sampled_response(
+def test_the_sheets_hold_one_empty_row_per_sampled_response_and_ok_dialogue(
     written_pilot: Path,
 ) -> None:
-    rows = _rows(written_pilot / sampler.RESPONSE_CSV)
+    responses = _rows(written_pilot / sampler.RESPONSE_CSV)
+    dialogues = _rows(written_pilot / sampler.DIALOGUE_CSV)
 
-    assert list(rows[0]) == list(sampler.RESPONSE_FIELDS)
-    assert [row["annotation_id"] for row in rows] == [
+    assert list(responses[0]) == list(sampler.RESPONSE_FIELDS)
+    assert [row["annotation_id"] for row in responses] == [
         f"A{number:02d}" for number in range(1, 31)
     ]
-    for row in rows:
+    for row in responses:
         assert set(row.values()) == {row["annotation_id"], ""}
-
-
-def test_the_dialogue_sheet_holds_one_empty_row_per_ok_dialogue(
-    written_pilot: Path,
-) -> None:
-    rows = _rows(written_pilot / sampler.DIALOGUE_CSV)
-
-    assert list(rows[0]) == list(sampler.DIALOGUE_FIELDS)
-    assert [row["dialogue_annotation_id"] for row in rows] == [
+    assert list(dialogues[0]) == list(sampler.DIALOGUE_FIELDS)
+    assert [row["dialogue_annotation_id"] for row in dialogues] == [
         f"D{number:02d}" for number in range(1, 21)
     ]
-    for row in rows:
+    for row in dialogues:
         assert set(row.values()) == {row["dialogue_annotation_id"], ""}
 
 
@@ -256,20 +270,10 @@ def test_no_annotation_file_names_an_agent(written_pilot: Path) -> None:
 
 
 def test_the_dialogue_ids_cover_every_ok_dialogue(
-    pilot_run: Path, tmp_path: Path
+    pilot_run: Path, pilot_sample: sampler.Sample, tmp_path: Path
 ) -> None:
-    sample = sampler.draw_sample(pilot_run)
     again = sampler.draw_sample(pilot_run)
     frame = sampler.build_frame(sampler.load_dialogues(pilot_run))
-    sampled = {response.dialogue_id for response in frame}
-    mapped = {dialogue.dialogue_id for dialogue in sample.dialogues}
-
-    assert mapped == sampled
-    assert len(sample.dialogues) == 20
-    assert sum(dialogue.n_sampled_responses for dialogue in sample.dialogues) == 30
-    assert [dialogue.dialogue_id for dialogue in sample.dialogues] == [
-        dialogue.dialogue_id for dialogue in again.dialogues
-    ]
     run_dir = write_run(
         tmp_path / "exp",
         [
@@ -277,7 +281,19 @@ def test_the_dialogue_ids_cover_every_ok_dialogue(
             make_log("edge_02", "fsm", 2, n_turns=4),
         ],
     )
+
     sparse = sampler.draw_sample(run_dir, per_agent=1, agents=("fsm",))
+
+    sampled = {response.dialogue_id for response in frame}
+    mapped = {dialogue.dialogue_id for dialogue in pilot_sample.dialogues}
+    assert mapped == sampled
+    assert len(pilot_sample.dialogues) == 20
+    assert (
+        sum(dialogue.n_sampled_responses for dialogue in pilot_sample.dialogues) == 30
+    )
+    assert [dialogue.dialogue_id for dialogue in pilot_sample.dialogues] == [
+        dialogue.dialogue_id for dialogue in again.dialogues
+    ]
     assert len(sparse.dialogues) == 2
     assert sorted(dialogue.n_sampled_responses for dialogue in sparse.dialogues) == [
         0,
@@ -285,45 +301,35 @@ def test_the_dialogue_ids_cover_every_ok_dialogue(
     ]
 
 
-def test_the_dialogue_ids_do_not_run_in_agent_order(pilot_run: Path) -> None:
-    sample = sampler.draw_sample(pilot_run)
+def test_the_dialogue_ids_do_not_run_in_agent_order(
+    pilot_sample: sampler.Sample,
+) -> None:
+    agents = [dialogue.agent for dialogue in pilot_sample.dialogues]
+    dialogue_ids = [dialogue.dialogue_id for dialogue in pilot_sample.dialogues]
 
-    agents = [dialogue.agent for dialogue in sample.dialogues]
     assert agents != sorted(agents)
-    assert [dialogue.dialogue_id for dialogue in sample.dialogues] != sorted(
-        dialogue.dialogue_id for dialogue in sample.dialogues
-    )
+    assert dialogue_ids != sorted(dialogue_ids)
 
 
 def test_the_sample_file_maps_every_annotation_id_to_its_response(
-    pilot_run: Path,
+    pilot_sample: sampler.Sample,
 ) -> None:
-    sample = sampler.draw_sample(pilot_run)
+    ids = [response.annotation_id for response in pilot_sample.responses]
 
-    ids = [response.annotation_id for response in sample.responses]
     assert ids == [f"A{number:02d}" for number in range(1, 31)]
-    assert len({response.unit_id for response in sample.responses}) == 30
-    assert sample.n_frame == 78
-    assert len(sample.frame_hash) == 64
+    assert len({response.unit_id for response in pilot_sample.responses}) == 30
+    assert pilot_sample.n_frame == 78
+    assert len(pilot_sample.frame_hash) == 64
 
 
 def test_a_second_write_is_byte_identical(
     pilot_run: Path,
+    written_pilot: Path,
     tmp_path: Path,
     v1_scenarios: dict[str, Scenario],
     real_kb: KnowledgeBase,
 ) -> None:
-    dialogues = sampler.load_dialogues(pilot_run)
-    first, second = tmp_path / "first", tmp_path / "second"
-
-    for out_dir in (first, second):
-        sampler.write_sample(
-            sampler.draw_sample(pilot_run),
-            dialogues=dialogues,
-            scenarios=v1_scenarios,
-            kb=real_kb,
-            out_dir=out_dir,
-        )
+    second = _write_pilot_sample(pilot_run, tmp_path / "second", v1_scenarios, real_kb)
 
     for name in (
         sampler.SAMPLE_JSON,
@@ -331,18 +337,26 @@ def test_a_second_write_is_byte_identical(
         sampler.DIALOGUE_CSV,
         sampler.PACKET_MD,
     ):
-        assert (first / name).read_bytes() == (second / name).read_bytes()
+        assert (written_pilot / name).read_bytes() == (second / name).read_bytes()
 
 
-def test_the_packet_carries_the_whole_fact_catalogue(
-    written_pilot: Path, real_kb: KnowledgeBase
+def test_the_packet_carries_the_fact_catalogue_and_each_responses_evidence(
+    pilot_packet: str,
+    pilot_sample: sampler.Sample,
+    v1_scenarios: dict[str, Scenario],
+    real_kb: KnowledgeBase,
 ) -> None:
-    packet = (written_pilot / sampler.PACKET_MD).read_text(encoding="utf-8")
-
-    assert "## Knowledge base" in packet
+    assert "## Knowledge base" in pilot_packet
     for fact in real_kb.facts:
-        assert fact.id in packet
-        assert fact.text in packet
+        assert fact.id in pilot_packet
+        assert fact.text in pilot_packet
+    for response in pilot_sample.responses:
+        entry = _entry(pilot_packet, response.annotation_id)
+        scenario = v1_scenarios[response.scenario_id]
+        assert f"`{pilot_sample.dialogue_annotation_id(response.dialogue_id)}`" in entry
+        assert f"turn {response.turn}" in entry
+        assert all(fact_id in entry for fact_id in scenario.required_facts)
+        assert "knowledge base above" in entry
 
 
 def test_the_packet_names_the_needle_id_the_judge_sees(
@@ -374,75 +388,43 @@ def test_the_packet_names_the_needle_id_the_judge_sees(
     assert all(line == "- needle fact: F18" for line in needles)
 
 
-def test_every_sampled_response_points_at_its_evidence(
-    written_pilot: Path, pilot_run: Path, v1_scenarios: dict[str, Scenario]
+def test_the_packet_prints_each_dialogue_once_in_sheet_order(
+    pilot_packet: str, pilot_sample: sampler.Sample
 ) -> None:
-    packet = (written_pilot / sampler.PACKET_MD).read_text(encoding="utf-8")
-    sample = sampler.draw_sample(pilot_run)
-
-    for response in sample.responses:
-        entry = _entry(packet, response.annotation_id)
-        scenario = v1_scenarios[response.scenario_id]
-        assert f"`{sample.dialogue_annotation_id(response.dialogue_id)}`" in entry
-        assert f"turn {response.turn}" in entry
-        assert all(fact_id in entry for fact_id in scenario.required_facts)
-        assert "knowledge base above" in entry
-
-
-def test_the_packet_lists_dialogues_in_sheet_order(
-    written_pilot: Path, pilot_run: Path
-) -> None:
-    packet = (written_pilot / sampler.PACKET_MD).read_text(encoding="utf-8")
-    sample = sampler.draw_sample(pilot_run)
-
     headings = [
         line
-        for line in packet.splitlines()
+        for line in pilot_packet.splitlines()
         if line.startswith("## D") and line[4:6].isdigit()
     ]
+
     assert headings == [
-        f"## {dialogue.dialogue_annotation_id}" for dialogue in sample.dialogues
+        f"## {dialogue.dialogue_annotation_id}" for dialogue in pilot_sample.dialogues
     ]
-    assert packet.count("Transcript:") == len(sample.dialogues)
-
-
-def test_the_packet_prints_each_dialogue_once(
-    written_pilot: Path, pilot_run: Path
-) -> None:
-    packet = (written_pilot / sampler.PACKET_MD).read_text(encoding="utf-8")
-    sample = sampler.draw_sample(pilot_run)
-
-    for dialogue in sample.dialogues:
-        entry = _entry(packet, dialogue.dialogue_annotation_id)
+    assert pilot_packet.count("Transcript:") == len(pilot_sample.dialogues)
+    for dialogue in pilot_sample.dialogues:
+        entry = _entry(pilot_packet, dialogue.dialogue_annotation_id)
         assert "Transcript:" in entry
         assert "Success criterion:" in entry
         assert ">>>" not in entry
-        for response in sample.responses:
+        for response in pilot_sample.responses:
             if response.dialogue_id != dialogue.dialogue_id:
                 continue
-            stub = _entry(packet, response.annotation_id)
+            stub = _entry(pilot_packet, response.annotation_id)
             assert "Success criterion:" not in stub
             assert "Transcript:" not in stub
             assert dialogue.dialogue_annotation_id in stub
 
 
 def test_writing_never_reads_the_judge_output_files(
-    pilot_run: Path,
     tmp_path: Path,
     v1_scenarios: dict[str, Scenario],
     real_kb: KnowledgeBase,
 ) -> None:
+    run_dir = _write_pilot_run(tmp_path / "exp_pilot")
     for name in ("metrics.csv", "metrics_turn.csv", "llm_calls.jsonl", "unscored.csv"):
-        (pilot_run / name).write_text("JUDGE_OUTPUT_SENTINEL\n", encoding="utf-8")
-    out_dir = tmp_path / "out"
+        (run_dir / name).write_text("JUDGE_OUTPUT_SENTINEL\n", encoding="utf-8")
 
-    sampler.write_sample(
-        sampler.draw_sample(pilot_run),
-        dialogues=sampler.load_dialogues(pilot_run),
-        scenarios=v1_scenarios,
-        kb=real_kb,
-        out_dir=out_dir,
-    )
+    out_dir = _write_pilot_sample(run_dir, tmp_path / "out", v1_scenarios, real_kb)
 
     for path in sorted(out_dir.iterdir()):
         assert "JUDGE_OUTPUT_SENTINEL" not in path.read_text(encoding="utf-8")

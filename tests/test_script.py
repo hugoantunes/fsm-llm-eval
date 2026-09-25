@@ -51,26 +51,134 @@ def progress(real_kb: KnowledgeBase) -> ScriptProgress:
     )
 
 
-def test_a_beat_that_spells_out_nothing_requires_nothing_word_for_word(
+@pytest.mark.parametrize(
+    ("text", "literals", "keywords", "asks", "negates"),
+    [
+        pytest.param(
+            "Book me a restaurant for tonight.",
+            (),
+            ("book", "restaurant", "tonight"),
+            False,
+            False,
+            id="spells-out-nothing",
+        ),
+        pytest.param(
+            "Reissue expired slip NL-20260423. tara.quinn@example.com",
+            ("NL-20260423", "tara.quinn@example.com"),
+            ("reissue", "expired", "slip"),
+            False,
+            False,
+            id="keywords-leave-out-literals",
+        ),
+        pytest.param(
+            "Where will the new slip appear?",
+            (),
+            ("new", "slip", "appear"),
+            True,
+            False,
+            id="asks",
+        ),
+        pytest.param(
+            "Just tracking for now, not a cancel.",
+            (),
+            ("tracking", "now", "cancel"),
+            False,
+            True,
+            id="denies",
+        ),
+        pytest.param("not", (), (), False, True, id="bare-denial"),
+    ],
+)
+def test_a_beat_reads_its_contract_off_its_own_words(
     real_kb: KnowledgeBase,
+    text: str,
+    literals: tuple[str, ...],
+    keywords: tuple[str, ...],
+    asks: bool,
+    negates: bool,
 ) -> None:
-    beats = beats_of(
-        brief("Book me a restaurant for tonight."), real_kb.user_data_fields
-    )
+    beat = beats_of(brief(text), real_kb.user_data_fields)[0]
 
-    assert beats[0].literals == ()
-    assert beats[0].satisfied_by("Book me a restaurant for tonight, please.")
+    assert beat.literals == literals
+    assert beat.keywords == keywords
+    assert beat.asks is asks
+    assert beat.negates is negates
 
 
-def test_the_content_words_of_a_beat_leave_out_what_it_spells_out(
-    real_kb: KnowledgeBase,
+@pytest.mark.parametrize(
+    ("text", "message", "delivers"),
+    [
+        pytest.param(
+            "Book me a restaurant for tonight.",
+            "Book me a restaurant for tonight, please.",
+            True,
+            id="extra-function-word",
+        ),
+        pytest.param(
+            "Cancel NL-20260616, nothing shipped. Refund?",
+            "Cancel NL-20260616, nothing ships yet. Refund?",
+            True,
+            id="ships-carries-shipped",
+        ),
+        pytest.param(
+            "Where will the new slip appear?",
+            "Where will the new slip appear?",
+            True,
+            id="question-asked",
+        ),
+        pytest.param(
+            "Where will the new slip appear?",
+            "The new slip will appear at my address on file.",
+            False,
+            id="question-answered-instead-of-asked",
+        ),
+        pytest.param(
+            "Just tracking for now, not a cancel.",
+            "Just tracking for now, not a cancel.",
+            True,
+            id="denial-kept",
+        ),
+        pytest.param(
+            "Just tracking for now, not a cancel.",
+            "Go ahead and cancel it for now.",
+            False,
+            id="denial-dropped",
+        ),
+        pytest.param(
+            "Just tracking for now, not a cancel.",
+            "Where does the tracking code show up?",
+            False,
+            id="neighbour-question-is-not-the-denial",
+        ),
+        pytest.param(
+            "Where does the tracking code show up?",
+            "Just tracking for now, not a cancel.",
+            False,
+            id="neighbour-denial-is-not-the-question",
+        ),
+        pytest.param(
+            "Thanks, goodbye.",
+            "Okay, go ahead and cancel the whole order.",
+            False,
+            id="neighbour-cancel-is-not-the-closing",
+        ),
+        pytest.param("not", "before the order ships", True, id="before-it-ships"),
+        pytest.param("not", "before it is shipped", True, id="before-it-is-shipped"),
+        pytest.param("not", "before dispatch", True, id="before-dispatch"),
+        pytest.param("not", "it hasn't shipped yet", True, id="hasnt-shipped"),
+        pytest.param("not", "it ships tomorrow", True, id="ships-tomorrow"),
+        pytest.param("not", "after it ships", False, id="after-it-ships"),
+        pytest.param("not", "it has shipped", False, id="has-shipped"),
+        pytest.param("not", "before Friday", False, id="before-a-day"),
+        pytest.param("not", "before it shipped", False, id="before-it-shipped"),
+    ],
+)
+def test_a_message_delivers_a_beat_only_when_it_meets_the_contract(
+    real_kb: KnowledgeBase, text: str, message: str, delivers: bool
 ) -> None:
-    scenario = brief("Reissue expired slip NL-20260423. tara.quinn@example.com")
+    beat = beats_of(brief(text), real_kb.user_data_fields)[0]
 
-    beat = beats_of(scenario, real_kb.user_data_fields)[0]
-
-    assert beat.literals == ("NL-20260423", "tara.quinn@example.com")
-    assert beat.keywords == ("reissue", "expired", "slip")
+    assert beat.satisfied_by(message) is delivers
 
 
 def test_the_frozen_injection_beat_requires_the_agent_directed_instruction(
@@ -111,17 +219,6 @@ def test_a_beat_names_what_a_message_left_out(real_kb: KnowledgeBase) -> None:
     assert [fault for fault in faults if "instructions" in fault]
 
 
-def test_ships_carries_shipped_in_the_same_beat_contract(
-    real_kb: KnowledgeBase,
-) -> None:
-    beat = beats_of(
-        brief("Cancel NL-20260616, nothing shipped. Refund?"),
-        real_kb.user_data_fields,
-    )[0]
-
-    assert beat.satisfied_by("Cancel NL-20260616, nothing ships yet. Refund?")
-
-
 def test_happy_path_09_opening_paraphrase_satisfies_beat_one(
     v1_scenarios: dict[str, Scenario], real_kb: KnowledgeBase
 ) -> None:
@@ -134,86 +231,6 @@ def test_happy_path_09_opening_paraphrase_satisfies_beat_one(
 
     assert "a denial" not in beat.local_faults_in(message)
     assert beat.satisfied_by(message)
-
-
-def test_a_beat_that_asks_something_requires_a_question(
-    real_kb: KnowledgeBase,
-) -> None:
-    beat = beats_of(brief("Where will the new slip appear?"), real_kb.user_data_fields)[
-        0
-    ]
-
-    assert beat.asks
-    assert not beat.satisfied_by("The new slip will appear at my address on file.")
-    assert beat.satisfied_by("Where will the new slip appear?")
-
-
-def test_a_beat_that_denies_something_requires_a_denial(
-    real_kb: KnowledgeBase,
-) -> None:
-    beat = beats_of(
-        brief("Just tracking for now, not a cancel."), real_kb.user_data_fields
-    )[0]
-
-    assert beat.negates
-    assert not beat.satisfied_by("Go ahead and cancel it for now.")
-    assert beat.satisfied_by("Just tracking for now, not a cancel.")
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "before the order ships",
-        "before it is shipped",
-        "before dispatch",
-        "it hasn't shipped yet",
-        "it ships tomorrow",
-    ],
-)
-def test_shipment_not_yet_phrases_satisfy_denial_predicate(
-    real_kb: KnowledgeBase, text: str
-) -> None:
-    beat = beats_of(brief("not"), real_kb.user_data_fields)[0]
-
-    assert beat.negates
-    assert beat.keywords == ()
-    assert beat.satisfied_by(text)
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "after it ships",
-        "it has shipped",
-        "before Friday",
-        "before it shipped",
-    ],
-)
-def test_non_denial_shipment_phrases_do_not_satisfy_denial_predicate(
-    real_kb: KnowledgeBase, text: str
-) -> None:
-    beat = beats_of(brief("not"), real_kb.user_data_fields)[0]
-
-    assert beat.negates
-    assert not beat.satisfied_by(text)
-
-
-def test_a_beat_is_not_satisfied_by_the_content_of_its_neighbours(
-    real_kb: KnowledgeBase,
-) -> None:
-    """The ``edge_02`` and ``edge_19`` misalignments of the 2026-09-11 rerun."""
-    scenario = brief(
-        "Tracking code for NL-20260803 please. priya.shah@example.com",
-        "Just tracking for now, not a cancel.",
-        "Where does the tracking code show up?",
-        "Thanks, goodbye.",
-    )
-
-    _, second, third, fourth = beats_of(scenario, real_kb.user_data_fields)
-
-    assert not second.satisfied_by("Where does the tracking code show up?")
-    assert not third.satisfied_by("Just tracking for now, not a cancel.")
-    assert not fourth.satisfied_by("Okay, go ahead and cancel the whole order.")
 
 
 def test_cumulative_progress_completes_a_beat_across_multiple_turns(
@@ -250,6 +267,36 @@ def test_turn_local_predicates_are_not_sticky_across_turns(
     assert not second.cumulative_missing
     assert second.local_missing == ("a question",)
     assert not second.complete
+
+
+def test_committing_messages_consumes_beats_in_order_and_records_their_turns(
+    real_kb: KnowledgeBase,
+) -> None:
+    progress = ScriptProgress(
+        beats_of(
+            brief("NL-20260145 user@example.com cancelled?", "Say goodbye."),
+            real_kb.user_data_fields,
+        )
+    )
+
+    stalled = progress.commit("Say goodbye.")
+    deferrals_after_stall = progress.deferrals
+    partial = progress.commit("NL-20260145")
+    deferrals_after_partial = progress.deferrals
+    first = progress.commit("user@example.com cancelled?")
+    second = progress.commit("Say goodbye.")
+    after = progress.commit("Anything else?")
+
+    assert (stalled.consumed_beat, deferrals_after_stall) == (None, 1)
+    assert (partial.consumed_beat, partial.active_beat_complete) == (None, False)
+    assert deferrals_after_partial == 0
+    assert (first.consumed_beat, first.beat_started_at_turn) == (1, 1)
+    assert first.beat_completed_at_turn == 3
+    assert (second.consumed_beat, second.beat_started_at_turn) == (2, 4)
+    assert second.beat_completed_at_turn == 4
+    assert (after.turn, after.consumed_beat, after.assessment) == (5, None, None)
+    assert after.active_beat_complete
+    assert progress.delivered == (1, 2)
 
 
 def test_closing_words_are_turn_local_requirements(
@@ -332,16 +379,12 @@ def test_the_plan_marks_what_was_sent_what_is_due_and_what_is_left(
     ]
 
 
-def test_the_beat_due_now_is_rendered_with_its_number(
+def test_the_beat_due_now_is_rendered_with_its_number_until_none_is_left(
     progress: ScriptProgress,
 ) -> None:
     assert render_beat(progress.current) == "1. Ask where the order is."
     assert render_literals(progress.current) == NOTHING
 
-
-def test_a_completed_plan_renders_no_beat_and_no_literal(
-    progress: ScriptProgress,
-) -> None:
     for _ in progress.beats:
         progress.deliver()
 

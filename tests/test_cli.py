@@ -35,101 +35,94 @@ def test_help_lists_both_subcommands(capsys: pytest.CaptureFixture[str]) -> None
     assert "eval" in out
 
 
-def test_subcommand_is_required() -> None:
-    with pytest.raises(SystemExit) as exc_info:
-        build_parser().parse_args([])
-
-    assert exc_info.value.code == 2
+RUN_ARGV = ["run", "--scenarios", "data/scenarios/examples", "--exp-id", "exp"]
 
 
-def test_run_accepts_an_agent_with_defaults() -> None:
-    argv = [
-        "run",
-        "--agent",
-        "baseline",
-        "--scenarios",
-        "data/scenarios/examples",
-        "--exp-id",
-        "exp",
-    ]
-
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        pytest.param(
+            [*RUN_ARGV, "--agent", "baseline"],
+            {
+                "command": "run",
+                "agent": ["baseline"],
+                "scenarios": "data/scenarios/examples",
+                "exp_id": "exp",
+                "runs_dir": "runs",
+                "reps": 1,
+                "parallel": 1,
+                "resume": False,
+            },
+            id="run_with_agent_uses_defaults",
+        ),
+        pytest.param(RUN_ARGV, {"agent": None}, id="run_without_agent_selects_both"),
+        pytest.param(
+            ["eval", "--run", "runs/exp_pilot"],
+            {"command": "eval", "run": "runs/exp_pilot", "parallel": 1},
+            id="eval_parses_run_directory",
+        ),
+        pytest.param(
+            ["eval", "--run", "runs/exp_pilot", "--parallel", "2"],
+            {"parallel": 2},
+            id="eval_parses_parallel",
+        ),
+        pytest.param(
+            [
+                "eval",
+                "--run",
+                "runs/exp_final",
+                "--include-failed-from",
+                "runs/exp_final/adjudication/contract_false_positives.json",
+                "--out",
+                "runs/exp_final_semantic",
+            ],
+            {
+                "include_failed_from": Path(
+                    "runs/exp_final/adjudication/contract_false_positives.json"
+                ),
+                "out": Path("runs/exp_final_semantic"),
+            },
+            id="eval_parses_sidecar_inclusion_flags",
+        ),
+        pytest.param(
+            ["eval", "--run", "runs/exp_final", "--include-failed-from"],
+            {"include_failed_from": CONTRACT_FALSE_POSITIVES_RELATIVE, "out": None},
+            id="eval_include_failed_from_defaults_to_the_contract_path",
+        ),
+    ],
+)
+def test_parser_maps_argv_to_fields(
+    argv: list[str], expected: dict[str, object]
+) -> None:
     args = build_parser().parse_args(argv)
 
-    assert args.command == "run"
-    assert args.agent == ["baseline"]
-    assert args.scenarios == "data/scenarios/examples"
-    assert args.exp_id == "exp"
-    assert args.runs_dir == "runs"
-    assert (args.reps, args.parallel, args.resume) == (1, 1, False)
+    assert {name: getattr(args, name) for name in expected} == expected
 
 
-def test_run_without_agent_selects_both() -> None:
-    args = build_parser().parse_args(
-        ["run", "--scenarios", "data/scenarios/examples", "--exp-id", "exp"]
-    )
-
-    assert args.agent is None
-
-
-def test_run_rejects_unknown_agent(capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.parametrize(
+    ("argv", "stderr_substrings"),
+    [
+        pytest.param([], (), id="subcommand_is_required"),
+        pytest.param(
+            ["run", "--agent", "gpt", "--scenarios", "x", "--exp-id", "exp"],
+            ("--agent",),
+            id="run_rejects_unknown_agent",
+        ),
+        pytest.param(["eval"], (), id="eval_requires_run_directory"),
+    ],
+)
+def test_parser_exits_2_on_invalid_argv(
+    argv: list[str],
+    stderr_substrings: tuple[str, ...],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     with pytest.raises(SystemExit) as exc_info:
-        build_parser().parse_args(
-            ["run", "--agent", "gpt", "--scenarios", "x", "--exp-id", "exp"]
-        )
+        build_parser().parse_args(argv)
 
     assert exc_info.value.code == 2
-    assert "--agent" in capsys.readouterr().err
-
-
-def test_eval_requires_run_directory() -> None:
-    with pytest.raises(SystemExit) as exc_info:
-        build_parser().parse_args(["eval"])
-
-    assert exc_info.value.code == 2
-
-
-def test_eval_parses_run_directory() -> None:
-    args = build_parser().parse_args(["eval", "--run", "runs/exp_pilot"])
-
-    assert args.command == "eval"
-    assert args.run == "runs/exp_pilot"
-    assert args.parallel == 1
-
-
-def test_eval_parses_parallel() -> None:
-    args = build_parser().parse_args(
-        ["eval", "--run", "runs/exp_pilot", "--parallel", "2"]
-    )
-
-    assert args.parallel == 2
-
-
-def test_eval_parses_sidecar_inclusion_flags() -> None:
-    args = build_parser().parse_args(
-        [
-            "eval",
-            "--run",
-            "runs/exp_final",
-            "--include-failed-from",
-            "runs/exp_final/adjudication/contract_false_positives.json",
-            "--out",
-            "runs/exp_final_semantic",
-        ]
-    )
-
-    assert args.include_failed_from == Path(
-        "runs/exp_final/adjudication/contract_false_positives.json"
-    )
-    assert args.out == Path("runs/exp_final_semantic")
-
-
-def test_eval_parses_include_failed_from_without_a_path() -> None:
-    args = build_parser().parse_args(
-        ["eval", "--run", "runs/exp_final", "--include-failed-from"]
-    )
-
-    assert args.include_failed_from == CONTRACT_FALSE_POSITIVES_RELATIVE
-    assert args.out is None
+    err = capsys.readouterr().err
+    for substring in stderr_substrings:
+        assert substring in err
 
 
 def test_eval_cli_exits_1_on_a_parallel_below_one(

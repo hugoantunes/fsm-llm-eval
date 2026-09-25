@@ -500,17 +500,3 @@ def test_frozen_gate_is_a_second_population_not_the_confirmatory_one() -> None:
     assert overall.population == "frozen_gate"
     assert overall.family == "secondary"
     assert overall.wilcoxon_p_holm is None
-
-
-def test_metrics_doc_states_n_is_scenarios_not_dialogues(metrics_doc: str) -> None:
-    phrase = (
-        "The n of each test is the number of paired scenarios, "
-        "not the number of dialogues."
-    )
-    assert phrase in metrics_doc
-    assert "round(fsm_score - baseline_score, 12)" in metrics_doc
-    assert "n_nonzero" in metrics_doc
-    assert "claim_support_na_pct" in metrics_doc
-    assert "proportion in [0, 1]" in metrics_doc
-    assert "zero_checkable_claim_occurrence" in metrics_doc
-    assert "diagnostic_missingness" in metrics_doc

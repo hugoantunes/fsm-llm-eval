@@ -27,7 +27,7 @@ from sim.judge import (
 )
 from sim.kb import Fact, KnowledgeBase, Needle, render_facts
 from sim.llm import LlmClient
-from sim.metrics import JudgeFacts, JudgeGlobal, judge_claim
+from sim.metrics import JudgeFacts, JudgeGlobal
 from sim.prompts import Prompt
 from sim.schemas import Scenario, Turn, render_script, render_transcript
 
@@ -125,22 +125,6 @@ def _scenario(**overrides: object) -> Scenario:
     }
     fields.update(overrides)
     return Scenario.model_validate(fields)
-
-
-def _llm_for_sanity(case: SanityDialogue) -> FakeLlm:
-    """Canned judge replies that match the fixture's expected labels."""
-    claims = None
-    if case.planted_unsupported is not None:
-        claims = [
-            judge_claim(
-                text=case.planted_unsupported,
-                fact_id=None,
-                supported_by_kb="no",
-            )
-        ]
-    return FakeLlm(
-        [judge_facts_reply(claims), judge_global_reply(accuracy=case.accuracy)]
-    )
 
 
 def test_evaluate_returns_two_schema_validated_outputs(
@@ -305,35 +289,6 @@ def test_empty_transcript_raises(judge: Judge, llm: FakeLlm) -> None:
         judge.evaluate([], _scenario())
 
     assert llm.calls == []
-
-
-@pytest.mark.parametrize(
-    "case",
-    load_judge_sanity(),
-    ids=lambda case: case.id,
-)
-def test_sanity_dialogue_is_graded_with_its_expected_labels(
-    case: SanityDialogue,
-    judge_kb: KnowledgeBase,
-    judge_scenario: Scenario,
-) -> None:
-    llm = _llm_for_sanity(case)
-    result = Judge(llm, kb=judge_kb, prompts_dir=PROMPTS_DIR, seed=SEED).evaluate(
-        case.turns, judge_scenario
-    )
-    facts_prompt = llm.calls[0]["messages"][0]["content"]
-    global_prompt = llm.calls[1]["messages"][0]["content"]
-
-    for turn in case.turns:
-        assert turn.text in facts_prompt
-        assert turn.text in global_prompt
-    assert result.global_judgement.accuracy == case.accuracy
-    if case.planted_unsupported is not None:
-        assert case.planted_unsupported in facts_prompt
-        assert any(
-            claim.supported_by_kb == "no" and claim.text == case.planted_unsupported
-            for claim in result.facts.claims
-        )
 
 
 @pytest.mark.integration

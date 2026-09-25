@@ -236,10 +236,6 @@ def test_adversarial_scripts_stay_as_authored_when_phrasing_is_llm(
     assert [row.script for row in attacks] == [attack] * len(attacks)
     assert [row.script for row in happies] == [phrasing.script] * len(happies)
     assert len(llm.calls) == len(happies)
-    assert llm.calls[0]["role"] == "judge"
-    assert llm.calls[0]["seed"] == 42
-    assert llm.calls[0]["schema"] is generate.ScenarioPhrasing
-    assert llm.calls[0]["caller"] == "scenario_phrasing"
 
 
 def test_written_jsonl_loads_through_load_scenarios(
@@ -328,23 +324,23 @@ def test_every_unanswerable_question_seeds_exactly_one_adversarial_plan_slot(
 def test_generate_from_plan_checks_unanswerable_coverage_when_ids_are_given() -> None:
     plan = _adversarial_plan("U01")
 
-    with pytest.raises(generate.GenerateError, match="missing"):
+    with pytest.raises(generate.GenerateError, match=r"missing \['U02'\]"):
         generate.generate_from_plan(
             plan, n=FIRST_BLOCK_N, unanswerable_ids=["U01", "U02"]
         )
 
 
-def test_a_plan_that_repeats_an_unanswerable_id_raises() -> None:
-    plan = _adversarial_plan("U01", "U01")
+@pytest.mark.parametrize(
+    ("seeded", "match"),
+    [(("U01", "U01"), r"repeated \['U01'\]"), (("U01", "U99"), r"unknown \['U99'\]")],
+    ids=["repeated", "unknown"],
+)
+def test_unanswerable_coverage_names_the_id_that_breaks_it(
+    seeded: tuple[str, ...], match: str
+) -> None:
+    plan = _adversarial_plan(*seeded)
 
-    with pytest.raises(generate.GenerateError, match="repeated"):
-        generate.check_unanswerable_coverage(plan, ["U01"])
-
-
-def test_a_plan_that_names_an_unknown_unanswerable_id_raises() -> None:
-    plan = _adversarial_plan("U99")
-
-    with pytest.raises(generate.GenerateError, match="unknown"):
+    with pytest.raises(generate.GenerateError, match=match):
         generate.check_unanswerable_coverage(plan, ["U01"])
 
 

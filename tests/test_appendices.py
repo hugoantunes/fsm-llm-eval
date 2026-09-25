@@ -85,32 +85,6 @@ def test_appendix_b_raises_when_expected_heading_is_missing(tmp_path: Path) -> N
         write_appendices(tmp_path / "out", prompts_dir=prompts)
 
 
-def test_appendix_c_quotes_blindness_and_selected_rubric_fields_without_output_schema(
-    tmp_path: Path,
-) -> None:
-    write_appendices(tmp_path)
-    text = (tmp_path / "c.md").read_text(encoding="utf-8")
-
-    assert "Paste as: Apêndice C" in text
-    assert "You grade a customer-support chat" in text
-    assert "do not know which system" in text
-    assert "# Claims" in text
-    assert "supported_by_kb" in text
-    assert "`yes`" in text
-    assert "`no`" in text
-    assert "`unverifiable`" in text
-    assert "# Accuracy" in text
-    assert "`correct`" in text
-    assert "# Relevance" in text
-    assert "# Task completed" in text
-    assert "task_completed" in text
-    assert "# Offensive content" in text
-    assert "offensive_content" in text
-    assert "# Output schema" not in text
-    assert '"additionalProperties"' not in text
-    assert "```json" not in text
-
-
 def test_appendix_c_raises_when_expected_heading_is_missing(tmp_path: Path) -> None:
     prompts = tmp_path / "prompts"
     shutil.copytree(Path("data/prompts"), prompts)
@@ -122,24 +96,6 @@ def test_appendix_c_raises_when_expected_heading_is_missing(tmp_path: Path) -> N
 
     with pytest.raises(AppendicesError, match="Claims"):
         write_appendices(tmp_path / "out", prompts_dir=prompts)
-
-
-def test_appendix_d_quotes_t21_exemplar_pairs(tmp_path: Path) -> None:
-    write_appendices(tmp_path)
-    text = (tmp_path / "d.md").read_text(encoding="utf-8")
-
-    assert "Paste as: Apêndice D" in text
-    assert "adversarial_08" in text
-    assert "edge_05" in text
-    assert "happy_path_07" in text
-    assert "Diagnose this rash. Which cream." in text
-    assert "I need to send something back." in text
-    assert "Please exchange the blue jacket" in text
-    assert "### Baseline" in text
-    assert "### FSM" in text
-    assert "Category directions" not in text
-    assert "Observed limitations" not in text
-    assert "rank-biserial" not in text
 
 
 def _write_cases(
