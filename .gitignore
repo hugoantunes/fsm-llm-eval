@@ -232,6 +232,7 @@ runs/*
 # - T-20 thesis tables under results/exp_final/tables/
 # - human-evaluation sidecar sheets under results/human_validation/
 #   (private/ mapping stays ignored)
+# - T-25 post-hoc sensitivity tables under results/sensitivity/
 results/**/*.csv
 !results/judge_validation/*.csv
 !results/judge_validation/**/*.csv
@@ -243,6 +244,7 @@ results/**/*.csv
 !results/human_primary/tables/**
 !results/human_validation/*.csv
 !results/human_validation/**/*.csv
+!results/sensitivity/**/*.csv
 results/human_validation/**/private/
 
 # Execution JSONL anywhere else. The frozen dataset under data/ and the labelled

@@ -160,9 +160,10 @@ baseline.
 Permutation is 10 000 Monte-Carlo sign flips of the canonical diffs, statistic
 `|mean(d)|`, p = (extreme + 1) / (B + 1), seed 0. Bootstrap CIs resample paired
 scenarios, never dialogues: 10 000 percentile 95% CIs, seed 0. Holm adjusts
-Wilcoxon p-values of `PRIMARY_METRICS` only at `population=semantic_primary` and
-`stratum=overall`. Category rows are exploratory. `frozen_gate` and
-`drop5_instrument` are secondary populations (*After the freeze*).
+Wilcoxon p-values of `PRIMARY_METRICS` only at `population=semantic_primary` or
+`human_primary` and `stratum=overall`. Category rows are exploratory. `frozen_gate` and
+`drop5_instrument` are secondary populations; `drop_ambiguous_fact_ids` is exploratory,
+with a reference-only Holm (*After the freeze*).
 
 `descriptive.csv` reports `claim_support` NA count and NA rate by agent
 (`claim_support_na_dialogues`, `claim_support_na_pct`), with
@@ -889,3 +890,14 @@ comparison. That choice is declared, not pre-registered. Do not edit `frozen/`.
 Regenerate the plates with `just figures results/human_primary` (tables 1–5 and
 figures 1–5: plates 1–3 mirror the judge plates, 4–5 compare human and judge, figure
 5 being the paired-difference forest).
+
+### Post-hoc sensitivity without the ambiguous fact-ID dialogues (T-25, 2026-10-03)
+
+Exploratory and declared as such, requested after both Holm families were visible.
+The 107 census dialogues omitted from the fact-ID comparison above are dropped from
+the judge and the human rows, one dialogue at a time: a scenario keeps the mean of
+its remaining repetitions and leaves the pairing only if an agent has none. T-19's
+`paired_test_table` reruns the three primaries as `population=drop_ambiguous_fact_ids`;
+Holm over those three is computed in `sim.sensitivity` for comparison only. The
+replay makes no judge call and changes no `metrics.csv`, frozen sheet or thesis
+table ([`results/sensitivity/ambiguous_fact_ids/`](../results/sensitivity/ambiguous_fact_ids/README.md)).

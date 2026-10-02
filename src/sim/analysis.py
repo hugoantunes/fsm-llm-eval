@@ -6,7 +6,7 @@ differences are canonicalized once and reused by every paired statistic.
 """
 
 from collections import defaultdict
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from csv import DictReader, DictWriter
 from dataclasses import asdict, dataclass, replace
 from importlib import metadata
@@ -29,6 +29,7 @@ SEMANTIC_PRIMARY = "semantic_primary"
 HUMAN_PRIMARY = "human_primary"
 FROZEN_GATE = "frozen_gate"
 DROP5_INSTRUMENT = "drop5_instrument"
+DROP_AMBIGUOUS_FACT_IDS = "drop_ambiguous_fact_ids"
 Family = Literal["primary", "secondary", "exploratory"]
 Direction = Literal["fsm", "baseline", "tie"]
 ZERO_CHECKABLE_METRIC = "zero_checkable_claim_occurrence"
@@ -213,7 +214,7 @@ def holm_adjust(
 
 def family_of(*, metric: str, population: str, stratum: str) -> Family:
     """Label a test as primary, secondary, or exploratory."""
-    if stratum != OVERALL:
+    if stratum != OVERALL or population == DROP_AMBIGUOUS_FACT_IDS:
         return "exploratory"
     if population in {SEMANTIC_PRIMARY, HUMAN_PRIMARY} and metric in PRIMARY_METRICS:
         return "primary"
@@ -427,6 +428,27 @@ def rows_for_population(
             if str(row["scenario_id"]) not in INSTRUMENT_DROP_SCENARIOS
         ]
     return copied
+
+
+def rows_without_dialogues(
+    rows: Sequence[Mapping[str, object]],
+    dialogues: Collection[tuple[str, str, int]],
+) -> list[dict[str, object]]:
+    """Drop the dialogues keyed ``(scenario_id, agent, repetition)``.
+
+    Exclusion is per dialogue: a scenario keeps the mean of its remaining
+    repetitions. A key absent from ``rows`` raises instead of filtering nothing.
+    """
+    excluded = set(dialogues)
+    missing = sorted(excluded - {dialogue_key(row) for row in rows})
+    if missing:
+        raise ValueError(f"dialogues not in the metrics rows: {missing}")
+    return [dict(row) for row in rows if dialogue_key(row) not in excluded]
+
+
+def dialogue_key(row: Mapping[str, object]) -> tuple[str, str, int]:
+    """``(scenario_id, agent, repetition)`` of a metrics row."""
+    return (str(row["scenario_id"]), str(row["agent"]), int(str(row["repetition"])))
 
 
 @dataclass(frozen=True)

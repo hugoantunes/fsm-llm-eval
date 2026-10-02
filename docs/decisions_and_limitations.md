@@ -279,6 +279,11 @@ Human vs judge agreement on this census: `task_completed` 89.4% / κ = 0.729
 because two `judge_facts` calls reproduce the frozen metrics row and disagree
 on predicted IDs (GGUF vs MLX in `llm_calls.jsonl`). Those 107 stay in the
 human confirmatory tests; they are missing only from the ID-set agreement.
+A post-hoc, exploratory sensitivity (T-25) drops them from both instruments and
+reruns the primary tests on 56 paired scenarios
+(`results/sensitivity/ambiguous_fact_ids/`): the judge's `fact_f1` difference is
+−0.075, 95% CI [−0.131, −0.022], reference Holm p = 0.060; the human
+`claim_support` difference is +0.045, CI [−0.011, 0.100], reference Holm p = 0.180.
 
 On the human Holm family, only `claim_support` is significant: mean paired
 difference +0.047, 95% CI [0.003, 0.090], p Holm = 0.048 (Wilcoxon p = 0.016,
@@ -290,7 +295,8 @@ judge's `fact_f1` FSM deficit is not reproduced by the human labels.
 
 Mitigation: report both instruments; do not retune the judge; do not edit
 frozen sheets; name the 107 omissions; delimit the conclusion to claim
-support, and treat p Holm = 0.048 / CI [0.003, 0.090] as a fragile result.
+support, and treat p Holm = 0.048 / CI [0.003, 0.090] as a fragile result; its
+interval includes zero in the T-25 sensitivity.
 
 ### English-only experiment
 

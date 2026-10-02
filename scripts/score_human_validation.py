@@ -43,6 +43,7 @@ from sim.judge import redact_canary
 from sim.kb import DEFAULT_KB_DIR, FACT_ID_SCHEMA_PATTERN, KnowledgeBase, load_kb
 from sim.metrics import JudgeClaim, fact_scores, judge_claim
 from sim.schemas import DialogueLog, Scenario, load_scenarios, render_transcript
+from sim.sensitivity import write_dialogue_keys
 
 DEFAULT_PACKET = Path("results/human_validation/exp_final")
 DEFAULT_METRICS = Path("results/exp_final/metrics.csv")
@@ -728,6 +729,7 @@ def score_packet(
     except DecompositionError as failure:
         raise ScoreError(str(failure)) from failure
     agreement = compare_instrument(human, judge_metrics, judge_claims)
+    ambiguous_fact_ids = [key for key in keys if key not in judge_claims]
     test_dicts = [asdict(row) for row in tests]
     conclusions = compare_conclusions(test_dicts, _read_csv(judge_tests_path))
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -760,6 +762,7 @@ def score_packet(
         json.dumps(agreement, indent=2, ensure_ascii=False) + "\n",
     )
     atomic_write(out_dir / "environment.txt", environment_text())
+    write_dialogue_keys(out_dir / "ambiguous_fact_ids.csv", ambiguous_fact_ids)
     after = {
         name: file_sha256(frozen_dir / name)
         for name in (DIALOGUE_CSV, RESPONSE_CSV, CLAIMS_CSV)

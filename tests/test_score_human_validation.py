@@ -1,5 +1,6 @@
 """Lightweight checks for scripts/score_human_validation.py."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ from helpers import REPO_ROOT, load_script
 from sim.audit import file_sha256
 from sim.kb import load_kb
 from sim.metrics import judge_claim
+from sim.sensitivity import load_dialogue_keys
 
 scorer = load_script("scripts/score_human_validation.py")
 
@@ -233,3 +235,12 @@ def test_frozen_census_matches_committed_sheets() -> None:
     scorer.validate_frozen_sheets(
         frozen, kb=load_kb(), n_dialogues=348, n_responses=1306
     )
+
+
+def test_committed_ambiguous_list_matches_agreement_count() -> None:
+    human_primary = REPO_ROOT / "results" / "human_primary"
+    keys = load_dialogue_keys(human_primary / "ambiguous_fact_ids.csv")
+    agreement = json.loads((human_primary / "agreement.json").read_text("utf-8"))
+
+    omitted = agreement["fact_ids_stated"]["n_omitted_ambiguous_judge_calls"]
+    assert len(set(keys)) == len(keys) == omitted

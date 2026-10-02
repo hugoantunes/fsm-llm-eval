@@ -546,9 +546,10 @@ Experiment freeze, one annotator labelled the same 348 scored
 then unblind). That sidecar does not retune the judge and does not edit T-16
 sheets. The judge stays the pre-declared confirmatory instrument; the census re-ran the
 same Holm family and was chosen as the narrative reference for the thesis conclusion after
-unblind, a choice declared as such. Holm family, human vs judge agreement, and the 107 omitted fact-ID
-reconstructions: [`docs/metrics.md`](metrics.md) (Human census of
+unblind, a choice declared as such. Holm family, human vs judge agreement, the 107 omitted fact-ID
+reconstructions and their post-hoc sensitivity: [`docs/metrics.md`](metrics.md) (Human census of
 semantic-primary),
 [`docs/decisions_and_limitations.md`](decisions_and_limitations.md),
-[`results/human_primary/`](../results/human_primary/README.md).
+[`results/human_primary/`](../results/human_primary/README.md),
+[`results/sensitivity/ambiguous_fact_ids/`](../results/sensitivity/ambiguous_fact_ids/README.md).
 

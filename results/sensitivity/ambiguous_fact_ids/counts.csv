@@ -1,0 +1,9 @@
+stratum,agent,n_dialogues,n_ambiguous
+overall,baseline,173,49
+overall,fsm,175,58
+happy_path,baseline,59,24
+happy_path,fsm,60,24
+edge,baseline,60,17
+edge,fsm,58,17
+adversarial,baseline,54,8
+adversarial,fsm,57,17

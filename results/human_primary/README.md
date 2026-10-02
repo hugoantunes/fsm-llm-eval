@@ -29,6 +29,7 @@ that reproduce the row but disagree on predicted IDs are omitted, not guessed.
 | `paired.csv` | scenario-level FSM − baseline |
 | `descriptive.csv` / `tests.csv` | T-19 tables, population `human_primary` |
 | `agreement.json` | human vs judge |
+| `ambiguous_fact_ids.csv` | the dialogues omitted from `fact_ids_stated` (`scenario_id`, `agent`, `repetition`), input of `just sensitivity-ambiguous` |
 | `conclusions.csv` | primary-family direction and Holm significance, judge vs human |
 | `environment.txt` | Python and analysis-package versions |
 | `tables/` `figures/` | Portuguese plates, including the paired-difference forest (`just figures results/human_primary`) |

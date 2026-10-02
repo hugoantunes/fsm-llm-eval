@@ -19,6 +19,7 @@ from sim.analysis import (
     permutation_p,
     rank_biserial,
     rows_for_population,
+    rows_without_dialogues,
     wilcoxon_p,
     wins_ties_losses,
 )
@@ -479,6 +480,32 @@ def test_drop5_instrument_sensitivity_excludes_the_five_named_scenarios() -> Non
 
     assert [pair.scenario_id for pair in pairs] == ["happy_path_01"]
     assert "adversarial_01" in INSTRUMENT_DROP_SCENARIOS
+
+
+def test_drop_ambiguous_fact_ids_drops_named_dialogues_not_their_scenario() -> None:
+    rows = [
+        _row("edge_01", "baseline", "1", fact_f1=0.2),
+        _row("edge_01", "baseline", "2", fact_f1=0.4),
+        _row("edge_01", "fsm", "1", fact_f1=1.0),
+        _row("happy_path_01", "baseline", "1", fact_f1=0.5),
+        _row("happy_path_01", "fsm", "1", fact_f1=0.6),
+    ]
+
+    kept = rows_without_dialogues(
+        rows, {("edge_01", "baseline", 2), ("happy_path_01", "fsm", 1)}
+    )
+    pairs = pair_scenarios(aggregate_to_scenarios(kept, metric="fact_f1"))
+
+    assert len(kept) == 3
+    assert [pair.scenario_id for pair in pairs] == ["edge_01"]
+    assert pairs[0].baseline == pytest.approx(0.2)
+
+
+def test_drop_ambiguous_fact_ids_rejects_a_key_missing_from_the_rows() -> None:
+    rows = [_row("edge_01", "baseline", 1, fact_f1=0.2)]
+
+    with pytest.raises(ValueError, match="edge_02"):
+        rows_without_dialogues(rows, {("edge_02", "baseline", 1)})
 
 
 def test_frozen_gate_is_a_second_population_not_the_confirmatory_one() -> None:

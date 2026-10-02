@@ -149,6 +149,10 @@ repository; it is not part of the delivery folder.
 judge plates and 4–5 compare human and judge (figure 5 is the paired-difference
 forest). It does not edit `frozen/` human sheets.
 
+`just sensitivity-ambiguous` reruns the three primary tests, judge and human, without
+the 107 dialogues of `results/human_primary/ambiguous_fact_ids.csv`, into
+`results/sensitivity/ambiguous_fact_ids/` (T-25, post hoc, exploratory).
+
 ## Delivery
 
 A distribution copy, not another source of truth. Default destination:
@@ -201,6 +205,7 @@ just figures results/human_primary  # human census plates + human vs judge
 just cases              # T-21: category_directions.csv and case_candidates.csv
 just appendices         # T-22: paste-ready appendices A–D
 just decompose          # post hoc: split the frozen fact_f1 effect
+just sensitivity-ambiguous  # T-25: primary tests without the 107 ambiguous fact-ID dialogues
 just deliver            # T-24: copy the delivery snapshot
 just install-analysis   # pandas, scipy, matplotlib, jupyter
 ```
@@ -220,7 +225,7 @@ project context in [ai-assistance/PREAMBLE.md](ai-assistance/PREAMBLE.md).
 | `data/scenarios/` | `examples/`, `plan.yaml`, frozen `v1/` (do not edit `v1/`) |
 | `configs/` | `models.yaml`: models, digests, `num_ctx`, fixed parameters |
 | `runs/` | output of `sim run` / `sim eval`. Contents git-ignored |
-| `results/` | exported analysis; `results/exp_final/` is the T-17 scored copy; `results/human_primary/` is the later human census |
+| `results/` | exported analysis; `results/exp_final/` is the T-17 scored copy; `results/human_primary/` is the later human census; `results/sensitivity/` holds post-hoc sensitivity tests |
 | `notebooks/` | `analysis.ipynb` regenerates tables and figures from frozen T-19 CSVs |
 | `docs/` | [`docs/README.md`](docs/README.md) (the guide, read first), then the design, pilot, execution and analysis docs it links; `appendices/` A–D (generated) |
 | `ai-assistance/` | instructions for AI assistants and hook scripts |

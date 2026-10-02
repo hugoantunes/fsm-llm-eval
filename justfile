@@ -122,6 +122,10 @@ human-validation-packet run_dir="runs/exp_final" metrics="results/exp_final/metr
 score-human-validation packet="results/human_validation/exp_final" out="results/human_primary" *args:
     uv run --group analysis python scripts/score_human_validation.py --packet {{packet}} --out {{out}} {{args}}
 
+# T-25 post-hoc: primary tests without the ambiguous-fact-ID dialogues (judge and human)
+sensitivity-ambiguous judge="results/exp_final/metrics.csv" human="results/human_primary/metrics.csv" dialogues="results/human_primary/ambiguous_fact_ids.csv" out="results/sensitivity/ambiguous_fact_ids" *args:
+    uv run --group analysis python scripts/sensitivity_ambiguous_fact_ids.py --judge-metrics {{judge}} --human-metrics {{human}} --dialogues {{dialogues}} --out {{out}} {{args}}
+
 # Materialize an explicit human selection of contract false positives
 freeze-contract-false-positives run_dir *ids:
     uv run python scripts/freeze_contract_false_positives.py {{run_dir}} {{ids}}
